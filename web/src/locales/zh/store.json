@@ -40,7 +40,8 @@
     "code": "代码执行",
     "browser": "浏览器",
     "ai": "AI · LLM",
-    "base": "基础镜像"
+    "base": "基础镜像",
+    "web": "Web 服务"
   },
   "items": {
     "sandbox-code": {
@@ -62,6 +63,10 @@
     "cubesandbox-base": {
       "name": "基础镜像",
       "description": "最小化基础镜像，仅含 envd，适合自定义构建。"
+    },
+    "sandbox-nginx": {
+      "name": "Nginx Web 沙箱",
+      "description": "基础镜像 + Nginx，对外暴露 80 端口。"
     }
   },
   "tagLabels": {
@@ -76,6 +81,8 @@
     "aio": "All-in-One",
     "deepseek": "DeepSeek",
     "base": "基础",
-    "envd": "envd"
+    "envd": "envd",
+    "nginx": "Nginx",
+    "web": "Web"
   }
 }
