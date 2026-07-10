@@ -7,18 +7,24 @@
 #
 # It exercises the full lifecycle:
 #   1. Volume.create / list / get
-#   2. Sandbox.create(volume_mounts=[...])  — mount the volume
-#   3. write a file into the mount, read it back (persistence smoke test)
-#   4. kill the sandbox, Volume.delete
+#   2. Sandbox A: create(volume_mounts=[...]) + write a probe file
+#   3. kill A, then Sandbox B: remount the SAME volume + read the file back
+#      -> real cross-sandbox persistence check (proves the bytes hit the
+#         backing store, e.g. cos, instead of A's local overlay)
+#   4. cleanup: kill sandboxes, Volume.delete
 #
 # Unlike test_volume.py (pure unit tests, fully mocked), this script talks to a
-# real deployment and needs env vars set:
+# real deployment and needs env vars set.
 #
-#   export CUBE_API_URL=http://<cubeapi-host>:3000
+# RECOMMENDED: run it ON the CubeProxy host itself (e.g. 9.135.78.206) so the
+# data-plane request (*.cube.app -> CUBE_PROXY_NODE_IP:80) stays on loopback and
+# bypasses the corporate security gateway that 403s remote :80 traffic:
+#
+#   export CUBE_API_URL=http://127.0.0.1:3000
 #   export CUBE_TEMPLATE_ID=<template-id>
-#   export CUBE_PROXY_NODE_IP=<cubeproxy-node-ip>   # required for remote data-plane
-#   export CUBE_VOLUME_DRIVER=cos                   # optional; omit to use default plugin
-#   export CUBE_VOLUME_MOUNT_PATH=/workspace        # optional; where to mount inside sandbox
+#   export CUBE_PROXY_NODE_IP=127.0.0.1             # loopback -> no gateway
+#   export CUBE_VOLUME_DRIVER=cos                   # omit to use the default plugin
+#   export CUBE_VOLUME_MOUNT_PATH=/workspace        # where to mount inside sandbox
 #
 # Usage: python3 integration_test_volume.py
 
@@ -51,7 +57,7 @@ def assert_true(label, ok, detail=""):
     global PASS, FAIL
     if ok:
         PASS += 1
-        green(label)
+        green(label)ß
     else:
         FAIL += 1
         red("%s (%s)" % (label, detail))
@@ -82,11 +88,17 @@ def main():
     print()
 
     volume_id = None
-    sb = None
+    sb_a = None
+    sb_b = None
     try:
-        # 1. Create volume
+        # 1. Create volume. With a driver -> pins the plugin (e.g. cos);
+        # without one -> e2b-compatible path (backend picks the first
+        # configured plugin). Both go through the single Volume.create().
         print("[Test 1] Volume.create")
-        vol = Volume.create(vol_name, driver=driver)
+        if driver:
+            vol = Volume.create(vol_name, driver=driver)
+        else:
+            vol = Volume.create(vol_name)
         volume_id = vol.volume_id
         assert_true("create returns a volume_id", bool(vol.volume_id), "empty volume_id")
         assert_eq("create echoes name", vol_name, vol.name)
@@ -105,34 +117,50 @@ def main():
         assert_eq("get returns same volume_id", volume_id, got.volume_id)
         print()
 
-        # 4. Create sandbox with the volume mounted
-        print("[Test 4] Sandbox.create(volume_mounts=...)")
-        sb = Sandbox.create(
+        # 4. Create sandbox A with the volume mounted, then write a probe file.
+        print("[Test 4] Sandbox A: create(volume_mounts=...) + write")
+        target = "%s/e2e_probe.txt" % mount_path.rstrip("/")
+        payload = "cube-volume-e2e-%s" % uuid.uuid4().hex[:8]
+        sb_a = Sandbox.create(
             template=template_id,
             volume_mounts=[VolumeMount(name=volume_id, path=mount_path)],
         )
-        assert_true("sandbox created", bool(sb.sandbox_id), "no sandbox id")
-        print("  sandbox_id=%s" % sb.sandbox_id)
+        assert_true("sandbox A created", bool(sb_a.sandbox_id), "no sandbox id")
+        print("  sandbox_a=%s" % sb_a.sandbox_id)
+        sb_a.files.write(target, payload)
+        # Same-sandbox read first: basic data-plane smoke test.
+        same = sb_a.files.read(target)
+        assert_eq("A: file round-trips within the same sandbox", payload, same)
         print()
 
-        # 5. Write + read back inside the mount (persistence smoke test)
-        print("[Test 5] write/read inside the volume mount")
-        target = "%s/e2e_probe.txt" % mount_path.rstrip("/")
-        payload = "cube-volume-e2e-%s" % uuid.uuid4().hex[:8]
-        sb.files.write(target, payload)
-        content = sb.files.read(target)
-        assert_eq("file round-trips through the volume mount", payload, content)
+        # 5. Kill A, then mount the SAME volume into a fresh sandbox B and read
+        #    the file back. This is the real cross-sandbox persistence check:
+        #    the bytes must have landed in the backing store (e.g. cos), not in
+        #    sandbox A's local overlay.
+        print("[Test 5] Sandbox B: remount same volume + read (cross-sandbox persistence)")
+        sb_a.kill()
+        sb_a = None
+        green("sandbox A killed (detach volume before remount)")
+        sb_b = Sandbox.create(
+            template=template_id,
+            volume_mounts=[VolumeMount(name=volume_id, path=mount_path)],
+        )
+        assert_true("sandbox B created", bool(sb_b.sandbox_id), "no sandbox id")
+        print("  sandbox_b=%s" % sb_b.sandbox_id)
+        content = sb_b.files.read(target)
+        assert_eq("B: file persisted across sandboxes via the volume", payload, content)
         print()
 
     finally:
-        # Cleanup: kill sandbox first (so the volume can be detached), then
-        # delete the volume. Deleting a volume does NOT auto-detach it.
-        if sb is not None:
-            try:
-                sb.kill()
-                green("cleanup: sandbox killed")
-            except Exception as exc:  # noqa: BLE001
-                red("cleanup: sandbox kill failed (%s)" % exc)
+        # Cleanup: kill any live sandbox first (so the volume can be detached),
+        # then delete the volume. Deleting a volume does NOT auto-detach it.
+        for label, s in (("A", sb_a), ("B", sb_b)):
+            if s is not None:
+                try:
+                    s.kill()
+                    green("cleanup: sandbox %s killed" % label)
+                except Exception as exc:  # noqa: BLE001
+                    red("cleanup: sandbox %s kill failed (%s)" % (label, exc))
         if volume_id is not None:
             try:
                 Volume.delete(volume_id)

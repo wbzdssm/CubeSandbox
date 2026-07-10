@@ -81,10 +81,34 @@ class TestVolumeCreate:
         assert body["name"] == "my-data"
         assert "driver" not in body
 
-    def test_create_sends_driver(self):
+    def test_create_driver_arg_sends_driver(self):
         with patch("requests.Session.post", return_value=mock_response(VOLUME_AND_TOKEN, status=201)) as m:
             Volume.create("my-data", driver="cos", config=make_config())
         body = m.call_args.kwargs["json"]
+        assert body["driver"] == "cos"
+
+    def test_create_with_empty_driver_omits_field(self):
+        # An empty (falsy) driver is treated as "unspecified": no driver is
+        # sent, so the backend falls back to its first configured plugin.
+        with patch("requests.Session.post", return_value=mock_response(VOLUME_AND_TOKEN, status=201)) as m:
+            Volume.create("my-data", driver="", config=make_config())
+        body = m.call_args.kwargs["json"]
+        assert "driver" not in body
+
+    def test_create_with_none_driver_omits_field(self):
+        # Explicit driver=None behaves the same as omitting it entirely.
+        with patch("requests.Session.post", return_value=mock_response(VOLUME_AND_TOKEN, status=201)) as m:
+            Volume.create("my-data", driver=None, config=make_config())
+        body = m.call_args.kwargs["json"]
+        assert "driver" not in body
+
+    def test_create_driver_without_name_sends_both(self):
+        # Pinning a driver while letting the server generate the name: the body
+        # carries an empty name plus the driver.
+        with patch("requests.Session.post", return_value=mock_response(VOLUME_AND_TOKEN, status=201)) as m:
+            Volume.create(driver="cos", config=make_config())
+        body = m.call_args.kwargs["json"]
+        assert body["name"] == ""
         assert body["driver"] == "cos"
 
     def test_create_without_name_sends_empty_string(self):

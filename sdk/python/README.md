@@ -235,9 +235,11 @@ across sandbox restarts and can be shared between sandboxes.
 ```python
 from cubesandbox import Sandbox, Volume, VolumeMount
 
-# Create a volume — name is optional (server generates a UUID when omitted);
-# driver selects the plugin (omit to use CubeMaster's first configured plugin).
-vol = Volume.create("my-data", driver="cos")
+# Create a volume — name is optional (server generates a UUID when omitted).
+# Omitting driver is e2b-compatible: NO driver is sent, so the backend uses its
+# first configured plugin. Pass a non-empty driver to pin a specific plugin.
+vol = Volume.create("my-data")                   # default plugin
+# vol = Volume.create("my-data", driver="cos")   # pin a plugin
 print(vol.volume_id, vol.token)
 
 # Mount it into a sandbox at a path
@@ -257,7 +259,8 @@ Volume.delete(vol.volume_id)   # kill any mounting sandbox first — delete does
 ```
 
 Volume `name` must match `^[a-zA-Z0-9_-]+$` and be at most 128 characters;
-invalid names raise `ValueError` before any network call.
+invalid names raise `ValueError` before any network call. See
+[`docs/volume.md`](docs/volume.md) for the full API, parameters and error codes.
 
 ### List & health check
 
@@ -335,13 +338,14 @@ with Sandbox.create(config=cfg) as sb:
 
 | Method | Description |
 |---|---|
-| `Volume.create(name=None, *, driver=None, config)` | `POST /volumes` — create a volume → `VolumeInfo` |
+| `Volume.create(name=None, *, driver=None, config=None)` | `POST /volumes` — create a volume; omit `driver` for e2b-compatible behavior (backend's first plugin), or pass a non-empty `driver` (e.g. `"cos"`) to pin a plugin → `VolumeInfo` |
 | `Volume.list(config)` | `GET /volumes` — list volumes → `list[VolumeInfo]` (no token) |
 | `Volume.get(volume_id, *, config)` | `GET /volumes/:id` — get one volume (with token) |
 | `Volume.delete(volume_id, *, config)` | `DELETE /volumes/:id` — delete a volume |
 
 Mount a volume into a sandbox with `Sandbox.create(volume_mounts=[VolumeMount(name, path)])`.
-`VolumeInfo` exposes `.volume_id`, `.name`, `.token`.
+`VolumeInfo` exposes `.volume_id`, `.name`, `.token`. Full reference:
+[`docs/volume.md`](docs/volume.md).
 
 ### `Execution` object
 

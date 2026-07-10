@@ -34,6 +34,23 @@ def _check_response(resp: requests.Response) -> None:
     raise ApiError(msg, code)
 
 
+def _auth_headers(cfg: Config) -> dict[str, str]:
+    """Return the ``X-API-Key`` header when an API key is configured.
+
+    CubeAPI only enforces auth when it is started with an auth-callback URL;
+    in the default deployment no callback is set and every request passes
+    through unauthenticated. So the key is optional here: when
+    ``CUBE_API_KEY`` / ``Config.api_key`` is unset we send no auth header and
+    behavior is unchanged; when set we attach ``X-API-Key: <key>`` so the SDK
+    also works against an auth-enabled backend. (The server treats a
+    ``Authorization: Bearer`` header as higher priority, but the e2b-style key
+    is surfaced as ``X-API-Key`` here.)
+    """
+    if cfg.api_key:
+        return {"X-API-Key": cfg.api_key}
+    return {}
+
+
 def _validate_name(name: str) -> None:
     """Raise ValueError if a non-empty ``name`` violates CubeAPI's constraints.
 
@@ -158,13 +175,22 @@ class Volume:
     ) -> VolumeInfo:
         """POST /volumes — Create a new persistent volume.
 
+        e2b-compatible by default: when ``driver`` is omitted (``None`` or an
+        empty string), **no driver is sent**, so CubeMaster falls back to the
+        *first configured* volume plugin. Pass a non-empty ``driver`` to pin a
+        specific plugin (a CubeSandbox extension), e.g.::
+
+            Volume.create("my-data")                 # backend's first plugin
+            Volume.create("my-data", driver="cos")   # pin the "cos" plugin
+
         Args:
             name: Optional display name. Must match ``^[a-zA-Z0-9_-]+$`` and be
                 at most 128 characters. When omitted, CubeMaster generates a
                 UUID and uses it as both the name and the volume ID.
             driver: Optional plugin/driver name (matches ``volume_plugins[].name``
-                in CubeMaster config, e.g. ``"cos"``). When omitted, CubeMaster
-                uses the first configured plugin.
+                in CubeMaster config, e.g. ``"cos"`` or ``"nfs"``). When falsy
+                (``None`` / ``""``) the field is not sent and the backend picks
+                its first configured plugin.
             config: SDK config. Uses default (env-based) config if omitted.
 
         Returns:
@@ -177,13 +203,13 @@ class Volume:
         _validate_name(name or "")
         cfg = config or Config()
         payload: dict = {"name": name or ""}
-        if driver is not None:
+        if driver:
             payload["driver"] = driver
         s = requests.Session()
         resp = s.post(
             f"{cfg.api_url}/volumes",
             json=payload,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", **_auth_headers(cfg)},
         )
         _check_response(resp)
         return VolumeInfo.from_dict(resp.json())
@@ -206,7 +232,7 @@ class Volume:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.get(f"{cfg.api_url}/volumes")
+        resp = s.get(f"{cfg.api_url}/volumes", headers=_auth_headers(cfg))
         _check_response(resp)
         data = resp.json() or []
         if isinstance(data, dict):
@@ -230,7 +256,7 @@ class Volume:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.get(f"{cfg.api_url}/volumes/{volume_id}")
+        resp = s.get(f"{cfg.api_url}/volumes/{volume_id}", headers=_auth_headers(cfg))
         _check_response(resp)
         return VolumeInfo.from_dict(resp.json())
 
@@ -253,5 +279,5 @@ class Volume:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.delete(f"{cfg.api_url}/volumes/{volume_id}")
+        resp = s.delete(f"{cfg.api_url}/volumes/{volume_id}", headers=_auth_headers(cfg))
         _check_response(resp)
