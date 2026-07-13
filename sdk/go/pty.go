@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -168,6 +167,7 @@ type PtyHandle struct {
 	output  chan []byte
 	done    chan struct{}
 	ctx     context.Context
+	cancel  context.CancelFunc
 	control *ptyStreamControl
 	body    io.ReadCloser
 	once    sync.Once
@@ -224,15 +224,17 @@ func (h *PtyHandle) Resize(ctx context.Context, size PtySize) error {
 // running inside the sandbox and can be reattached via Pty.Connect.
 func (h *PtyHandle) Disconnect() error {
 	h.control.disconnect()
-	h.closeBody()
-	return nil
+	return h.closeBody()
 }
 
 // closeBody closes the response body exactly once, whether the stream ended
 // naturally (readLoop) or was torn down early (Disconnect / openStream errors).
 // io.ReadCloser does not guarantee a tolerant double-close, so we gate it here.
-func (h *PtyHandle) closeBody() {
-	h.once.Do(func() { h.body.Close() })
+// The close error is returned; callers that do not care (readLoop) discard it.
+func (h *PtyHandle) closeBody() error {
+	var err error
+	h.once.Do(func() { err = h.body.Close() })
+	return err
 }
 
 // Wait blocks until the PTY exits and returns its exit code. onData, if
@@ -268,8 +270,9 @@ func (h *PtyHandle) Wait(onData func([]byte)) (int, error) {
 func (h *PtyHandle) readLoop() {
 	defer close(h.output)
 	defer close(h.done)
-	defer h.closeBody()
+	defer func() { _ = h.closeBody() }()
 	defer h.control.clearIdle()
+	defer h.cancel()
 
 	for {
 		ev, eos, err := readPtyEvent(h.body)
@@ -405,6 +408,7 @@ func (p *Pty) openStream(ctx context.Context, method string, payload any, user s
 		output:  make(chan []byte, 64),
 		done:    make(chan struct{}),
 		ctx:     streamCtx,
+		cancel:  cancel,
 		control: control,
 		body:    resp.Body,
 	}
@@ -613,15 +617,6 @@ func readPtyEvent(r io.Reader) (event *processEvent, eos bool, err error) {
 		return nil, false, fmt.Errorf("decode pty event: %w", err)
 	}
 	return response.Event, false, nil
-}
-
-func encodeConnectEnvelope(payload []byte) *bytes.Buffer {
-	var buf bytes.Buffer
-	var header [5]byte
-	binary.BigEndian.PutUint32(header[1:], uint32(len(payload)))
-	buf.Write(header[:])
-	buf.Write(payload)
-	return &buf
 }
 
 func isConnectNotFound(status int, body []byte) bool {
