@@ -22,6 +22,7 @@ from ._policy import (
 from ._pty import Pty
 from ._stream import _parse_line
 from ._transport import build_client
+from ._volume import VolumeMountsArg, _serialize_volume_mounts
 
 JUPYTER_PORT = 49999
 
@@ -152,6 +153,7 @@ class Sandbox:
         allow_internet_access: bool = True,
         network: Dict[str, Any] | None = None,
         lifecycle: Dict[str, Any] | None = None,
+        volume_mounts: VolumeMountsArg | None = None,
         config: Config | None = None,
         **kwargs: Any,
     ) -> "Sandbox":
@@ -189,6 +191,25 @@ class Sandbox:
 
                 Absent ``lifecycle`` keeps today's behaviour (idle sandboxes
                 are killed).
+            volume_mounts: Optional persistent volumes to mount into the
+                sandbox. Two shapes are accepted:
+
+                * **Mapping (e2b-compatible)** — a dict keyed by mount path,
+                  with a :class:`~cubesandbox.Volume` instance (or a plain
+                  ``volumeID`` string) as the value::
+
+                      Sandbox.create(volume_mounts={"/workspace": vol})
+                      Sandbox.create(volume_mounts={"/workspace": "vol-123"})
+
+                * **List (CubeSandbox native)** — a list of
+                  :class:`~cubesandbox.VolumeMount` (or ``{"name": <volumeID>,
+                  "path": <mount-path>}`` dicts)::
+
+                      Sandbox.create(volume_mounts=[vol.mount("/workspace")])
+
+                In both cases ``name`` must resolve to an existing ``volumeID``
+                created via :meth:`cubesandbox.Volume.create`. Serialized as the
+                e2b-shaped ``volumeMounts`` field.
             config: SDK config. Uses default (env-based) config if omitted.
 
         Returns:
@@ -242,6 +263,8 @@ class Sandbox:
         # camelCase keys. Absent => server-side default ("kill" on timeout).
         if lifecycle:
             payload["lifecycle"] = _serialize_lifecycle(lifecycle)
+        if volume_mounts:
+            payload["volumeMounts"] = _serialize_volume_mounts(volume_mounts)
         payload.update(kwargs)
 
         s = requests.Session()
