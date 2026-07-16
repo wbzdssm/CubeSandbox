@@ -167,7 +167,12 @@ class Commands:
 
 
 def _envd_rpc_base_url_and_headers(sandbox: "Sandbox") -> tuple[str, dict[str, str]]:
-    headers: dict[str, str] = {}
+    from ._config import _auth_headers
+
+    # The e2b-connect path uses its own httpcore pool (not sandbox._client),
+    # so it does not inherit the client's default headers. Attach the API key
+    # here so CubeAPI's auth middleware accepts the request. No-op when unset.
+    headers: dict[str, str] = dict(_auth_headers(sandbox._config))
     access_token = sandbox._data.get("envdAccessToken")
     if access_token:
         headers["X-Access-Token"] = access_token

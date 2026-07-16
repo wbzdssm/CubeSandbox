@@ -9,7 +9,7 @@ import httpx
 import requests
 
 from ._commands import CommandResult, Commands
-from ._config import Config
+from ._config import Config, _auth_headers
 from ._exceptions import ApiError, AuthenticationError, CubeSandboxError, SandboxNotFoundError, TemplateNotFoundError
 from ._filesystem import Filesystem
 from ._models import Execution, ExecutionError, OutputMessage, Result, SnapshotInfo
@@ -265,7 +265,7 @@ class Sandbox:
 
         s = requests.Session()
         resp = s.post(f"{cfg.api_url}/sandboxes", json=payload,
-                      headers={"Content-Type": "application/json"})
+                      headers={"Content-Type": "application/json", **_auth_headers(cfg)})
         _check_response(resp)
         return cls(resp.json(), config=cfg)
 
@@ -291,7 +291,7 @@ class Sandbox:
         # Connect omits timeout; see docs/guide/lifecycle.md.
         resp = s.post(f"{cfg.api_url}/sandboxes/{sandbox_id}/connect",
                       json={},
-                      headers={"Content-Type": "application/json"})
+                      headers={"Content-Type": "application/json", **_auth_headers(cfg)})
         _check_response(resp)
         return cls(resp.json(), config=cfg)
 
@@ -309,7 +309,7 @@ class Sandbox:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.get(f"{cfg.api_url}/sandboxes")
+        resp = s.get(f"{cfg.api_url}/sandboxes", headers=_auth_headers(cfg))
         _check_response(resp)
         return resp.json()
 
@@ -327,7 +327,7 @@ class Sandbox:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.get(f"{cfg.api_url}/v2/sandboxes")
+        resp = s.get(f"{cfg.api_url}/v2/sandboxes", headers=_auth_headers(cfg))
         _check_response(resp)
         return resp.json()
 
@@ -344,7 +344,7 @@ class Sandbox:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.get(f"{cfg.api_url}/health")
+        resp = s.get(f"{cfg.api_url}/health", headers=_auth_headers(cfg))
         _check_response(resp)
         return resp.json()
 
@@ -600,7 +600,7 @@ class Sandbox:
         if next_token is not None:
             params["nextToken"] = next_token
         s = requests.Session()
-        resp = s.get(f"{cfg.api_url}/snapshots", params=params)
+        resp = s.get(f"{cfg.api_url}/snapshots", params=params, headers=_auth_headers(cfg))
         _check_response(resp)
         items = [SnapshotInfo.from_dict(d) for d in (resp.json() or [])]
         nt = resp.headers.get("x-next-token") or None
@@ -624,7 +624,7 @@ class Sandbox:
         """
         cfg = config or Config()
         s = requests.Session()
-        resp = s.delete(f"{cfg.api_url}/templates/{snapshot_id}")
+        resp = s.delete(f"{cfg.api_url}/templates/{snapshot_id}", headers=_auth_headers(cfg))
         _check_response(resp)
 
     # 1.4 — create_from_snapshot is covered by Sandbox.create(template=snapshot_id).
@@ -795,7 +795,7 @@ class Sandbox:
 
     def _build_session(self) -> requests.Session:
         s = requests.Session()
-        s.headers.update({"Content-Type": "application/json"})
+        s.headers.update({"Content-Type": "application/json", **_auth_headers(self._config)})
         return s
 
     def _build_data_client(self) -> httpx.Client:
@@ -809,6 +809,16 @@ class Sandbox:
         CubeProxy rejects unauthenticated traffic with 403. Attaching the token
         as a default header on the httpx client covers run_code, the Connect
         fallback path, and filesystem read/write in one place.
+
+        Data-plane requests are also routed through CubeAPI's auth middleware,
+        which requires ``X-API-Key`` (or ``Authorization: Bearer``) whenever the
+        backend is started with an auth-callback URL. We therefore attach the
+        API key here as well so run_code / commands / filesystem / pty all
+        authenticate. When no key is configured ``_auth_headers`` returns ``{}``
+        and behavior is unchanged.
         """
+        headers = dict(_auth_headers(self._config))
         token = self.traffic_access_token
-        return {"e2b-traffic-access-token": token} if token else {}
+        if token:
+            headers["e2b-traffic-access-token"] = token
+        return headers

@@ -18,6 +18,7 @@ class Config:
     )
     api_key: str | None = field(
         default_factory=lambda: os.environ.get("CUBE_API_KEY")
+        or os.environ.get("E2B_API_KEY")
     )
     template_id: str | None = field(
         default_factory=lambda: os.environ.get("CUBE_TEMPLATE_ID")
@@ -72,3 +73,22 @@ class Config:
             f"sandbox_domain={self.sandbox_domain!r}, timeout={self.timeout!r}, "
             f"request_timeout={self.request_timeout!r})"
         )
+
+
+def _auth_headers(cfg: "Config") -> dict[str, str]:
+    """Return the ``X-API-Key`` header when an API key is configured.
+
+    CubeAPI only enforces auth when it is started with an auth-callback URL;
+    in the default deployment no callback is set and every request passes
+    through unauthenticated. So the key is optional here: when
+    ``CUBE_API_KEY`` / ``E2B_API_KEY`` / ``Config.api_key`` is unset we send no
+    auth header and behavior is unchanged; when set we attach
+    ``X-API-Key: <key>`` so the SDK also works against an auth-enabled backend.
+
+    This is the single source of truth shared by the control plane
+    (``sandbox``/``template`` REST calls to CubeAPI) and the data plane
+    (envd requests routed through CubeProxy).
+    """
+    if cfg.api_key:
+        return {"X-API-Key": cfg.api_key}
+    return {}
