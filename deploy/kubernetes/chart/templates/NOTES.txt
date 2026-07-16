@@ -1,0 +1,72 @@
+CubeSandbox chart installed.
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+{{- if .Values.controlPlane.enabled }}
+Control plane:
+  CubeMaster Service: {{ include "cube.masterName" . }}:{{ .Values.controlPlane.master.service.port }}
+  CubeAPI Service:    {{ include "cube.apiName" . }}:{{ .Values.controlPlane.api.service.port }}
+{{- if .Values.webui.enabled }}
+  WebUI Service:      {{ include "cube.webuiName" . }}:{{ .Values.webui.service.port }}
+{{- end }}
+{{- if eq (include "cube.cubemastercliEnabled" .) "true" }}
+  cubemastercli Deployment: {{ include "cube.cubemastercliName" . }}
+{{- end }}
+{{- else if .Values.externalControlPlane.enabled }}
+External control plane:
+  CubeMaster Endpoint: {{ .Values.externalControlPlane.masterEndpoint }}
+{{- if .Values.externalControlPlane.apiEndpoint }}
+  CubeAPI Endpoint:    {{ .Values.externalControlPlane.apiEndpoint }}
+{{- end }}
+{{- if eq (include "cube.cubemastercliEnabled" .) "true" }}
+  cubemastercli Deployment: {{ include "cube.cubemastercliName" . }}
+{{- end }}
+{{- end }}
+{{- if eq (include "cube.configureClusterDNS" .) "true" }}
+  Cluster DNS: *.{{ .Values.cubeProxy.domain }} -> {{ include "cube.proxyServiceFQDN" . }} (patched into kube-system/coredns)
+{{- end }}
+
+Cube Node DaemonSet (OpenKruise Advanced / InPlaceIfPossible):
+  {{ include "cube.nodeName" . }}
+{{- if .Values.cubeNode.dns.sandbox.followNodeDns }}
+  Sandbox guest DNS: follow node / cluster DNS
+{{- end }}
+{{- if eq (include "cube.proxyEnabled" .) "true" }}
+
+Cube Proxy Deployment:
+  {{ include "cube.proxyName" . }}
+  Service ({{ .Values.cubeProxy.service.type | default "ClusterIP" }}): {{ include "cube.proxyServiceFQDN" . }}:{{ .Values.cubeProxy.ports.http.containerPort }}/{{ .Values.cubeProxy.ports.https.containerPort }}
+{{- if .Values.cubeProxy.ingress.enabled }}
+  Ingress: {{ include "cube.proxyName" . }} (TLS passthrough → CubeProxy; point external DNS at the Ingress)
+{{- end }}
+{{- if eq (include "cube.lifecycleManagerEnabled" .) "true" }}
+  Lifecycle Manager: {{ include "cube.lifecycleManagerName" . }}:{{ .Values.lifecycleManager.service.port }}
+{{- end }}
+{{- end }}
+
+Useful commands:
+  kubectl get pods -n {{ .Release.Namespace }} -o wide
+  kubectl get ads -n {{ .Release.Namespace }} {{ include "cube.nodeName" . }}
+  kubectl get ds -n {{ .Release.Namespace }} {{ include "cube.nodeBootstrapName" . }}
+  kubectl get ds -n {{ .Release.Namespace }} {{ include "cube.nodeInstallerName" . }}
+{{- if eq (include "cube.proxyEnabled" .) "true" }}
+  kubectl get deploy -n {{ .Release.Namespace }} {{ include "cube.proxyName" . }}
+{{- end }}
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=cube-node-bootstrap -c pvm-host-bootstrap --tail=100
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=cube-node-bootstrap -c cube-node-init --tail=100
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=cube-node -c wait-node-prep --tail=100
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=cube-node -c cubelet --tail=100
+{{- if eq (include "cube.cubemastercliEnabled" .) "true" }}
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "cube.cubemastercliName" . }} -- cubemastercli --help
+  kubectl exec -n {{ .Release.Namespace }} deploy/{{ include "cube.cubemastercliName" . }} -- sh -lc 'cubemastercli --address "$CUBEMASTERCLI_ADDRESS" --port "$CUBEMASTERCLI_PORT" node list'
+{{- end }}
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }} --timeout 20m
+{{- if .Values.diagnostics.enabled }}
+  kubectl get configmap -n {{ .Release.Namespace }} {{ include "cube.fullname" . }}-diagnostics -o jsonpath='{.data.cube-diag-k8s\.sh}' > /tmp/cube-diag-k8s.sh
+  sh /tmp/cube-diag-k8s.sh {{ .Release.Namespace }} {{ .Release.Name }}
+{{- end }}
+
+WARNING: If bootstrap.pvmHostKernel.enabled=true, this release may install a host kernel and reboot selected compute nodes (via cube-node-bootstrap).
+Helm rollback does not roll back host kernel/GRUB changes.
+Bump images.waitNodePrep image-only for InPlace; changing wait env/mounts forces Big Pod recreate.
