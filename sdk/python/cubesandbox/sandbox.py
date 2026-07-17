@@ -817,7 +817,7 @@ class Sandbox:
         authenticate. When no key is configured ``_auth_headers`` returns ``{}``
         and behavior is unchanged.
         """
-        headers = dict(_auth_headers(self._config))
+        headers = _auth_headers(self._config)
         token = self.traffic_access_token
         if token:
             headers["e2b-traffic-access-token"] = token

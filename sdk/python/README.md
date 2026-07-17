@@ -280,7 +280,7 @@ print(Sandbox.list_v2())    # v2 API (supports filtering)
 | `CUBE_API_URL` | ✅ | `http://127.0.0.1:3000` | CubeAPI management plane address |
 | `CUBE_TEMPLATE_ID` | ✅ | — | Template ID for sandbox creation |
 | `CUBE_PROXY_NODE_IP` | remote | — | CubeProxy node IP, bypasses DNS for `*.cube.app` |
-| `CUBE_API_KEY` | | — | API key for auth-enabled deployments (also reads `E2B_API_KEY`) |
+| `CUBE_API_KEY` | | — | API key for auth-enabled deployments |
 | `CUBE_PROXY_PORT_HTTP` | | `80` | CubeProxy HTTP port |
 | `CUBE_SANDBOX_DOMAIN` | | `cube.app` | Sandbox domain suffix |
 
