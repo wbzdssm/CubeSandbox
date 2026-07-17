@@ -42,12 +42,22 @@ class EnvInfo:
     template_image: str = ""
     template_instance_type: str = ""
     template_status: str = ""
+    template_cpu: int = 0
+    template_memory_mb: int = 0
+    template_spec: str = ""
     timestamp: str = ""
     # Component versions
     cubeapi_version: str = ""
     cubeapi_commit: str = ""
     cubeapi_build_time: str = ""
     cubeapi_go_version: str = ""
+    cubemaster_version: str = ""
+    cubemaster_commit: str = ""
+    cubemaster_build_time: str = ""
+    cubelet_version: str = ""
+    cube_shim_version: str = ""
+    guest_image_version: str = ""
+    kernel_version_node: str = ""
     # SDK / Python details
     processor: str = ""
     platform_summary: str = ""
@@ -129,8 +139,10 @@ def collect_env_info(cfg: Config) -> EnvInfo:
         mem_kb = run_cmd(["sh", "-c", "grep MemTotal /proc/meminfo | awk '{print $2}'"])
         info.memory_total_gb = round(int(mem_kb) / (1024 * 1024), 1) if mem_kb.isdigit() else 0
 
-        # Memory type (DDR)
-        mem_type = run_cmd(["sh", "-c", "sudo dmidecode -t memory 2>/dev/null | grep -m1 'Type:' | awk '{print $2, $3}' || echo ''"])
+        # Memory type (DDR). Match the standalone "Type:" line only; the
+        # "Error Correction Type:" line also contains "Type:" and would win a
+        # loose grep, so anchor to the field name and skip the correction line.
+        mem_type = run_cmd(["sh", "-c", "sudo dmidecode -t memory 2>/dev/null | grep -E '^[[:space:]]*Type:' | grep -viE 'Unknown|Other' | head -1 | cut -d: -f2 | sed 's/^[[:space:]]*//' || echo ''"])
         info.memory_type = mem_type or "N/A"
 
         # Disk (root fs device model, size, fs type)
@@ -166,10 +178,20 @@ def collect_env_info(cfg: Config) -> EnvInfo:
         info.template_image = tmpl.image_info or "N/A"
         info.template_instance_type = tmpl.instance_type or "N/A"
         info.template_status = tmpl.status or "N/A"
+        # Template size / spec (CPU + memory). memory_mb is normalized to GiB
+        # for the human-readable spec string ("2 vCPU / 4 GiB").
+        info.template_cpu = int(tmpl.cpu_count or 0)
+        info.template_memory_mb = int(tmpl.memory_mb or 0)
+        if info.template_cpu or info.template_memory_mb:
+            mem_gib = round(info.template_memory_mb / 1024, 1) if info.template_memory_mb else 0
+            info.template_spec = f"{info.template_cpu} vCPU / {mem_gib} GiB"
+        else:
+            info.template_spec = info.template_instance_type or "N/A"
     except Exception:
         info.template_image = "N/A"
         info.template_instance_type = "N/A"
         info.template_status = "N/A"
+        info.template_spec = "N/A"
 
     # --- CubeAPI component versions (via /health) ---
     try:

@@ -44,7 +44,7 @@ try:
 except ImportError:
     Volume = None  # type: ignore[assignment]
 
-from .config import DENSITY_COUNT, PERF_ROUNDS
+from .config import CONCURRENCY_LEVELS, DENSITY_COUNT, PERF_ROUNDS
 from .env import get_free_mem_gb
 from .runner import PERF_RESULTS, PerfResult, PerfSample, measure_parallel, percentile, skip
 
@@ -55,7 +55,7 @@ def bench_template_create(cfg: Config) -> None:
     print(" [Perf] Template-Based Sandbox Creation")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS * concurrency
         sandboxes: list[Sandbox] = []
 
@@ -119,7 +119,7 @@ def bench_snapshot_create(cfg: Config) -> None:
     print(" [Perf] Snapshot Creation")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS
         snapshots: list[str] = []
 
@@ -166,7 +166,7 @@ def bench_snapshot_create_from(cfg: Config) -> None:
     try: sb.kill()
     except Exception: pass
 
-    for concurrency in [1, 10, 20]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS * concurrency
         sandboxes: list[Sandbox] = []
 
@@ -196,7 +196,7 @@ def bench_rollback(cfg: Config) -> None:
     print(" [Perf] Rollback")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS
         latencies = []
 
@@ -224,16 +224,23 @@ def bench_rollback(cfg: Config) -> None:
 
 
 def bench_clone(cfg: Config) -> None:
-    """Benchmark: Clone (sequential & concurrent fan-out)."""
+    """Benchmark: Clone (sequential & concurrent fan-out).
+
+    Fan-out is intentionally kept small (driven by CONCURRENCY_LEVELS, default
+    1/2/4) so a single node does not exhaust its resource quota (CubeMaster
+    error 130597 "no more resource"). Override via CUBE_PERF_CONCURRENCY,
+    e.g. "1,5,10".
+    """
     print(f"\n{'='*60}")
     print(" [Perf] Clone")
     print(f"{'='*60}")
 
-    for concurrency, n in [(1, 1), (10, 100), (20, 100)]:
-        if n > 20 and concurrency > 5:
-            rounds = 1
-        else:
-            rounds = min(PERF_ROUNDS, 3)
+    # (concurrency, n) pairs: a single-clone baseline plus one fan-out per
+    # configured concurrency level, with the fan-out count equal to the level.
+    workloads = [(1, 1)] + [(c, c) for c in CONCURRENCY_LEVELS if c > 1]
+
+    for concurrency, n in workloads:
+        rounds = min(PERF_ROUNDS, 3)
 
         for _ in range(rounds):
             sb = Sandbox.create(cfg.template_id, timeout=300, config=cfg)
@@ -263,7 +270,7 @@ def bench_pause_resume(cfg: Config) -> None:
     print(" [Perf] Pause & Resume")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS
         pause_latencies = []
         resume_latencies = []
@@ -316,7 +323,7 @@ def bench_volume_create(cfg: Config) -> None:
     print(" [Perf] Volume Create")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS * concurrency
         created: list[Volume] = []
         lock = threading.Lock()
@@ -353,7 +360,7 @@ def bench_volume_destroy(cfg: Config) -> None:
     print(" [Perf] Volume Destroy")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS * concurrency
         # Prepare a pool of volumes to destroy.
         vols = [Volume.create(f"perf-d-{uuid4().hex[:12]}", config=cfg) for _ in range(n)]
@@ -435,7 +442,7 @@ def bench_volume_mount_sandbox(cfg: Config) -> None:
     print(" [Perf] Sandbox Creation with Mounted Volume (E2E)")
     print(f"{'='*60}")
 
-    for concurrency in [1, 5, 10]:
+    for concurrency in CONCURRENCY_LEVELS:
         n = PERF_ROUNDS * concurrency
         vols = [Volume.create(f"perf-m-{uuid4().hex[:12]}", config=cfg) for _ in range(n)]
         vq: queue.Queue = queue.Queue()

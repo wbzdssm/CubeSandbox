@@ -117,9 +117,11 @@ Examples:
     )
     parser.add_argument(
         "--compare",
-        nargs=2,
-        metavar=("JSON_FILE1", "JSON_FILE2"),
-        help="generate HTML comparison report from two JSON data files",
+        nargs="+",
+        metavar="JSON_FILE",
+        help="generate HTML comparison report from two or more JSON data files "
+        "(files are grouped by environment fingerprint; same machine -> averaged, "
+        "different machines -> separate comparison lines)",
     )
     parser.add_argument(
         "--rounds",

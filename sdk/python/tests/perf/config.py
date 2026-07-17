@@ -13,8 +13,36 @@ from cubesandbox import Config
 # Tunables (env-driven)
 # ---------------------------------------------------------------------------
 
+
+def _parse_int_list(env_name: str, default: list[int]) -> list[int]:
+    """Parse a comma-separated int list from *env_name*, falling back to *default*."""
+    raw = os.environ.get(env_name)
+    if not raw:
+        return list(default)
+    try:
+        parsed = [int(x.strip()) for x in raw.split(",") if x.strip()]
+        return parsed or list(default)
+    except ValueError:
+        return list(default)
+
+
 PERF_ROUNDS = int(os.environ.get("CUBE_PERF_ROUNDS", "10"))
 DENSITY_COUNT = int(os.environ.get("CUBE_DENSITY_COUNT", "100"))
+
+# Concurrency levels swept by the create/snapshot/rollback/pause scenarios.
+# Kept intentionally small by default so a single node does not exhaust its
+# CPU/memory quota (CubeMaster error 130597 "no more resource"). Override via
+# CUBE_PERF_CONCURRENCY, e.g. "1,5,10".
+CONCURRENCY_LEVELS = _parse_int_list("CUBE_PERF_CONCURRENCY", [1, 2, 4])
+
+# Node-local cleanup of residual micro-VMs (mvm) between rounds. Perf runs leak
+# residual sandboxes that the SDK ``kill()`` does not always reap, eventually
+# exhausting node resources. We shell out to the node-local cubecli to force a
+# clean cold-start state before each measured round.
+#   CUBE_PERF_CLEANUP  - set to "0" to disable (default: enabled)
+#   CUBE_CLEANUP_CMD   - override the cleanup command
+CLEANUP_ENABLED = os.environ.get("CUBE_PERF_CLEANUP", "1") != "0"
+CLEANUP_CMD = os.environ.get("CUBE_CLEANUP_CMD", "echo y | cubecli unsafe destroyall -f")
 
 
 def resolve_config() -> Config:

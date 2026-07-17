@@ -98,6 +98,8 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
             "api_url": env.api_url, "template_id": env.template_id,
             "template_image": env.template_image, "template_instance_type": env.template_instance_type,
             "template_status": env.template_status, "timestamp": env.timestamp,
+            "template_cpu": env.template_cpu, "template_memory_mb": env.template_memory_mb,
+            "template_spec": env.template_spec,
             "cubeapi_version": env.cubeapi_version, "cubeapi_commit": env.cubeapi_commit,
             "cubeapi_build_time": env.cubeapi_build_time, "cubeapi_go_version": env.cubeapi_go_version,
             "processor": env.processor, "platform_summary": env.platform_summary,
