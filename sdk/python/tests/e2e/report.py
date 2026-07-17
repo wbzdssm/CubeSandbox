@@ -63,6 +63,8 @@ def _ensure_baselines() -> None:
 
 def _perf_result_to_dict(r: PerfResult) -> dict[str, Any]:
     extra = r.samples[0].extra if r.samples else {}
+    # Keep raw latencies for scatter chart
+    raw_latencies = [s.latency_ms for s in r.samples] if r.samples else []
     return {
         "scenario": r.scenario,
         "count": r.count,
@@ -71,9 +73,11 @@ def _perf_result_to_dict(r: PerfResult) -> dict[str, Any]:
         "min_ms": round(r.min, 2),
         "p50_ms": round(r.p50, 2),
         "p95_ms": round(r.p95, 2),
+        "p99_ms": round(r._percentile(99), 2),
         "max_ms": round(r.max, 2),
         "wall_ms": round(extra.get("wall_ms", 0), 2),
         "per_ms": round(extra.get("per_ms", 0), 2),
+        "raw_latencies": raw_latencies,
         "extra": {k: v for k, v in extra.items() if k not in ("wall_ms", "per_ms")},
     }
 
@@ -175,9 +179,9 @@ def _perf_table(perf: list[dict[str, Any]], scenario_prefix: str, lang: Lang) ->
 
     _ensure_baselines()
     if lang == "zh":
-        base = ["场景", "次数", "并发", "平均值", "最小值", "P50", "P95", "最大值", "总耗时", "单次均摊"]
+        base = ["场景", "次数", "并发", "平均值", "最小值", "P50", "P95", "P99", "最大值", "总耗时", "单次均摊"]
     else:
-        base = ["Scenario", "N", "Conc", "avg", "min", "p50", "p95", "max", "wall", "per"]
+        base = ["Scenario", "N", "Conc", "avg", "min", "p50", "p95", "p99", "max", "wall", "per"]
     all_cols = base + _cmp_cols_header(lang)
     header = "| " + " | ".join(all_cols) + " |"
     sep = "|" + "|".join([":---"] * len(all_cols)) + "|"
@@ -187,7 +191,7 @@ def _perf_table(perf: list[dict[str, Any]], scenario_prefix: str, lang: Lang) ->
         vals = [
             r["scenario"], str(r["count"]), str(r["concurrency"]),
             _fmt_ms(r["avg_ms"]), _fmt_ms(r["min_ms"]), _fmt_ms(r["p50_ms"]),
-            _fmt_ms(r["p95_ms"]), _fmt_ms(r["max_ms"]),
+            _fmt_ms(r["p95_ms"]), _fmt_ms(r.get("p99_ms", 0)), _fmt_ms(r["max_ms"]),
             _fmt_ms(r["wall_ms"]), _fmt_ms(r["per_ms"]),
         ]
         vals += _cmp_cols_for_row(r["scenario"], r.get("per_ms") or r.get("avg_ms") or 0)
@@ -203,7 +207,7 @@ def _template_table(perf: list[dict[str, Any]], lang: Lang) -> str:
 
     _ensure_baselines()
     if lang == "zh":
-        base = ["场景", "并发", "请求数", "平均值", "最小值", "P50", "P95", "最大值", "总耗时", "单次均摊", "吞吐量"]
+        base = ["场景", "并发", "请求数", "平均值", "最小值", "P50", "P95", "P99", "最大值", "总耗时", "单次均摊", "吞吐量"]
     else:
         base = ["Scenario", "Conc", "Requests", "avg", "min", "p50", "p95", "max", "wall", "per", "Throughput"]
     all_cols = base + _cmp_cols_header(lang)
@@ -218,7 +222,7 @@ def _template_table(perf: list[dict[str, Any]], lang: Lang) -> str:
         vals = [
             r["scenario"], str(r["concurrency"]), str(r["count"]),
             _fmt_ms(r["avg_ms"]), _fmt_ms(r["min_ms"]), _fmt_ms(r["p50_ms"]),
-            _fmt_ms(r["p95_ms"]), _fmt_ms(r["max_ms"]),
+            _fmt_ms(r["p95_ms"]), _fmt_ms(r.get("p99_ms", 0)), _fmt_ms(r["max_ms"]),
             _fmt_ms(wall), _fmt_ms(r["per_ms"]), throughput,
         ]
         vals += _cmp_cols_for_row(r["scenario"], r.get("per_ms") or r.get("avg_ms") or 0)

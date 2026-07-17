@@ -169,14 +169,24 @@ const SCENARIO_GROUPS = [
   const container = document.getElementById('scenarios');
 
   function collectLineData(prefix, xKey, xValues) {{
-    const currentData = [];
+    const currentAvgs = [];
+    const currentScatters = [];   // raw sample points for scatter
     const baselineSeries = {{}};
     BASELINE_KEYS.forEach(k => {{ baselineSeries[k] = []; }});
-    xValues.forEach(xv => {{
+
+    xValues.forEach((xv, xi) => {{
       const scenario = `${{prefix}}-${{xKey}}${{xv}}`;
       const row = PERF.find(r => r.scenario === scenario);
       const cv = row ? (row.per_ms || row.avg_ms || null) : null;
-      currentData.push(cv);
+      currentAvgs.push(cv);
+
+      // Collect raw samples for scatter
+      if (row && row.raw_latencies && row.raw_latencies.length > 0) {{
+        row.raw_latencies.forEach(lat => {{
+          currentScatters.push({{ x: xi, y: lat }});
+        }});
+      }}
+
       BASELINE_KEYS.forEach(key => {{
         const bl = ALL_BASELINES[key];
         if (!bl || !bl.perf) {{ baselineSeries[key].push(null); return; }}
@@ -184,26 +194,43 @@ const SCENARIO_GROUPS = [
         baselineSeries[key].push(bb ? (bb.per || bb.avg || bb.wall_avg || null) : null);
       }});
     }});
-    return {{ currentData, baselineSeries }};
+    return {{ currentAvgs, currentScatters, baselineSeries }};
   }}
 
-  function renderChart(blockId, title, xLabels, currentData, baselineSeries) {{
+  function renderChart(blockId, xLabels, currentAvgs, currentScatters, baselineSeries) {{
     const datasets = [];
-    if (currentData.some(v => v !== null)) {{
+
+    // Scatter: individual sample points (show variance)
+    if (currentScatters.length > 0) {{
       datasets.push({{
-        label: '当前运行', data: currentData,
-        borderColor: '#667eea', backgroundColor: '#667eea20',
-        borderWidth: 2.5, pointRadius: 4, tension: 0.2, spanGaps: false,
+        label: '当前运行（采样点）', data: currentScatters,
+        type: 'scatter',
+        backgroundColor: '#667eea40', borderColor: '#667eea',
+        pointRadius: 3, pointHoverRadius: 5,
       }});
     }}
+
+    // Avg line: current run
+    if (currentAvgs.some(v => v !== null)) {{
+      datasets.push({{
+        label: '当前运行（均值）', data: currentAvgs,
+        type: 'line',
+        borderColor: '#667eea', backgroundColor: '#667eea20',
+        borderWidth: 2.5, pointRadius: 5, pointStyle: 'rectRounded',
+        tension: 0.2, spanGaps: false, order: 0,
+      }});
+    }}
+
+    // Baseline dashed lines
     BASELINE_KEYS.forEach((key, i) => {{
       const data = baselineSeries[key];
       if (!data || data.every(v => v === null)) return;
       datasets.push({{
         label: key, data: data,
+        type: 'line',
         borderColor: BASELINE_COLORS[i % BASELINE_COLORS.length],
         borderWidth: 1.5, borderDash: [6, 3], pointRadius: 3,
-        tension: 0.2, spanGaps: true,
+        tension: 0.2, spanGaps: true, order: 1,
       }});
     }});
 
@@ -215,7 +242,7 @@ const SCENARIO_GROUPS = [
     wrap.appendChild(canvas);
 
     new Chart(canvas, {{
-      type: 'line',
+      type: 'scatter',
       data: {{ labels: xLabels, datasets: datasets }},
       options: {{
         responsive: true, maintainAspectRatio: false,
@@ -227,15 +254,15 @@ const SCENARIO_GROUPS = [
   }}
 
   SCENARIO_GROUPS.forEach(g => {{
-    const {{ currentData, baselineSeries }} = collectLineData(g.prefix, g.xKey, g.xValues);
+    const {{ currentAvgs, currentScatters, baselineSeries }} = collectLineData(g.prefix, g.xKey, g.xValues);
     const xLabels = g.xValues.map(v => g.xKey + '=' + v);
     const allRows = g.xValues.map(xv => {{
       const scenario = `${{g.prefix}}-${{g.xKey}}${{xv}}`;
       return PERF.find(r => r.scenario === scenario);
     }}).filter(Boolean);
 
-    // Build summary table
-    let tableHtml = '<table class="data-table"><thead><tr><th>场景</th><th>次数</th><th>并发</th><th>平均值</th><th>最小值</th><th>P50</th><th>P95</th><th>最大值</th><th>总耗时</th><th>单次均摊</th>';
+    // Build summary table with P50/P95/P99
+    let tableHtml = '<table class="data-table"><thead><tr><th>场景</th><th>次数</th><th>并发</th><th>平均值</th><th>最小值</th><th>P50</th><th>P95</th><th>P99</th><th>最大值</th><th>总耗时</th><th>单次均摊</th>';
     BASELINE_KEYS.forEach(k => {{ tableHtml += `<th>vs ${{k.split('(')[0].trim()}}</th>`; }});
     tableHtml += '</tr></thead><tbody>';
     allRows.forEach(r => {{
@@ -243,7 +270,7 @@ const SCENARIO_GROUPS = [
       tableHtml += `<tr>
         <td>${{r.scenario}}</td><td>${{r.count||'-'}}</td><td>${{r.concurrency||'-'}}</td>
         <td>${{fmtMs(r.avg_ms)}}</td><td>${{fmtMs(r.min_ms)}}</td><td>${{fmtMs(r.p50_ms)}}</td>
-        <td>${{fmtMs(r.p95_ms)}}</td><td>${{fmtMs(r.max_ms)}}</td>
+        <td>${{fmtMs(r.p95_ms)}}</td><td>${{fmtMs(r.p99_ms)}}</td><td>${{fmtMs(r.max_ms)}}</td>
         <td>${{fmtMs(r.wall_ms)}}</td><td>${{fmtMs(perMs)}}</td>`;
       BASELINE_KEYS.forEach(key => {{
         const bl = ALL_BASELINES[key];
@@ -259,7 +286,7 @@ const SCENARIO_GROUPS = [
     block.className = 'scenario-block';
     block.innerHTML = `<h3>${{g.title}}</h3>`;
     if (currentData.some(v => v !== null)) {{
-      block.appendChild(renderChart(g.id, g.title, xLabels, currentData, baselineSeries));
+      block.appendChild(renderChart(g.id, xLabels, currentAvgs, currentScatters, baselineSeries));
     }}
     block.innerHTML += tableHtml;
     container.appendChild(block);
