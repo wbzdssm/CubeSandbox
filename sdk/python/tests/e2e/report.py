@@ -78,6 +78,10 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
             "template_instance_type": env.template_instance_type,
             "template_status": env.template_status,
             "timestamp": env.timestamp,
+            "cubeapi_version": env.cubeapi_version,
+            "cubeapi_commit": env.cubeapi_commit,
+            "cubeapi_build_time": env.cubeapi_build_time,
+            "cubeapi_go_version": env.cubeapi_go_version,
         },
         "config": {
             "perf_rounds": PERF_ROUNDS,

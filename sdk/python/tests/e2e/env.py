@@ -43,6 +43,11 @@ class EnvInfo:
     template_instance_type: str = ""
     template_status: str = ""
     timestamp: str = ""
+    # Component versions
+    cubeapi_version: str = ""
+    cubeapi_commit: str = ""
+    cubeapi_build_time: str = ""
+    cubeapi_go_version: str = ""
 
 
 def run_cmd(cmd: list[str]) -> str:
@@ -139,5 +144,24 @@ def collect_env_info(cfg: Config) -> EnvInfo:
         info.template_image = "N/A"
         info.template_instance_type = "N/A"
         info.template_status = "N/A"
+
+    # --- CubeAPI component versions (via /health) ---
+    try:
+        import httpx
+
+        headers = {}
+        api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
+        if api_key:
+            headers["X-API-Key"] = api_key
+        resp = httpx.get(f"{cfg.api_url}/health", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                info.cubeapi_version = str(data.get("version", ""))
+                info.cubeapi_commit = str(data.get("commit", ""))
+                info.cubeapi_build_time = str(data.get("build_time", ""))
+                info.cubeapi_go_version = str(data.get("go_version", ""))
+    except Exception:
+        pass
 
     return info

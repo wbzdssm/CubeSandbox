@@ -10,8 +10,10 @@ be run and maintained independently from the functional integration tests.
 
 | Module | Responsibility |
 |---|---|
-| `benchmarks.py` | 11 benchmark scenarios + `run_all()` |
-| `__main__.py` | CLI entry point (`python3 -m perf`) |
+| `benchmarks.py` | 11 benchmark scenarios + `run_all()` + component version collection |
+| `__main__.py` | CLI entry point (`python3 -m perf`) with HTML generation support |
+| `report_html.py` | Self-contained interactive HTML report with baseline comparison |
+| `baseline.py` | Official CubeSandbox performance baseline data (from blog) |
 | `__init__.py` | sys.path bootstrap (locates `sdk/python` and the sibling `e2e` package) |
 
 This package reuses the shared infrastructure from the sibling
@@ -20,7 +22,7 @@ This package reuses the shared infrastructure from the sibling
 | Reused from `e2e` | Purpose |
 |---|---|
 | `e2e.config` | `resolve_config()`, `PERF_ROUNDS`, `DENSITY_COUNT` |
-| `e2e.env` | `collect_env_info()`, `get_free_mem_gb()` |
+| `e2e.env` | `collect_env_info()`, `get_free_mem_gb()` (now includes CubeAPI version) |
 | `e2e.runner` | `PERF_RESULTS`, `PerfResult`, `PerfSample`, `measure_parallel`, `percentile`, `skip` |
 | `e2e.report` | Markdown + JSON report generation |
 
@@ -48,11 +50,44 @@ Run from the `tests/` directory:
 CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
 ```
 
-This runs **only** the performance benchmarks (no functional tests). To
-run the full-chain suite (functional + perf) instead, use
-[`tests/e2e/`](../e2e/README.md) (`python3 -m e2e` or
-`python3 integration_test_full.py`), which imports this package internally
-unless `CUBE_SKIP_PERF=1` is set.
+### CLI Options
+
+| Option | Description |
+|---|---|
+| `--html` | Generate an interactive HTML report after running benchmarks |
+| `--rounds N` | Override `CUBE_PERF_ROUNDS` (default: 10) |
+| `--output PATH` | HTML output path (default: `perf_report.html`) |
+| `--title TITLE` | Custom HTML report title |
+| `--html-only JSON...` | Generate HTML from existing JSON data files (skip benchmarks) |
+| `--compare JSON1 JSON2` | Generate HTML comparison of two runs |
+
+### HTML Report
+
+The HTML report is a **self-contained, zero-dependency** page that provides:
+
+- **Environment overview**: host, CPU, memory, disk, OS, SDK version, CubeAPI version
+- **Baseline comparison**: side-by-side with [official CubeSandbox perf data](https://cubesandbox.com/zh/blog/posts/2026-06-01-cubesandbox-perf-benchmark.html)
+- **Per-scenario tables**: avg / min / p50 / p95 / max / wall / per-operation
+- **Bar charts**: visual latency comparison (current vs baseline)
+- **Multi-run merge**: pass multiple JSON files to compare runs from different machines
+
+### Multi-machine workflow
+
+1. On each DevCloud machine, run:
+   ```bash
+   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
+   ```
+   This produces `report_YYYYMMDDTHHMMSSZ.json`.
+
+2. Collect all JSON files and generate a merged HTML report:
+   ```bash
+   python3 -m perf --html-only machine1.json machine2.json machine3.json --output merged_report.html
+   ```
+
+3. To check for performance regressions, compare two runs:
+   ```bash
+   python3 -m perf --compare before.json after.json --output diff_report.html
+   ```
 
 ### Optional environment variables
 
@@ -62,19 +97,18 @@ unless `CUBE_SKIP_PERF=1` is set.
 | `CUBE_SKIP_DENSITY` | set to `1` to skip the deployment density benchmark |
 | `CUBE_PERF_ROUNDS` | rounds per perf scenario (default: `10`) |
 | `CUBE_DENSITY_COUNT` | max sandbox count for density test (default: `100`) |
-| `CUBE_OUTPUT_REPORT` | base path for output reports (default: `report.md`) |
-| `CUBE_RUN_VOLUME` | set to `1` to enable the four Volume scenarios (skipped by default — the backend `/volumes` endpoint is part of the SDK/docs-first roadmap) |
+| `CUBE_OUTPUT_REPORT` | base path for output reports (default: `report`) |
+| `CUBE_HTML_OUTPUT` | HTML report output path (default: `perf_report.html`) |
+| `CUBE_RUN_VOLUME` | set to `1` to enable Volume scenarios (skipped by default) |
 
 ### Reports
 
-Each run produces four report files next to the `CUBE_OUTPUT_REPORT` base
-path (same format as `tests/e2e/`, since `report.py` is shared):
+Each run produces:
 
+- `report_YYYYMMDDTHHMMSSZ.json` — JSON data (for HTML report & multi-machine merge)
 - `report.md` / `report.zh.md` — Markdown, English / Chinese
-- `report.json` / `report.zh.json` — JSON, English / Chinese
-
-Since only benchmarks run (no functional tests), the "Functional Test
-Results" section of the report will show 0/0/0.
+- `report.json` / `report.zh.json` — JSON summary, English / Chinese
+- `perf_report.html` — Interactive HTML report (with `--html` flag)
 
 ### Programmatic usage
 
@@ -86,11 +120,12 @@ from e2e.config import resolve_config
 from e2e.env import collect_env_info
 from e2e import report
 from perf import benchmarks
+from perf.report_html import generate_html
 
 cfg = resolve_config()
 env = collect_env_info(cfg)
 benchmarks.run_all(cfg)
 
 data = report.build_report_data(env)
-md_en = report.render_markdown(data, "en")
+generate_html(["report.json"], output_path="my_report.html")
 ```

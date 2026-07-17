@@ -21,11 +21,16 @@ be deployed yet. Set ``CUBE_RUN_VOLUME=1`` to enable them.
 Shares its config/env/runner/report infrastructure with the `e2e` package
 (`tests/e2e/`) — the two are independent CLI entry points but talk to the
 same underlying SDK and reuse the same helpers to avoid duplication.
+
+Data produced by this suite is written as JSON (for HTML report consumption
+and multi-machine merging) and Markdown (for human review). See `report_html.py`
+for the self-contained HTML report generator with baseline comparison.
 """
 
 from __future__ import annotations
 
 import os
+import platform
 import queue
 import statistics
 import threading
@@ -478,7 +483,53 @@ ALL_BENCHMARKS = [
 ]
 
 
+def collect_component_versions(cfg: Config) -> dict[str, str]:
+    """Collect component version info for the HTML report environment section.
+
+    Queries CubeAPI health endpoint and local system for component versions.
+    """
+    versions: dict[str, str] = {
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+    }
+
+    # Try to get CubeAPI version from health endpoint
+    try:
+        import httpx
+
+        headers = {}
+        api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
+        if api_key:
+            headers["X-API-Key"] = api_key
+        resp = httpx.get(f"{cfg.api_url}/health", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                for key in ("version", "commit", "build_time", "go_version"):
+                    if key in data:
+                        versions[f"cubeapi_{key}"] = str(data[key])
+    except Exception:
+        pass
+
+    # Try to get SDK version
+    try:
+        import cubesandbox
+
+        versions["sdk_version"] = cubesandbox.__version__
+    except Exception:
+        pass
+
+    return versions
+
+
 def run_all(cfg: Config) -> None:
     """Run all performance benchmarks in order."""
+    # Print component versions
+    versions = collect_component_versions(cfg)
+    print("\n--- Component Versions ---")
+    for k, v in sorted(versions.items()):
+        print(f"  {k}: {v}")
+    print()
+
     for bench_fn in ALL_BENCHMARKS:
         bench_fn(cfg)
