@@ -738,6 +738,8 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 
 ### 1.2 CubeSandbox 环境
 
+#### 沙箱配置
+
 | 项目 | 详情 |
 |:---|:---|
 | **沙箱规格** | {env['template_instance_type']} |
@@ -746,16 +748,26 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 | **存储方式** | CoW reflink（{env['disk_fs']}） |
 | **内存追踪** | soft-dirty（`/proc/PID/clear_refs`） |
 | **API 地址** | `{env['api_url']}` |
-| **CubeAPI 版本** | `{env.get('cubeapi_version', 'N/A')}` |
-| **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')[:8] if env.get('cubeapi_commit') else 'N/A'}` |
-| **CubeAPI 构建时间** | `{env.get('cubeapi_build_time', 'N/A')}` |
-| **CubeAPI Go 版本** | `{env.get('cubeapi_go_version', 'N/A')}` |
-| **Python 实现** | {env.get('python_impl', env['python_version'])} |
-| **SDK 版本** | v{env['sdk_version']} |
-| **SDK 导入路径** | `{env.get('sdk_import_path', 'N/A')}` |
-| **httpx 版本** | {env.get('httpx_version', 'N/A')} |
-| **requests 版本** | {env.get('requests_version', 'N/A')} |
+
+#### 组件版本
+
+| 组件 | 版本 |
+|:---|:---|
+| **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}`（commit `{env.get('cubeapi_commit', 'N/A')[:8] if env.get('cubeapi_commit') else 'N/A'}`，构建于 {env.get('cubeapi_build_time', 'N/A')}） |
+| **CubeMaster** | `{env.get('cubemaster_version', 'N/A')}`（commit `{env.get('cubemaster_commit', 'N/A')[:8] if env.get('cubemaster_commit') else 'N/A'}`，构建于 {env.get('cubemaster_build_time', 'N/A')}） |
+| **Cubelet** | `{env.get('cubelet_version', 'N/A')}` |
+| **CubeShim** | `{env.get('cube_shim_version', 'N/A')}` |
+| **Guest Image** | `{env.get('guest_image_version', 'N/A')}` |
+| **Kernel (节点)** | `{env.get('kernel_version_node', 'N/A')}` |
+| **Python** | {env.get('python_impl', env['python_version'])} |
+| **SDK** | v{env['sdk_version']}（`{env.get('sdk_import_path', 'N/A')}`） |
+| **httpx / requests** | {env.get('httpx_version', 'N/A')} / {env.get('requests_version', 'N/A')} |
 | **平台摘要** | {env.get('platform_summary', 'N/A')} |
+
+#### 测试配置
+
+| 项目 | 值 |
+|:---|:---|
 | **每场景轮数** | {data['config']['perf_rounds']} 轮 |
 | **时间戳** | {env['timestamp']} |
 
