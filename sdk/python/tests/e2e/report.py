@@ -96,6 +96,9 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
             "template_status": env.template_status, "timestamp": env.timestamp,
             "cubeapi_version": env.cubeapi_version, "cubeapi_commit": env.cubeapi_commit,
             "cubeapi_build_time": env.cubeapi_build_time, "cubeapi_go_version": env.cubeapi_go_version,
+            "processor": env.processor, "platform_summary": env.platform_summary,
+            "python_impl": env.python_impl, "sdk_import_path": env.sdk_import_path,
+            "httpx_version": env.httpx_version, "requests_version": env.requests_version,
         },
         "config": {"perf_rounds": PERF_ROUNDS, "density_max_count": DENSITY_COUNT},
         "functional": {"pass": PASS, "fail": FAIL, "skip": SKIP, "total": total, "results": list(RESULTS)},
@@ -731,7 +734,8 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 | **内存追踪** | soft-dirty（`/proc/PID/clear_refs`） |
 | **API 地址** | `{env['api_url']}` |
 | **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}`（commit `{env.get('cubeapi_commit', 'N/A')[:8]}`，Go {env.get('cubeapi_go_version', 'N/A')}） |
-| **Python / SDK** | {env['python_version']} / v{env['sdk_version']} |
+| **Python / SDK** | {env.get('python_impl', env['python_version'])} / v{env['sdk_version']}（{env.get('sdk_import_path', 'N/A')}） |
+| **httpx / requests** | {env.get('httpx_version', 'N/A')} / {env.get('requests_version', 'N/A')} |
 | **每场景轮数** | {data['config']['perf_rounds']} 轮 |
 | **时间戳** | {env['timestamp']} |
 

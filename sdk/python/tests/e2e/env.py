@@ -48,6 +48,13 @@ class EnvInfo:
     cubeapi_commit: str = ""
     cubeapi_build_time: str = ""
     cubeapi_go_version: str = ""
+    # SDK / Python details
+    processor: str = ""
+    platform_summary: str = ""
+    python_impl: str = ""
+    sdk_import_path: str = ""
+    httpx_version: str = ""
+    requests_version: str = ""
 
 
 def run_cmd(cmd: list[str]) -> str:
@@ -77,6 +84,25 @@ def collect_env_info(cfg: Config) -> EnvInfo:
     info.arch = platform.machine()
     info.python_version = sys.version.split()[0]
     info.sdk_version = cubesandbox.__version__
+
+    # --- SDK / Python details ---
+    info.processor = platform.processor() or platform.machine()
+    info.platform_summary = platform.platform()
+    info.python_impl = platform.python_implementation() + " " + platform.python_version()
+    try:
+        info.sdk_import_path = os.path.abspath(cubesandbox.__file__)
+    except Exception:
+        info.sdk_import_path = ""
+    try:
+        import httpx
+        info.httpx_version = httpx.__version__
+    except Exception:
+        pass
+    try:
+        import requests
+        info.requests_version = requests.__version__
+    except Exception:
+        pass
 
     # Linux-specific
     if info.os_name == "Linux":

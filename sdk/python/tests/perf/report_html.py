@@ -121,8 +121,8 @@ function cmpBadge(cur, bl) {{
     hwTable.innerHTML += `<tr><td>${{hwLabels[k] || k}}</td><td>${{v}}</td></tr>`;
   }});
 
-  const cubeKeys = ['sandbox_spec', 'template_image', 'template_id', 'template_status', 'storage', 'memory_tracking', 'api_url', 'cubeapi', 'python_sdk', 'rounds', 'timestamp'];
-  const cubeLabels = {{ sandbox_spec:'沙箱规格', template_image:'测试镜像', template_id:'模板 ID', template_status:'模板状态', storage:'存储方式', memory_tracking:'内存追踪', api_url:'API 地址', cubeapi:'CubeAPI', python_sdk:'Python / SDK', rounds:'每场景轮数', timestamp:'时间戳' }};
+  const cubeKeys = ['sandbox_spec', 'template_image', 'template_id', 'template_status', 'storage', 'memory_tracking', 'api_url', 'cubeapi', 'python_sdk', 'httpx_requests', 'sdk_path', 'rounds', 'timestamp'];
+  const cubeLabels = {{ sandbox_spec:'沙箱规格', template_image:'测试镜像', template_id:'模板 ID', template_status:'模板状态', storage:'存储方式', memory_tracking:'内存追踪', api_url:'API 地址', cubeapi:'CubeAPI', python_sdk:'Python / SDK', httpx_requests:'httpx / requests', sdk_path:'SDK 路径', rounds:'每场景轮数', timestamp:'时间戳' }};
   const cubeTable = document.getElementById('env-cube');
   cubeKeys.forEach(k => {{
     let v = ENV[k];
@@ -130,7 +130,9 @@ function cmpBadge(cur, bl) {{
     if (k === 'storage') v = `CoW reflink（${{ENV.disk_fs || ''}}）`;
     if (k === 'memory_tracking') v = 'soft-dirty（/proc/PID/clear_refs）';
     if (k === 'cubeapi') v = `${{ENV.cubeapi_version || 'N/A'}}（commit ${{(ENV.cubeapi_commit || 'N/A').substring(0,8)}}，Go ${{ENV.cubeapi_go_version || 'N/A'}}）`;
-    if (k === 'python_sdk') v = `${{ENV.python_version || '?'}} / v${{ENV.sdk_version || '?'}}`;
+    if (k === 'python_sdk') v = `${{ENV.python_impl || ENV.python_version || '?'}} / v${{ENV.sdk_version || '?'}}`;
+    if (k === 'httpx_requests') v = `${{ENV.httpx_version || 'N/A'}} / ${{ENV.requests_version || 'N/A'}}`;
+    if (k === 'sdk_path') v = `${{ENV.sdk_import_path || 'N/A'}}`;
     cubeTable.innerHTML += `<tr><td>${{cubeLabels[k] || k}}</td><td>${{v}}</td></tr>`;
   }});
 }})();
