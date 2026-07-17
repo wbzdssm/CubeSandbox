@@ -80,6 +80,7 @@ _HTML_TEMPLATE_HEAD = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif; background: #f0f2f5; color: #1a1a2e; line-height: 1.6; }}
@@ -181,12 +182,18 @@ footer a {{ color: #667eea; }}
   <div class="table-wrap" id="perf-tables"></div>
 </div>
 
-<!-- Charts -->
+<!-- Line Charts -->
 <div class="section">
-  <h2>Latency Comparison (Current vs Baselines)</h2>
+  <h2>Latency Trends (Current vs Baselines)</h2>
   <div class="legend">
 {legend}
   </div>
+  <div id="line-charts"></div>
+</div>
+
+<!-- Bar Charts (detail) -->
+<div class="section">
+  <h2>Per-Scenario Latency Comparison</h2>
   <div id="charts"></div>
 </div>
 
@@ -356,13 +363,183 @@ document.querySelectorAll('.tab').forEach(tab => {{
   }});
 }})();
 
-// ---- Charts ----
+// ---- Line Charts (trends) ----
+(function() {{
+  const lineContainer = document.getElementById('line-charts');
+  if (!lineContainer) return;
+
+  // Helper: extract per-operation values for a scenario prefix across concurrency levels
+  function collectSeries(prefix, xKey, xLabels) {{
+    const currentData = [];
+    const baselineSeries = {{}};
+    BASELINE_KEYS.forEach(k => {{ baselineSeries[k] = []; }});
+
+    xLabels.forEach(xv => {{
+      const scenario = `${{prefix}}-${{xKey}}${{xv}}`;
+      const row = PERF.find(r => r.scenario === scenario);
+      const cv = row ? (row.per_ms || row.avg_ms || 0) : null;
+      currentData.push(cv);
+
+      BASELINE_KEYS.forEach(key => {{
+        const bl = ALL_BASELINES[key];
+        if (!bl || !bl.perf) {{ baselineSeries[key].push(null); return; }}
+        const bb = bl.perf[scenario];
+        const bv = bb ? (bb.per || bb.avg || bb.wall_avg || null) : null;
+        baselineSeries[key].push(bv);
+      }});
+    }});
+    return {{ currentData, baselineSeries }};
+  }}
+
+  function renderLineChart(canvasId, title, xLabels, currentData, baselineSeries) {{
+    const canvas = document.createElement('canvas');
+    canvas.id = canvasId;
+    canvas.style.maxHeight = '350px';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chart-section';
+    wrapper.innerHTML = `<div class="chart-title">${{title}}</div>`;
+    wrapper.appendChild(canvas);
+    lineContainer.appendChild(wrapper);
+
+    const datasets = [];
+    const colors = ['#667eea', ...BASELINE_COLORS];
+    let idx = 0;
+
+    if (currentData.some(v => v !== null)) {{
+      datasets.push({{
+        label: 'Current Run',
+        data: currentData,
+        borderColor: colors[idx],
+        backgroundColor: colors[idx] + '20',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        tension: 0.2,
+        spanGaps: false,
+      }});
+    }}
+    idx++;
+
+    BASELINE_KEYS.forEach((key, i) => {{
+      const data = baselineSeries[key];
+      if (!data || data.every(v => v === null)) return;
+      datasets.push({{
+        label: key,
+        data: data,
+        borderColor: BASELINE_COLORS[i % BASELINE_COLORS.length],
+        backgroundColor: BASELINE_COLORS[i % BASELINE_COLORS.length] + '20',
+        borderWidth: 1.5,
+        borderDash: [6, 3],
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        tension: 0.2,
+        spanGaps: true,
+      }});
+    }});
+
+    new Chart(canvas, {{
+      type: 'line',
+      data: {{ labels: xLabels, datasets: datasets }},
+      options: {{
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {{ mode: 'index', intersect: false }},
+        plugins: {{
+          legend: {{ position: 'bottom', labels: {{ usePointStyle: true, padding: 16 }} }},
+          tooltip: {{ callbacks: {{ label: ctx => `${{ctx.dataset.label}}: ${{ctx.parsed.y?.toFixed(1) || '—'}} ms` }} }}
+        }},
+        scales: {{
+          y: {{ title: {{ display: true, text: 'ms' }}, beginAtZero: true }},
+          x: {{ title: {{ display: true, text: '' }} }}
+        }}
+      }}
+    }});
+  }}
+
+  // 1. Cold-start latency vs concurrency
+  const coldX = [1, 10, 20, 50];
+  const cold = collectSeries('template-create', 'c', coldX);
+  renderLineChart('chart-coldstart', 'Cold-Start Latency vs Concurrency (per-operation, ms)', coldX.map(c => `c=${{c}}`), cold.currentData, cold.baselineSeries);
+
+  // 2. Snapshot creation wall time vs concurrency
+  const snapX = [1, 5, 10];
+  const snap = collectSeries('snapshot-create', 'c', snapX);
+  renderLineChart('chart-snapshot', 'Snapshot Creation Wall Time vs Concurrency (ms)', snapX.map(c => `c=${{c}}`), snap.currentData, snap.baselineSeries);
+
+  // 3. Create-from-snapshot vs concurrency
+  const cfsX = [1, 10, 20, 50];
+  const cfs = collectSeries('snapshot-create-from', 'c', cfsX);
+  renderLineChart('chart-createfrom', 'Create from Snapshot vs Concurrency (per-operation, ms)', cfsX.map(c => `c=${{c}}`), cfs.currentData, cfs.baselineSeries);
+
+  // 4. Rollback vs concurrency
+  const rbX = [1, 5, 10];
+  const rb = collectSeries('rollback', 'c', rbX);
+  renderLineChart('chart-rollback', 'Rollback vs Concurrency (per-operation, ms)', rbX.map(c => `c=${{c}}`), rb.currentData, rb.baselineSeries);
+
+  // 5. Clone vs concurrency (n=100 variants)
+  const cloneScenarios = ['clone-c1-n1', 'clone-c10-n100', 'clone-c20-n100', 'clone-c50-n100'];
+  const cloneLabels = ['c=1 n=1', 'c=10 n=100', 'c=20 n=100', 'c=50 n=100'];
+  const cloneCurrent = cloneScenarios.map(s => {{ const r = PERF.find(p => p.scenario === s); return r ? (r.per_ms || r.avg_ms || 0) : null; }});
+  const cloneBaseline = {{}};
+  BASELINE_KEYS.forEach(key => {{
+    cloneBaseline[key] = cloneScenarios.map(s => {{
+      const bl = ALL_BASELINES[key];
+      if (!bl || !bl.perf) return null;
+      const bb = bl.perf[s];
+      return bb ? (bb.per || bb.avg || bb.wall_avg || null) : null;
+    }});
+  }});
+  if (cloneCurrent.some(v => v !== null)) {{
+    renderLineChart('chart-clone', 'Clone vs Concurrency (per-operation, ms)', cloneLabels, cloneCurrent, cloneBaseline);
+  }}
+
+  // 6. Pause & Resume vs concurrency
+  const prX = [1, 5, 10];
+  const pause = collectSeries('pause', 'c', prX);
+  renderLineChart('chart-pause', 'Pause vs Concurrency (per-operation, ms)', prX.map(c => `c=${{c}}`), pause.currentData, pause.baselineSeries);
+  const resume = collectSeries('resume', 'c', prX);
+  renderLineChart('chart-resume', 'Resume vs Concurrency (per-operation, ms)', prX.map(c => `c=${{c}}`), resume.currentData, resume.baselineSeries);
+
+  // 7. Dirty-page: snapshot latency vs write size
+  const dirtyX = [0, 10, 50, 100, 200, 500, 800, 1024];
+  const dirtySnapScenarios = dirtyX.map(mb => `snapshot-dirty-snap-${{mb}}mb`);
+  const dirtyCreateScenarios = dirtyX.map(mb => `snapshot-dirty-create-${{mb}}mb`);
+  const dirtyLabels = dirtyX.map(mb => `${{mb}}MB`);
+
+  function collectDirty(scenarios) {{
+    const currentData = scenarios.map(s => {{ const r = PERF.find(p => p.scenario === s); return r ? (r.avg_ms || 0) : null; }});
+    const baselineSeries = {{}};
+    BASELINE_KEYS.forEach(key => {{
+      baselineSeries[key] = [];
+      const bl = ALL_BASELINES[key];
+      if (!bl || !bl.perf || !bl.perf['snapshot-dirty']) return;
+      const samples = bl.perf['snapshot-dirty'].samples || [];
+      scenarios.forEach((s, i) => {{
+        const sm = samples[i];
+        if (!sm) {{ baselineSeries[key].push(null); return; }}
+        const field = s.includes('snap') ? 'snapshot_ms' : 'create_from_ms';
+        baselineSeries[key].push(sm[field] || null);
+      }});
+    }});
+    return {{ currentData, baselineSeries }};
+  }}
+
+  const dirtySnap = collectDirty(dirtySnapScenarios);
+  if (dirtySnap.currentData.some(v => v !== null)) {{
+    renderLineChart('chart-dirty-snap', 'Snapshot Creation vs Dirty Page Size (ms)', dirtyLabels, dirtySnap.currentData, dirtySnap.baselineSeries);
+  }}
+  const dirtyCreate = collectDirty(dirtyCreateScenarios);
+  if (dirtyCreate.currentData.some(v => v !== null)) {{
+    renderLineChart('chart-dirty-create', 'Sandbox Creation from Snapshot vs Dirty Page Size (ms)', dirtyLabels, dirtyCreate.currentData, dirtyCreate.baselineSeries);
+  }}
+}})();
+
+// ---- Bar Charts (detail) ----
 (function() {{
   const container = document.getElementById('charts');
 
   PERF.forEach(r => {{
     const currentPer = r.per_ms || r.avg_ms || 0;
-    // Collect all baseline values for this scenario
     let allValues = currentPer > 0 ? [currentPer] : [];
     let barsData = [];
     if (currentPer > 0) {{
