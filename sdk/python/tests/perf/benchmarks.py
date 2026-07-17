@@ -39,9 +39,9 @@ from uuid import uuid4
 
 from cubesandbox import Config, Sandbox, Volume
 
-from e2e.config import DENSITY_COUNT, PERF_ROUNDS
-from e2e.env import get_free_mem_gb
-from e2e.runner import PERF_RESULTS, PerfResult, PerfSample, measure_parallel, percentile, skip
+from .config import DENSITY_COUNT, PERF_ROUNDS
+from .env import get_free_mem_gb
+from .runner import PERF_RESULTS, PerfResult, PerfSample, measure_parallel, percentile, skip
 
 
 def bench_template_create(cfg: Config) -> None:

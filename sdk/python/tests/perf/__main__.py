@@ -26,10 +26,10 @@ import os
 import sys
 from datetime import datetime, timezone
 
-from e2e import report
-from e2e.config import DENSITY_COUNT, PERF_ROUNDS, resolve_config
-from e2e.env import collect_env_info
-from e2e.runner import PERF_RESULTS, reset
+from . import report
+from .config import DENSITY_COUNT, PERF_ROUNDS, resolve_config
+from .env import collect_env_info
+from .runner import PERF_RESULTS, reset
 
 from . import benchmarks
 from .report_html import generate_html
@@ -145,8 +145,7 @@ Examples:
     # Override rounds if specified
     if args.rounds is not None:
         os.environ["CUBE_PERF_ROUNDS"] = str(args.rounds)
-        # Re-import to pick up the new value
-        import e2e.config as _cfg
+        from . import config as _cfg
 
         _cfg.PERF_ROUNDS = args.rounds
 
