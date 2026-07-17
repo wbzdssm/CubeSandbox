@@ -2,12 +2,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """HTML performance report generator.
 
-Produces a self-contained, interactive HTML page that:
-- Renders environment info, multi-baseline comparison (BMI5 x86_64 + Vera ARM64),
-  and benchmark results
-- Supports multi-run data merge (multiple JSON files from different machines)
-- Visualizes per-scenario latency with tables and bar charts (pure HTML/CSS/JS)
-- Allows easy diffing for performance regression detection
+Produces a self-contained, interactive HTML page with:
+- Environment overview (current run + all baseline comparison tabs)
+- Multi-baseline comparison (dynamic — supports any number of baselines from ALL_BASELINES)
+- Per-scenario tables with comparison badges against each baseline
+- Bar charts with one bar per baseline + current run
+- Multi-run data merge (multiple JSON files from different machines)
 - Zero external dependencies — single self-contained HTML file
 """
 
@@ -19,10 +19,62 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .baseline import ALL_BASELINES, BASELINE_SOURCE_DATE
+from .baseline import ALL_BASELINES
 
-# Template constants
-_HTML_TEMPLATE = """<!DOCTYPE html>
+# Baseline color palette — cycles for up to 8 baselines
+_BASELINE_COLORS = [
+    "#c4b5fd",  # purple (BMI5)
+    "#86efac",  # green (Vera)
+    "#fde68a",  # yellow (BMSA9)
+    "#fca5a5",  # red (Kunpeng)
+    "#93c5fd",  # blue
+    "#d8b4fe",  # violet
+    "#a5f3fc",  # cyan
+    "#fed7aa",  # orange
+]
+
+
+def _build_env_tabs_html(baseline_keys: list[str], run_count: int) -> str:
+    """Build dynamic environment tab buttons and content divs."""
+    tabs_html = '<button class="tab active" data-tab="env-current">Current Run</button>\n'
+    content_html = """  <div class="tab-content active" id="env-current">
+    <div class="env-grid" id="env-current-grid"></div>
+  </div>
+"""
+    for i, key in enumerate(baseline_keys):
+        safe_id = f"env-bl-{i}"
+        tabs_html += f'    <button class="tab" data-tab="{safe_id}">{key} Baseline</button>\n'
+        content_html += f"""  <div class="tab-content" id="{safe_id}">
+    <div class="env-grid" id="{safe_id}-grid"></div>
+  </div>
+"""
+    tabs_html += f'    <button class="tab" data-tab="env-runs">All Runs ({run_count})</button>\n'
+    content_html += """  <div class="tab-content" id="env-runs">
+    <div class="run-summary" id="run-cards"></div>
+  </div>
+"""
+    return tabs_html, content_html
+
+
+def _build_baseline_col_headers(baseline_keys: list[str]) -> str:
+    """Build <th> elements for each baseline comparison column."""
+    parts = []
+    for key in baseline_keys:
+        short = key.split("(")[0].strip().replace(" ", "-")
+        parts.append(f"<th>vs {short}</th>")
+    return "".join(parts)
+
+
+def _build_legend_html(baseline_keys: list[str]) -> str:
+    """Build legend HTML for chart section."""
+    items = ['<div class="legend-item"><div class="legend-swatch" style="background:linear-gradient(90deg,#667eea,#764ba2);"></div> Current Run</div>']
+    for i, key in enumerate(baseline_keys):
+        color = _BASELINE_COLORS[i % len(_BASELINE_COLORS)]
+        items.append(f'<div class="legend-item"><div class="legend-swatch" style="background:{color};"></div> {key}</div>')
+    return "\n    ".join(items)
+
+
+_HTML_TEMPLATE_HEAD = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -34,25 +86,24 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hel
 .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 24px; text-align: center; }}
 .header h1 {{ font-size: 28px; margin-bottom: 8px; }}
 .header .subtitle {{ opacity: 0.85; font-size: 14px; line-height: 1.8; }}
-.container {{ max-width: 1200px; margin: 0 auto; padding: 24px; }}
+.container {{ max-width: 1300px; margin: 0 auto; padding: 24px; }}
 .section {{ background: white; border-radius: 12px; padding: 24px; margin: 20px 0; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }}
 .section h2 {{ font-size: 20px; color: #667eea; margin-bottom: 16px; border-bottom: 2px solid #e8ecf1; padding-bottom: 8px; display: flex; align-items: center; gap: 8px; }}
 .section h3 {{ font-size: 16px; color: #555; margin: 16px 0 8px; }}
+.table-wrap {{ overflow-x: auto; }}
 table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
 th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #e8ecf1; }}
-th {{ background: #f0f2f5; font-weight: 600; color: #555; white-space: nowrap; position: sticky; top: 0; z-index: 1; }}
+th {{ background: #f0f2f5; font-weight: 600; color: #555; white-space: nowrap; }}
 tr:hover {{ background: #fafbfc; }}
 .metric-good {{ color: #22c55e; font-weight: 600; }}
 .metric-warn {{ color: #f59e0b; font-weight: 600; }}
 .metric-bad {{ color: #ef4444; font-weight: 600; }}
 .metric-na {{ color: #aaa; font-style: italic; }}
 .bar-container {{ display: flex; align-items: center; gap: 8px; margin: 6px 0; }}
-.bar-label {{ min-width: 180px; font-size: 12px; text-align: right; color: #666; }}
+.bar-label {{ min-width: 160px; font-size: 12px; text-align: right; color: #666; }}
 .bar-track {{ flex: 1; height: 22px; background: #e8ecf1; border-radius: 4px; overflow: hidden; position: relative; }}
 .bar-fill {{ height: 100%; border-radius: 4px; transition: width 0.5s ease; min-width: 2px; }}
 .bar-fill.current {{ background: linear-gradient(90deg, #667eea, #764ba2); }}
-.bar-fill.baseline-bmi5 {{ background: #c4b5fd; }}
-.bar-fill.baseline-vera {{ background: #86efac; }}
 .bar-value {{ min-width: 85px; font-size: 12px; font-weight: 600; text-align: right; }}
 .badge {{ display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }}
 .badge-good {{ background: #dcfce7; color: #16a34a; }}
@@ -81,7 +132,7 @@ footer a {{ color: #667eea; }}
 .env-val {{ color: #333; font-size: 13px; word-break: break-all; }}
 .chart-section {{ margin: 16px 0; }}
 .chart-title {{ font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #555; }}
-.legend {{ display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; }}
+.legend {{ display: flex; gap: 16px; margin-bottom: 12px; font-size: 12px; flex-wrap: wrap; }}
 .legend-item {{ display: flex; align-items: center; gap: 4px; }}
 .legend-swatch {{ width: 14px; height: 14px; border-radius: 3px; }}
 .scenario-group {{ margin: 20px 0; }}
@@ -92,7 +143,7 @@ footer a {{ color: #667eea; }}
   .header h1 {{ font-size: 20px; }}
   table {{ font-size: 11px; }}
   th, td {{ padding: 6px 8px; }}
-  .bar-label {{ min-width: 120px; }}
+  .bar-label {{ min-width: 100px; }}
   .run-summary {{ grid-template-columns: 1fr; }}
 }}
 </style>
@@ -119,52 +170,37 @@ footer a {{ color: #667eea; }}
 <div class="section">
   <h2>Environment</h2>
   <div class="tabs" id="env-tabs">
-    <button class="tab active" data-tab="env-current">Current Run</button>
-    <button class="tab" data-tab="env-bmi5">BMI5 (x86_64) Baseline</button>
-    <button class="tab" data-tab="env-vera">Vera A1P (ARM64) Baseline</button>
-    <button class="tab" data-tab="env-runs">All Runs ({run_count})</button>
+{env_tabs}
   </div>
-  <div class="tab-content active" id="env-current">
-    <div class="env-grid" id="env-current-grid"></div>
-  </div>
-  <div class="tab-content" id="env-bmi5">
-    <div class="env-grid" id="env-bmi5-grid"></div>
-  </div>
-  <div class="tab-content" id="env-vera">
-    <div class="env-grid" id="env-vera-grid"></div>
-  </div>
-  <div class="tab-content" id="env-runs">
-    <div class="run-summary" id="run-cards"></div>
-  </div>
+{env_content}
 </div>
 
 <!-- Perf Results -->
 <div class="section">
   <h2>Performance Benchmarks <span style="font-size:12px;color:#888;font-weight:400;">(ms)</span></h2>
-  <div id="perf-tables"></div>
+  <div class="table-wrap" id="perf-tables"></div>
 </div>
 
 <!-- Charts -->
 <div class="section">
   <h2>Latency Comparison (Current vs Baselines)</h2>
   <div class="legend">
-    <div class="legend-item"><div class="legend-swatch" style="background:linear-gradient(90deg,#667eea,#764ba2);"></div> Current Run</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#c4b5fd;"></div> BMI5 (x86_64)</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#86efac;"></div> Vera A1P (ARM64)</div>
+{legend}
   </div>
   <div id="charts"></div>
 </div>
 
 <footer>
   Generated by CubeSandbox Python SDK perf suite &nbsp;|&nbsp;
-  Baseline sources: <a href="https://cubesandbox.com/zh/blog/posts/2026-06-01-cubesandbox-perf-benchmark.html" target="_blank">BMI5</a>,
-  <a href="#">Vera A1P</a>
+  Baselines: {baseline_labels}
 </footer>
 </div>
 
 <script>
 // ---- Data ----
 const ALL_BASELINES = {all_baselines_json};
+const BASELINE_KEYS = {baseline_keys_json};
+const BASELINE_COLORS = {baseline_colors_json};
 const RUNS = {runs_json};
 const PERF = {perf_json};
 const ENV = {env_json};
@@ -176,7 +212,7 @@ function fmtMs(v) {{
 }}
 
 function cmpBadge(current, baseline) {{
-  if (!baseline || !current) return '<span class="badge badge-na">-</span>';
+  if (!baseline || !current || current <= 0) return '<span class="badge badge-na">-</span>';
   const ratio = current / baseline;
   if (ratio <= 1.05) return `<span class="badge badge-good">=${{(ratio*100).toFixed(0)}}%</span>`;
   if (ratio <= 1.20) return `<span class="badge badge-warn">+${{((ratio-1)*100).toFixed(0)}}%</span>`;
@@ -190,7 +226,7 @@ function cmpBadge(current, baseline) {{
     {{ label: 'Runs', value: RUNS.length }},
     {{ label: 'Scenarios', value: PERF.length }},
     {{ label: 'Total Samples', value: PERF.reduce((s, r) => s + (r.count || 0), 0) }},
-    {{ label: 'Baselines', value: Object.keys(ALL_BASELINES).length }},
+    {{ label: 'Baselines', value: BASELINE_KEYS.length }},
   ];
   cards.forEach(c => {{
     grid.innerHTML += `<div class="summary-card"><div class="value">${{c.value}}</div><div class="label">${{c.label}}</div></div>`;
@@ -209,17 +245,16 @@ function cmpBadge(current, baseline) {{
     }});
   }}
 
+  // Current run env
   renderEnv('env-current-grid', ENV);
 
-  // BMI5 baseline env
-  if (ALL_BASELINES['BMI5 (x86_64)']) {{
-    renderEnv('env-bmi5-grid', ALL_BASELINES['BMI5 (x86_64)'].env);
-  }}
-
-  // Vera baseline env
-  if (ALL_BASELINES['Vera A1P (ARM64)']) {{
-    renderEnv('env-vera-grid', ALL_BASELINES['Vera A1P (ARM64)'].env);
-  }}
+  // Each baseline env tab
+  BASELINE_KEYS.forEach((key, i) => {{
+    const bl = ALL_BASELINES[key];
+    if (bl && bl.env) {{
+      renderEnv(`env-bl-${{i}}-grid`, bl.env);
+    }}
+  }});
 
   // All runs
   const cards = document.getElementById('run-cards');
@@ -253,7 +288,6 @@ document.querySelectorAll('.tab').forEach(tab => {{
   // Group by scenario family
   const groups = {{}};
   PERF.forEach(r => {{
-    // Extract family: "template-create-c1" -> "template"
     const parts = r.scenario.split('-');
     let family = parts[0];
     if (parts.length > 1 && parts[1] === 'create') family = parts.slice(0, 2).join('-');
@@ -276,23 +310,31 @@ document.querySelectorAll('.tab').forEach(tab => {{
 
   Object.entries(groups).forEach(([family, rows]) => {{
     const name = familyNames[family] || family;
+    // Build header with dynamic baseline columns
+    let cmpHeaders = BASELINE_KEYS.map(k => {{
+      const short = k.split('(')[0].trim().replace(/\\s+/g, '-');
+      return `<th>vs ${{short}}</th>`;
+    }}).join('');
     let html = `<div class="scenario-group"><h4>${{name}}</h4>`;
     html += `<table><thead><tr>
       <th>Scenario</th><th>Count</th><th>Conc</th>
       <th>Avg</th><th>Min</th><th>P50</th><th>P95</th><th>Max</th>
       <th>Wall</th><th>Per</th>
-      <th>vs BMI5</th><th>vs Vera</th>
+      ${{cmpHeaders}}
     </tr></thead><tbody>`;
 
     rows.forEach(r => {{
-      const bmi5 = (ALL_BASELINES['BMI5 (x86_64)'] || {{}}).perf || {{}};
-      const vera = (ALL_BASELINES['Vera A1P (ARM64)'] || {{}}).perf || {{}};
-      const bmi5b = bmi5[r.scenario];
-      const verab = vera[r.scenario];
-
       const perMs = r.per_ms || r.avg_ms || 0;
-      const bmi5Per = bmi5b ? (bmi5b.per || bmi5b.avg || 0) : 0;
-      const veraPer = verab ? (verab.per || verab.avg || 0) : 0;
+
+      // Build baseline comparison cells
+      let cmpCells = '';
+      BASELINE_KEYS.forEach(key => {{
+        const bl = ALL_BASELINES[key];
+        if (!bl || !bl.perf) {{ cmpCells += '<td><span class="badge badge-na">-</span></td>'; return; }}
+        const bb = bl.perf[r.scenario];
+        const blPer = bb ? (bb.per || bb.avg || 0) : 0;
+        cmpCells += `<td>${{cmpBadge(perMs, blPer)}}</td>`;
+      }});
 
       html += `<tr>
         <td><strong>${{r.scenario}}</strong></td>
@@ -305,8 +347,7 @@ document.querySelectorAll('.tab').forEach(tab => {{
         <td>${{fmtMs(r.max_ms)}}</td>
         <td>${{fmtMs(r.wall_ms)}}</td>
         <td>${{fmtMs(r.per_ms)}}</td>
-        <td>${{cmpBadge(perMs, bmi5Per)}}</td>
-        <td>${{cmpBadge(perMs, veraPer)}}</td>
+        ${{cmpCells}}
       </tr>`;
     }});
 
@@ -318,43 +359,46 @@ document.querySelectorAll('.tab').forEach(tab => {{
 // ---- Charts ----
 (function() {{
   const container = document.getElementById('charts');
-  const bmi5Perf = (ALL_BASELINES['BMI5 (x86_64)'] || {{}}).perf || {{}};
-  const veraPerf = (ALL_BASELINES['Vera A1P (ARM64)'] || {{}}).perf || {{}};
 
   PERF.forEach(r => {{
-    const bmi5b = bmi5Perf[r.scenario];
-    const verab = veraPerf[r.scenario];
     const currentPer = r.per_ms || r.avg_ms || 0;
-    const bmi5Per = bmi5b ? (bmi5b.per || bmi5b.avg || 0) : 0;
-    const veraPer = verab ? (verab.per || verab.avg || 0) : 0;
+    // Collect all baseline values for this scenario
+    let allValues = currentPer > 0 ? [currentPer] : [];
+    let barsData = [];
+    if (currentPer > 0) {{
+      barsData.push({{ label: 'Current', value: currentPer, cssClass: 'current', color: '#667eea' }});
+    }}
+    BASELINE_KEYS.forEach((key, i) => {{
+      const bl = ALL_BASELINES[key];
+      if (!bl || !bl.perf) return;
+      const bb = bl.perf[r.scenario];
+      const blPer = bb ? (bb.per || bb.avg || 0) : 0;
+      if (blPer > 0) {{
+        allValues.push(blPer);
+        barsData.push({{
+          label: key,
+          value: blPer,
+          cssClass: `bl-${{i}}`,
+          color: BASELINE_COLORS[i % BASELINE_COLORS.length],
+        }});
+      }}
+    }});
 
-    if (!currentPer && !bmi5Per && !veraPer) return;
+    if (barsData.length === 0) return;
 
-    const maxVal = Math.max(currentPer, bmi5Per, veraPer) * 1.25;
+    const maxVal = Math.max(...allValues) * 1.25;
     const pct = (v) => maxVal > 0 ? (v / maxVal * 100).toFixed(1) : 0;
 
-    let barsHtml = '';
-    if (currentPer > 0) {{
-      barsHtml += `<div class="bar-container">
-        <span class="bar-label">Current</span>
-        <div class="bar-track"><div class="bar-fill current" style="width:${{pct(currentPer)}}%"></div></div>
-        <span class="bar-value" style="color:#667eea;">${{currentPer.toFixed(1)}} ms</span>
+    let barsHtml = barsData.map(bd => {{
+      const styleAttr = bd.cssClass === 'current'
+        ? `style="width:${{pct(bd.value)}}%"`
+        : `style="width:${{pct(bd.value)}}%;background:${{bd.color}};"`;
+      return `<div class="bar-container">
+        <span class="bar-label">${{bd.label}}</span>
+        <div class="bar-track"><div class="bar-fill" ${{styleAttr}}></div></div>
+        <span class="bar-value" style="color:${{bd.color}};">${{bd.value.toFixed(1)}} ms</span>
       </div>`;
-    }}
-    if (bmi5Per > 0) {{
-      barsHtml += `<div class="bar-container">
-        <span class="bar-label">BMI5 (x86_64)</span>
-        <div class="bar-track"><div class="bar-fill baseline-bmi5" style="width:${{pct(bmi5Per)}}%"></div></div>
-        <span class="bar-value" style="color:#8b5cf6;">${{bmi5Per.toFixed(1)}} ms</span>
-      </div>`;
-    }}
-    if (veraPer > 0) {{
-      barsHtml += `<div class="bar-container">
-        <span class="bar-label">Vera A1P (ARM64)</span>
-        <div class="bar-track"><div class="bar-fill baseline-vera" style="width:${{pct(veraPer)}}%"></div></div>
-        <span class="bar-value" style="color:#22c55e;">${{veraPer.toFixed(1)}} ms</span>
-      </div>`;
-    }}
+    }}).join('\\n        ');
 
     container.innerHTML += `
       <div class="chart-section">
@@ -369,7 +413,6 @@ document.querySelectorAll('.tab').forEach(tab => {{
 
 
 def _scenario_sort_key(name: str) -> tuple[int, ...]:
-    """Sort scenarios: template < snapshot < rollback < clone < pause < resume < density < volume."""
     order = {
         "template": 0, "template-create": 0,
         "snapshot": 1, "snapshot-create": 1,
@@ -384,10 +427,6 @@ def _scenario_sort_key(name: str) -> tuple[int, ...]:
 
 
 def _merge_runs(data_files: list[str]) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
-    """Load and merge multiple run data files into a combined view.
-
-    Returns (runs, merged_env, merged_perf).
-    """
     runs: list[dict[str, Any]] = []
     all_perf: list[dict[str, Any]] = []
 
@@ -418,7 +457,6 @@ def _merge_runs(data_files: list[str]) -> tuple[list[dict[str, Any]], dict[str, 
             p["_run_file"] = os.path.basename(path)
             all_perf.append(p)
 
-    # Merge perf: average across runs for same scenario
     merged: dict[str, dict[str, Any]] = {}
     for p in all_perf:
         key = p["scenario"]
@@ -448,7 +486,6 @@ def _merge_runs(data_files: list[str]) -> tuple[list[dict[str, Any]], dict[str, 
         }
         merged_perf.append(entry)
 
-    # Use the last run's environment as merged_env
     merged_env: dict[str, Any] = {}
     if runs:
         try:
@@ -468,10 +505,10 @@ def generate_html(
     """Generate an HTML performance report from one or more run data JSON files.
 
     The HTML report includes:
-    - Environment overview (current run + baseline comparison tabs)
-    - Multi-baseline comparison (BMI5 x86_64 + Vera A1P ARM64)
-    - Per-scenario tables with baseline comparison badges
-    - Bar charts for visual latency comparison
+    - Environment overview (current run + all baseline comparison tabs)
+    - Multi-baseline comparison (all entries from ALL_BASELINES)
+    - Per-scenario tables with comparison badges against each baseline
+    - Bar charts with one bar per baseline + current run
     - Multi-run merge support
 
     Args:
@@ -484,15 +521,24 @@ def generate_html(
     """
     runs, merged_env, merged_perf = _merge_runs(data_files)
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    baseline_labels = ", ".join(ALL_BASELINES.keys())
+    baseline_keys = list(ALL_BASELINES.keys())
+    baseline_labels = ", ".join(baseline_keys)
 
-    html = _HTML_TEMPLATE.format(
+    env_tabs, env_content = _build_env_tabs_html(baseline_keys, len(runs))
+    legend = _build_legend_html(baseline_keys)
+
+    html = _HTML_TEMPLATE_HEAD.format(
         title=title,
         generated_at=generated_at,
         run_count=len(runs),
         scenario_count=len(merged_perf),
         baseline_labels=baseline_labels,
+        env_tabs=env_tabs,
+        env_content=env_content,
+        legend=legend,
         all_baselines_json=json.dumps(ALL_BASELINES, ensure_ascii=False),
+        baseline_keys_json=json.dumps(baseline_keys, ensure_ascii=False),
+        baseline_colors_json=json.dumps(_BASELINE_COLORS, ensure_ascii=False),
         runs_json=json.dumps(runs, ensure_ascii=False),
         perf_json=json.dumps(merged_perf, ensure_ascii=False),
         env_json=json.dumps(merged_env, ensure_ascii=False),
