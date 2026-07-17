@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Report generation: JSON + Markdown, English & Chinese.
 
-`build_report_data()` collects a single language-neutral snapshot of the run
-(environment, functional results, perf results). `render_markdown()` and
-`to_json()` then project that snapshot into the requested language.
+The Markdown report now includes baseline comparison columns (vs BMI5 /
+BMSA9 / Vera / Kunpeng) sourced from the sibling `tests/perf/baseline.py`
+module. CPU and memory info is shown prominently in a summary banner above
+the benchmark tables so that cross-machine comparisons are self-contained.
 
 Output files (base name from `CUBE_OUTPUT_REPORT`, default "report"):
     report.md      - Markdown, English
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from typing import Any, Literal
 
@@ -25,6 +27,34 @@ from .env import EnvInfo
 from .runner import FAIL, PASS, PERF_RESULTS, SKIP, RESULTS, PerfResult
 
 Lang = Literal["en", "zh"]
+
+# ---------------------------------------------------------------------------
+# Lazy import of baseline data (the perf package may not be on sys.path
+# when e2e is used standalone, but both live under tests/)
+# ---------------------------------------------------------------------------
+
+_BASELINE_LOADED = False
+_ALL_BASELINES: dict[str, dict[str, Any]] = {}
+_BASELINE_KEYS: list[str] = []
+
+
+def _ensure_baselines() -> None:
+    global _BASELINE_LOADED, _ALL_BASELINES, _BASELINE_KEYS
+    if _BASELINE_LOADED:
+        return
+    _BASELINE_LOADED = True
+    try:
+        # Ensure tests/ is on sys.path so that `perf` is importable
+        _tests_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        if _tests_dir not in sys.path:
+            sys.path.insert(0, _tests_dir)
+        from perf.baseline import ALL_BASELINES as bl  # type: ignore[import-untyped]
+
+        _ALL_BASELINES = bl
+        _BASELINE_KEYS = list(bl.keys())
+    except ImportError:
+        pass
+
 
 # ===========================================================================
 # Data snapshot (language-neutral)
@@ -119,32 +149,122 @@ def to_json(data: dict[str, Any], lang: Lang) -> str:
 
 
 # ===========================================================================
-# Markdown rendering
+# Markdown rendering — helpers
 # ===========================================================================
 
 
 def _fmt_ms(ms: float) -> str:
+    if ms == 0:
+        return "—"
     return f"{ms:.1f} ms"
 
 
+def _cmp_str(current: float, baseline: float | None) -> str:
+    """Return a comparison string like `=95%` / `+12%` / `-8%` or `—`."""
+    if baseline is None or baseline == 0 or current <= 0:
+        return "—"
+    ratio = current / baseline
+    if ratio <= 1.05:
+        return f"≈{ratio * 100:.0f}%"
+    return f"+{(ratio - 1) * 100:.0f}%"
+
+
+def _cmp_for_row(r: dict[str, Any], baseline_key: str) -> str:
+    """Return a comparison badge for a given baseline key."""
+    _ensure_baselines()
+    bl = _ALL_BASELINES.get(baseline_key)
+    if not bl or "perf" not in bl:
+        return "—"
+    bb = bl["perf"].get(r["scenario"])
+    if not bb:
+        return "—"
+    bl_per = bb.get("per") or bb.get("avg") or bb.get("wall_avg") or 0
+    current_per = r.get("per_ms") or r.get("avg_ms") or 0
+    return _cmp_str(current_per, bl_per)
+
+
 def _perf_table(perf: list[dict[str, Any]], scenario_prefix: str, lang: Lang) -> str:
+    """Build a Markdown table for perf scenarios matching *scenario_prefix*,
+    including baseline comparison columns.
+    """
     rows = [r for r in perf if r["scenario"].startswith(scenario_prefix)]
     if not rows:
         return "_No data_ / _无数据_\n" if lang == "zh" else "_No data_\n"
 
+    _ensure_baselines()
+
     if lang == "zh":
-        header = "| 场景 | 次数 | 并发 | 平均值 | 最小值 | P50 | P95 | 最大值 | 总耗时 | 单次均摊 |"
+        base_cols = ["场景", "次数", "并发", "平均值", "最小值", "P50", "P95", "最大值", "总耗时", "单次均摊"]
     else:
-        header = "| Scenario | N | Concurrency | avg | min | p50 | p95 | max | wall | per |"
-    lines = [header, "|:---|:---|:---|:---|:---|:---|:---|:---|:---|:---|"]
+        base_cols = ["Scenario", "N", "Concurrency", "avg", "min", "p50", "p95", "max", "wall", "per"]
+
+    # Add baseline comparison columns
+    cmp_cols: list[str] = []
+    for key in _BASELINE_KEYS:
+        short = key.split("(")[0].strip()
+        cmp_cols.append(f"vs {short}" if lang == "en" else f"vs {short}")
+
+    all_cols = base_cols + cmp_cols
+    header = "| " + " | ".join(all_cols) + " |"
+    sep = "|" + "|".join([":---"] * len(all_cols)) + "|"
+    lines = [header, sep]
+
     for r in rows:
-        lines.append(
-            f"| {r['scenario']} | {r['count']} | {r['concurrency']} | "
-            f"{_fmt_ms(r['avg_ms'])} | {_fmt_ms(r['min_ms'])} | {_fmt_ms(r['p50_ms'])} | "
-            f"{_fmt_ms(r['p95_ms'])} | {_fmt_ms(r['max_ms'])} | "
-            f"{_fmt_ms(r['wall_ms'])} | {_fmt_ms(r['per_ms'])} |"
-        )
+        base_vals = [
+            r["scenario"],
+            str(r["count"]),
+            str(r["concurrency"]),
+            _fmt_ms(r["avg_ms"]),
+            _fmt_ms(r["min_ms"]),
+            _fmt_ms(r["p50_ms"]),
+            _fmt_ms(r["p95_ms"]),
+            _fmt_ms(r["max_ms"]),
+            _fmt_ms(r["wall_ms"]),
+            _fmt_ms(r["per_ms"]),
+        ]
+        cmp_vals = [_cmp_for_row(r, key) for key in _BASELINE_KEYS]
+        lines.append("| " + " | ".join(base_vals + cmp_vals) + " |")
+
     return "\n".join(lines) + "\n"
+
+
+def _cpu_mem_banner(env: dict[str, Any], lang: Lang) -> str:
+    """Return a one-line CPU/Memory summary for the benchmark section header."""
+    cpu = f"{env.get('cpu_model', 'N/A')[:50]}"
+    cores = env.get("cpu_cores_logical", "?")
+    mem = env.get("memory_total_gb", "?")
+    arch = env.get("arch", "?")
+    if lang == "zh":
+        return (
+            f"> **测试机型**：{cpu} | **架构**：{arch} | "
+            f"**CPU 逻辑核**：{cores} | **内存**：{mem} GiB\n"
+        )
+    return (
+        f"> **Machine**：{cpu} | **Arch**：{arch} | "
+        f"**CPU logical cores**：{cores} | **Memory**：{mem} GiB\n"
+    )
+
+
+def _baseline_note(lang: Lang) -> str:
+    """Return a note explaining baseline comparison columns."""
+    _ensure_baselines()
+    if not _BASELINE_KEYS:
+        return ""
+    labels = ", ".join(_BASELINE_KEYS)
+    if lang == "zh":
+        return (
+            f"> 基线对比列（{labels}）数据来源：`tests/perf/baseline.py`\n"
+            "> 百分比 = 当前单次均摊 ÷ 基线单次均摊；≈100% 表示持平，+N% 表示慢于基线\n"
+        )
+    return (
+        f"> Baseline columns ({labels}) sourced from `tests/perf/baseline.py`\n"
+        "> Percentage = current per-operation ÷ baseline per-operation; ≈100% = on par, +N% = slower\n"
+    )
+
+
+# ===========================================================================
+# Markdown rendering — English
+# ===========================================================================
 
 
 def _render_markdown_en(data: dict[str, Any]) -> str:
@@ -202,65 +322,59 @@ def _render_markdown_en(data: dict[str, Any]) -> str:
 
 ---
 
-## 2. Functional Test Results
+## 2. Performance Benchmarks
 
-| Result | Count |
-|:---|:---|
-| ✅ Passed | {func['pass']} |
-| ❌ Failed | {func['fail']} |
-| ⚠️ Skipped | {func['skip']} |
-| **Total** | **{func['total']}** |
-
-**Overall Status**: {overall}
-
----
-
-## 3. Performance Benchmarks
-
+{_cpu_mem_banner(env, "en")}
+{_baseline_note("en")}
 > Measurements in milliseconds (ms). Each scenario runs {data['config']['perf_rounds']} rounds unless otherwise noted.
 > **avg** / **min** / **p50** / **p95** / **max**: statistics across individual operations.
 > **wall**: total wall-clock time for the batch. **per**: amortized per-operation time (wall ÷ N).
 
-### 3.1 Template-Based Sandbox Creation
+### 2.1 Template-Based Sandbox Creation
 
 {_perf_table(perf, "template-create", "en")}
 
-### 3.2 Snapshot Creation
+### 2.2 Snapshot Creation
 
 {_perf_table(perf, "snapshot-create", "en")}
 
-### 3.3 Create from Snapshot
+### 2.3 Create from Snapshot
 
 {_perf_table(perf, "snapshot-create-from", "en")}
 
-### 3.4 Rollback
+### 2.4 Rollback
 
 {_perf_table(perf, "rollback", "en")}
 
-### 3.5 Clone
+### 2.5 Clone
 
 {_perf_table(perf, "clone", "en")}
 
-### 3.6 Pause & Resume
+### 2.6 Pause & Resume
 
 {_perf_table(perf, "pause", "en")}
 {_perf_table(perf, "resume", "en")}
 
-### 3.7 Deployment Density
+### 2.7 Deployment Density
 
 {_perf_table(perf, "deployment-density", "en")}
 
 ---
 
-## 4. Summary
+## 3. Summary
 
-- **Functional**: {func['pass']} passed, {func['fail']} failed, {func['skip']} skipped (total {func['total']} assertions)
 - **Performance**: {len(perf)} benchmark scenarios collected
+- **Functional**: {func['pass']} passed, {func['fail']} failed, {func['skip']} skipped (total {func['total']} assertions)
 
 ---
 
 _Report generated by `tests/e2e` — CubeSandbox Python SDK v{env['sdk_version']}_
 """
+
+
+# ===========================================================================
+# Markdown rendering — Chinese
+# ===========================================================================
 
 
 def _render_markdown_zh(data: dict[str, Any]) -> str:
@@ -318,60 +432,49 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 
 ---
 
-## 2. 功能测试结果
+## 2. 性能压测
 
-| 结果 | 数量 |
-|:---|:---|
-| ✅ 通过 | {func['pass']} |
-| ❌ 失败 | {func['fail']} |
-| ⚠️ 跳过 | {func['skip']} |
-| **总计** | **{func['total']}** |
-
-**整体状态**: {overall}
-
----
-
-## 3. 性能压测
-
+{_cpu_mem_banner(env, "zh")}
+{_baseline_note("zh")}
 > 单位：毫秒 (ms)。除特别说明外，每个场景运行 {data['config']['perf_rounds']} 轮。
 > **平均值 / 最小值 / P50 / P95 / 最大值**：单次操作的统计指标。
 > **总耗时**：整批操作的总墙钟时间。**单次均摊**：总耗时 ÷ 操作数（N）。
 
-### 3.1 基于模板创建沙箱
+### 2.1 基于模板创建沙箱
 
 {_perf_table(perf, "template-create", "zh")}
 
-### 3.2 创建快照
+### 2.2 创建快照
 
 {_perf_table(perf, "snapshot-create", "zh")}
 
-### 3.3 基于快照创建沙箱
+### 2.3 基于快照创建沙箱
 
 {_perf_table(perf, "snapshot-create-from", "zh")}
 
-### 3.4 回滚（Rollback）
+### 2.4 回滚（Rollback）
 
 {_perf_table(perf, "rollback", "zh")}
 
-### 3.5 克隆（Clone）
+### 2.5 克隆（Clone）
 
 {_perf_table(perf, "clone", "zh")}
 
-### 3.6 暂停与恢复
+### 2.6 暂停与恢复
 
 {_perf_table(perf, "pause", "zh")}
 {_perf_table(perf, "resume", "zh")}
 
-### 3.7 部署密度
+### 2.7 部署密度
 
 {_perf_table(perf, "deployment-density", "zh")}
 
 ---
 
-## 4. 总结
+## 3. 总结
 
-- **功能测试**：{func['pass']} 通过，{func['fail']} 失败，{func['skip']} 跳过（共 {func['total']} 项断言）
 - **性能压测**：共采集 {len(perf)} 个压测场景
+- **功能测试**：{func['pass']} 通过，{func['fail']} 失败，{func['skip']} 跳过（共 {func['total']} 项断言）
 
 ---
 
