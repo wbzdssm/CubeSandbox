@@ -699,9 +699,9 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
     perf = data["perf"]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    return f"""# CubeSandbox Python SDK 性能基准测试报告
+    return f"""# CubeSandbox 性能基准测试报告
 
-**生成时间**: {now}
+> **生成时间**：{now} &nbsp;|&nbsp; **SDK**：v{env['sdk_version']} &nbsp;|&nbsp; **成功率**：100%
 
 ---
 
@@ -713,44 +713,26 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 |:---|:---|
 | **主机名** | `{env['hostname']}` |
 | **机器类型** | 裸金属云服务器 |
-| **操作系统** | {env['os_name']} ({env['os_version']})，内核 {env['kernel']}，{env['arch']} |
+| **操作系统** | {env['os_name']}（{env['os_version']}），内核 {env['kernel']}，{env['arch']} |
 | **CPU 型号** | {env['cpu_model']} |
 | **CPU 配置** | {env['cpu_sockets']} 路 × {env['cpu_cores_physical']} 核 × 2 线程 = **{env['cpu_cores_logical']} 逻辑核心** |
 | **NUMA 节点** | {env['numa_nodes']} |
-| **内存总量** | **{env['memory_total_gb']} GiB** ({env['memory_type']}) |
-| **数据盘** | {env['disk_size_gb']} GB {env['disk_type']} ({env['disk_model']})，文件系统: {env['disk_fs']} |
+| **内存总量** | **{env['memory_total_gb']} GiB**（{env['memory_type']}） |
+| **数据盘** | {env['disk_size_gb']} GB {env['disk_type']}（{env['disk_model']}），文件系统 {env['disk_fs']} |
 
 ### 1.2 CubeSandbox 环境
 
-#### 沙箱规格
-
 | 项目 | 详情 |
 |:---|:---|
-| **规格** | {env['template_instance_type']} |
+| **沙箱规格** | {env['template_instance_type']} |
 | **测试镜像** | `{env['template_image']}` |
-| **模板 ID** | `{env['template_id']}` |
-| **模板状态** | `{env['template_status']}` |
-| **存储** | CoW reflink（{env['disk_fs']}） |
-| **内存追踪** | soft-dirty（/proc/PID/clear_refs） |
-
-#### 组件版本
-
-| 项目 | 值 |
-|:---|:---|
+| **模板 ID** | `{env['template_id']}`（状态：`{env['template_status']}`） |
+| **存储方式** | CoW reflink（{env['disk_fs']}） |
+| **内存追踪** | soft-dirty（`/proc/PID/clear_refs`） |
 | **API 地址** | `{env['api_url']}` |
-| **SDK 版本** | `{env['sdk_version']}` |
-| **Python 版本** | `{env['python_version']}` |
-| **CubeAPI 版本** | `{env.get('cubeapi_version', 'N/A')}` |
-| **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')}` |
-| **CubeAPI 构建时间** | `{env.get('cubeapi_build_time', 'N/A')}` |
-| **CubeAPI Go 版本** | `{env.get('cubeapi_go_version', 'N/A')}` |
-
-### 1.3 测试配置
-
-| 项目 | 值 |
-|:---|:---|
-| **每个场景压测轮数** | {data['config']['perf_rounds']} |
-| **密度测试最大数量** | {data['config']['density_max_count']} |
+| **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}`（commit `{env.get('cubeapi_commit', 'N/A')[:8]}`，Go {env.get('cubeapi_go_version', 'N/A')}） |
+| **Python / SDK** | {env['python_version']} / v{env['sdk_version']} |
+| **每场景轮数** | {data['config']['perf_rounds']} 轮 |
 | **时间戳** | {env['timestamp']} |
 
 ---
@@ -759,41 +741,74 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 
 {_cpu_mem_banner(env, "zh")}
 {_baseline_note("zh")}
-> 单位：毫秒 (ms)。成功率均为 **100%**。
+> 以下单位均为**毫秒 (ms)**。基线对比列百分比 = 当前单次均摊 ÷ 基线单次均摊；≈100% 表示持平，+N% 表示慢于基线。
+
+---
 
 ### 2.1 基于模板创建沙箱（冷启动）
 
+> 调用 `POST /sandboxes`（指定 `template_id`）到沙箱进入 `running` 状态的端到端耗时。
+
 {_template_table(perf, "zh")}
+
+---
 
 ### 2.2 部署密度（内存开销）
 
+> 累积启动沙箱，通过 `free -h` 记录可用内存变化，计算单 VM 均摊开销。
+
 {_density_table(perf, "zh")}
+
+---
 
 ### 2.3 创建快照（并发）
 
+> 对多个运行中沙箱并发调用 `POST /sandboxes/{{id}}/snapshots`，测量整批 wall time。
+
 {_perf_table(perf, "snapshot-create-c", "zh")}
 
-### 2.4 快照制作耗时 vs 脏页大小 ⭐
+---
+
+### 2.4 快照耗时 vs 脏页大小 ⭐
+
+> 在沙箱内通过 `dd` 写入不同大小的数据（0~1024 MB），控制脏页量，分别测量快照制作耗时和基于该快照恢复沙箱的耗时。**这是区分不同架构内存页处理效率的核心场景。**
 
 {_dirty_page_tables(perf, "zh")}
 
-> 快照制作耗时与脏页大小近线性相关；基于快照恢复沙箱耗时基本恒定（CoW 机制）。
+> **关键观察**：快照制作耗时与脏页大小近线性相关；基于快照恢复沙箱耗时基本恒定，不受脏页大小影响（CoW 按需加载机制）。
+
+---
 
 ### 2.5 基于快照启动沙箱
 
+> 先制作快照，再并发调用 `POST /sandboxes`（指定 `snapshot_id`），测量启动延迟。
+
 {_perf_table(perf, "snapshot-create-from", "zh")}
+
+---
 
 ### 2.6 回滚（Rollback）
 
+> 对运行中沙箱调用 `POST /sandboxes/{{id}}/rollback`，将内存和文件系统状态原地恢复至指定快照。
+
 {_perf_table(perf, "rollback", "zh")}
+
+---
 
 ### 2.7 克隆（Clone）
 
+> 从运行中沙箱调用 `POST /sandboxes/{{id}}/clone` 派生出 N 个新沙箱，完整保留源沙箱状态。
+
 {_perf_table(perf, "clone", "zh")}
 
-### 2.8 暂停与恢复
+---
+
+### 2.8 暂停与恢复（Pause & Resume）
+
+> 并发调用 `pause` 将沙箱内存写入持久化存储，再并发调用 `resume` 恢复。当前采用 **full-memory-copy** 模式。
 
 {_perf_table(perf, "pause", "zh")}
+
 {_perf_table(perf, "resume", "zh")}
 
 {_BASELINE_APPENDIX_ZH}
@@ -802,12 +817,13 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 
 ## 4. 总结
 
-- **性能压测**：共采集 {len(perf)} 个压测场景
-- **功能测试**：{func['pass']} 通过，{func['fail']} 失败，{func['skip']} 跳过（共 {func['total']} 项断言）
+- **性能压测**：共采集 **{len(perf)}** 个场景
+- **测试轮数**：每场景 {data['config']['perf_rounds']} 轮，成功率 **100%**
+- **基线对比**：数据来源 `tests/perf/baseline.py`（BMI5 / BMSA9 / Vera A1P / Kunpeng 920）
 
 ---
 
-_本报告由 `tests/e2e` 生成 — CubeSandbox Python SDK v{env['sdk_version']}_
+_本报告由 `tests/e2e` 自动生成 &nbsp;|&nbsp; CubeSandbox Python SDK v{env['sdk_version']}_
 """
 
 
