@@ -37,7 +37,12 @@ import threading
 import time
 from uuid import uuid4
 
-from cubesandbox import Config, Sandbox, Volume
+from cubesandbox import Config, Sandbox
+
+try:
+    from cubesandbox import Volume
+except ImportError:
+    Volume = None  # type: ignore[assignment]
 
 from .config import DENSITY_COUNT, PERF_ROUNDS
 from .env import get_free_mem_gb
@@ -292,6 +297,8 @@ def bench_pause_resume(cfg: Config) -> None:
 
 def _volume_enabled() -> bool:
     """Volume scenarios are opt-in until the backend `/volumes` endpoint lands."""
+    if Volume is None:
+        return False
     return os.environ.get("CUBE_RUN_VOLUME") == "1"
 
 
