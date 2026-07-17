@@ -707,21 +707,33 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 
 ## 1. 测试环境
 
-### 1.1 主机信息
+### 1.1 硬件信息
 
-| 项目 | 值 |
+| 项目 | 详情 |
 |:---|:---|
 | **主机名** | `{env['hostname']}` |
-| **操作系统** | {env['os_name']} ({env['os_version']}) |
-| **内核版本** | {env['kernel']} |
-| **架构** | {env['arch']} |
+| **机器类型** | 裸金属云服务器 |
+| **操作系统** | {env['os_name']} ({env['os_version']})，内核 {env['kernel']}，{env['arch']} |
 | **CPU 型号** | {env['cpu_model']} |
 | **CPU 配置** | {env['cpu_sockets']} 路 × {env['cpu_cores_physical']} 核 × 2 线程 = **{env['cpu_cores_logical']} 逻辑核心** |
-| **NUMA 节点数** | {env['numa_nodes']} |
+| **NUMA 节点** | {env['numa_nodes']} |
 | **内存总量** | **{env['memory_total_gb']} GiB** ({env['memory_type']}) |
-| **数据磁盘** | {env['disk_size_gb']} GB {env['disk_type']} ({env['disk_model']}), 文件系统: {env['disk_fs']} |
+| **数据盘** | {env['disk_size_gb']} GB {env['disk_type']} ({env['disk_model']})，文件系统: {env['disk_fs']} |
 
-### 1.2 SDK 与 API
+### 1.2 CubeSandbox 环境
+
+#### 沙箱规格
+
+| 项目 | 详情 |
+|:---|:---|
+| **规格** | {env['template_instance_type']} |
+| **测试镜像** | `{env['template_image']}` |
+| **模板 ID** | `{env['template_id']}` |
+| **模板状态** | `{env['template_status']}` |
+| **存储** | CoW reflink（{env['disk_fs']}） |
+| **内存追踪** | soft-dirty（/proc/PID/clear_refs） |
+
+#### 组件版本
 
 | 项目 | 值 |
 |:---|:---|
@@ -732,10 +744,6 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 | **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')}` |
 | **CubeAPI 构建时间** | `{env.get('cubeapi_build_time', 'N/A')}` |
 | **CubeAPI Go 版本** | `{env.get('cubeapi_go_version', 'N/A')}` |
-| **模板 ID** | `{env['template_id']}` |
-| **模板镜像** | `{env['template_image']}` |
-| **模板实例类型** | `{env['template_instance_type']}` |
-| **模板状态** | `{env['template_status']}` |
 
 ### 1.3 测试配置
 
@@ -822,21 +830,33 @@ def _render_markdown_en(data: dict[str, Any]) -> str:
 
 ## 1. Test Environment
 
-### 1.1 Host Machine
+### 1.1 Hardware
 
-| Item | Value |
+| Item | Detail |
 |:---|:---|
 | **Hostname** | `{env['hostname']}` |
-| **OS** | {env['os_name']} ({env['os_version']}) |
-| **Kernel** | {env['kernel']} |
-| **Architecture** | {env['arch']} |
+| **Machine Type** | Bare-metal cloud server |
+| **OS** | {env['os_name']} ({env['os_version']}), kernel {env['kernel']}, {env['arch']} |
 | **CPU Model** | {env['cpu_model']} |
 | **CPU Configuration** | {env['cpu_sockets']} socket(s) × {env['cpu_cores_physical']} cores × 2 threads = **{env['cpu_cores_logical']} logical cores** |
 | **NUMA Nodes** | {env['numa_nodes']} |
 | **Memory Total** | **{env['memory_total_gb']} GiB** ({env['memory_type']}) |
 | **Data Disk** | {env['disk_size_gb']} GB {env['disk_type']} ({env['disk_model']}), FS: {env['disk_fs']} |
 
-### 1.2 SDK & API
+### 1.2 CubeSandbox Environment
+
+#### Sandbox Spec
+
+| Item | Detail |
+|:---|:---|
+| **Spec** | {env['template_instance_type']} |
+| **Test Image** | `{env['template_image']}` |
+| **Template ID** | `{env['template_id']}` |
+| **Template Status** | `{env['template_status']}` |
+| **Storage** | CoW reflink ({env['disk_fs']}) |
+| **Memory Tracking** | soft-dirty (/proc/PID/clear_refs) |
+
+#### Component Versions
 
 | Item | Value |
 |:---|:---|
@@ -847,10 +867,6 @@ def _render_markdown_en(data: dict[str, Any]) -> str:
 | **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')}` |
 | **CubeAPI Build Time** | `{env.get('cubeapi_build_time', 'N/A')}` |
 | **CubeAPI Go Version** | `{env.get('cubeapi_go_version', 'N/A')}` |
-| **Template ID** | `{env['template_id']}` |
-| **Template Image** | `{env['template_image']}` |
-| **Template Instance Type** | `{env['template_instance_type']}` |
-| **Template Status** | `{env['template_status']}` |
 
 ### 1.3 Test Configuration
 
