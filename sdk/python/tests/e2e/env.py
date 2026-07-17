@@ -190,4 +190,123 @@ def collect_env_info(cfg: Config) -> EnvInfo:
     except Exception:
         pass
 
+    # --- Cluster component versions (via CubeAPI /cluster/versions) ---
+    try:
+        import httpx
+
+        headers = {}
+        api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
+        if api_key:
+            headers["X-API-Key"] = api_key
+        resp = httpx.get(f"{cfg.api_url}/cluster/versions", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                cp = data.get("control_plane", {})
+                if isinstance(cp, dict):
+                    info.cubemaster_version = str(cp.get("version", ""))
+                    info.cubemaster_commit = str(cp.get("commit", ""))
+                    info.cubemaster_build_time = str(cp.get("build_time", ""))
+                nodes = data.get("nodes", [])
+                if isinstance(nodes, list) and nodes:
+                    first_node = nodes[0]
+                    if isinstance(first_node, dict):
+                        for c in first_node.get("components", []):
+                            name = c.get("component", "")
+                            ver = c.get("version", "")
+                            if name == "cubelet":
+                                info.cubelet_version = ver
+                            elif name == "cube-shim":
+                                info.cube_shim_version = ver
+                            elif name == "guest-image":
+                                info.guest_image_version = ver
+                            elif name == "kernel":
+                                info.kernel_version_node = ver
+    except Exception:
+        pass
+
+    # --- Fallback: get versions from local binaries ---
+    _collect_local_versions(info)
+
     return info
+
+
+def _parse_version_output(output: str) -> tuple[str, str, str]:
+    """Parse 'name v1.2.3 (commit) built at 2026-01-01T00:00:00Z' into (version, commit, build_time)."""
+    import re
+
+    version = ""
+    commit = ""
+    build_time = ""
+    # pattern: v0.5.1 (a164417...) built at 2026-07-11T08:09:01Z
+    m = re.search(r"v?(\d+\.\d+\.\d+(?:[-\w.]*)?)\s*\((\w+)\)\s*built at\s*(\S+)", output)
+    if m:
+        version = m.group(1)
+        commit = m.group(2)
+        build_time = m.group(3)
+    return version, commit, build_time
+
+
+def _collect_local_versions(info: EnvInfo) -> None:
+    """Try to get component versions from locally installed binaries."""
+    import shutil
+
+    # CubeAPI binary (priority: HTTP response, then local binary)
+    if not info.cubeapi_version:
+        for path in (
+            "/usr/local/services/cubetoolbox/CubeAPI/bin/cube-api",
+            "/usr/local/bin/cube-api",
+        ):
+            cubeapi_bin = shutil.which(path) or (path if os.path.exists(path) else None)
+            if cubeapi_bin:
+                out = run_cmd([cubeapi_bin, "-V"])
+                if out:
+                    v, c, bt = _parse_version_output(out)
+                    info.cubeapi_version = v or info.cubeapi_version
+                    info.cubeapi_commit = c or info.cubeapi_commit
+                    info.cubeapi_build_time = bt or info.cubeapi_build_time
+                    break
+
+    # CubeMaster binary
+    if not info.cubemaster_version:
+        for path in (
+            "/usr/local/services/cubetoolbox/CubeMaster/bin/cubemaster",
+            "/usr/local/bin/cubemaster",
+        ):
+            cm_bin = shutil.which(path) or (path if os.path.exists(path) else None)
+            if cm_bin:
+                out = run_cmd([cm_bin, "-v"])
+                if out:
+                    v, c, bt = _parse_version_output(out)
+                    info.cubemaster_version = v or info.cubemaster_version
+                    info.cubemaster_commit = c or info.cubemaster_commit
+                    info.cubemaster_build_time = bt or info.cubemaster_build_time
+                    break
+
+    # Cubelet binary
+    if not info.cubelet_version:
+        for path in (
+            "/usr/local/services/cubetoolbox/Cubelet/bin/cubelet",
+            "/usr/local/bin/cubelet",
+        ):
+            cl_bin = shutil.which(path) or (path if os.path.exists(path) else None)
+            if cl_bin:
+                out = run_cmd([cl_bin, "-v"])
+                if out:
+                    v, c, bt = _parse_version_output(out)
+                    info.cubelet_version = v or info.cubelet_version
+                    break
+
+    # CubeShim binary
+    if not info.cube_shim_version:
+        for path in (
+            "/usr/local/services/cubetoolbox/CubeShim/bin/containerd-shim-cube-rs",
+            "/usr/local/bin/containerd-shim-cube-rs",
+        ):
+            sh_bin = shutil.which(path) or (path if os.path.exists(path) else None)
+            if sh_bin:
+                out = run_cmd([sh_bin, "-v"])
+                if out:
+                    v, c, bt = _parse_version_output(out)
+                    info.cube_shim_version = v or info.cube_shim_version
+                    break
