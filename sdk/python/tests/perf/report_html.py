@@ -108,31 +108,40 @@ function cmpBadge(cur, bl) {{
 
 // ---- Environment ----
 (function() {{
-  const hwKeys = ['hostname', 'machine_type', 'os', 'cpu_model', 'cpu_config', 'numa_nodes', 'memory', 'disk'];
-  const hwLabels = {{ hostname:'主机名', machine_type:'机器类型', os:'操作系统', cpu_model:'CPU 型号', cpu_config:'CPU 配置', numa_nodes:'NUMA 节点', memory:'内存总量', disk:'数据盘' }};
+  const hwKeys = ['hostname', 'machine_type', 'os_name', 'os_version', 'kernel', 'arch', 'processor', 'cpu_model', 'cpu_sockets', 'cpu_cores_physical', 'cpu_cores_logical', 'numa_nodes', 'memory_total_gb', 'memory_type', 'disk_model', 'disk_size_gb', 'disk_type', 'disk_fs'];
+  const hwLabels = {{
+    hostname:'主机名', machine_type:'机器类型',
+    os_name:'操作系统', os_version:'OS 版本', kernel:'内核版本', arch:'架构', processor:'处理器',
+    cpu_model:'CPU 型号', cpu_sockets:'CPU 路数', cpu_cores_physical:'物理核数', cpu_cores_logical:'逻辑核数',
+    numa_nodes:'NUMA 节点', memory_total_gb:'内存总量 (GiB)', memory_type:'内存类型',
+    disk_model:'磁盘型号', disk_size_gb:'磁盘容量 (GB)', disk_type:'磁盘类型', disk_fs:'文件系统',
+  }};
   const hwTable = document.getElementById('env-hardware');
   hwKeys.forEach(k => {{
     let v = ENV[k];
     if (v === undefined || v === null || v === '') return;
-    if (k === 'os') v = `${{ENV.os_name || ''}}（${{ENV.os_version || ''}}），内核 ${{ENV.kernel || ''}}，${{ENV.arch || ''}}`;
-    if (k === 'cpu_config') v = `${{ENV.cpu_sockets || '?'}} 路 × ${{ENV.cpu_cores_physical || '?'}} 核 × 2 线程 = ${{ENV.cpu_cores_logical || '?'}} 逻辑核心`;
-    if (k === 'memory') v = `${{ENV.memory_total_gb || '?'}} GiB（${{ENV.memory_type || 'N/A'}}）`;
-    if (k === 'disk') v = `${{ENV.disk_size_gb || '?'}} GB ${{ENV.disk_type || ''}}（${{ENV.disk_model || ''}}），${{ENV.disk_fs || ''}}`;
     hwTable.innerHTML += `<tr><td>${{hwLabels[k] || k}}</td><td>${{v}}</td></tr>`;
   }});
 
-  const cubeKeys = ['sandbox_spec', 'template_image', 'template_id', 'template_status', 'storage', 'memory_tracking', 'api_url', 'cubeapi', 'python_sdk', 'httpx_requests', 'sdk_path', 'rounds', 'timestamp'];
-  const cubeLabels = {{ sandbox_spec:'沙箱规格', template_image:'测试镜像', template_id:'模板 ID', template_status:'模板状态', storage:'存储方式', memory_tracking:'内存追踪', api_url:'API 地址', cubeapi:'CubeAPI', python_sdk:'Python / SDK', httpx_requests:'httpx / requests', sdk_path:'SDK 路径', rounds:'每场景轮数', timestamp:'时间戳' }};
+  const cubeKeys = ['sandbox_spec', 'template_image', 'template_id', 'template_status', 'storage', 'memory_tracking',
+    'api_url', 'cubeapi_version', 'cubeapi_commit', 'cubeapi_build_time', 'cubeapi_go_version',
+    'python_impl', 'sdk_version', 'sdk_import_path', 'httpx_version', 'requests_version',
+    'platform_summary', 'rounds', 'timestamp'];
+  const cubeLabels = {{
+    sandbox_spec:'沙箱规格', template_image:'测试镜像', template_id:'模板 ID', template_status:'模板状态',
+    storage:'存储方式', memory_tracking:'内存追踪',
+    api_url:'API 地址', cubeapi_version:'CubeAPI 版本', cubeapi_commit:'CubeAPI Commit',
+    cubeapi_build_time:'CubeAPI 构建时间', cubeapi_go_version:'CubeAPI Go 版本',
+    python_impl:'Python 实现', sdk_version:'SDK 版本', sdk_import_path:'SDK 导入路径',
+    httpx_version:'httpx 版本', requests_version:'requests 版本',
+    platform_summary:'平台摘要', rounds:'每场景轮数', timestamp:'时间戳',
+  }};
   const cubeTable = document.getElementById('env-cube');
   cubeKeys.forEach(k => {{
     let v = ENV[k];
     if (v === undefined || v === null || v === '') return;
     if (k === 'storage') v = `CoW reflink（${{ENV.disk_fs || ''}}）`;
     if (k === 'memory_tracking') v = 'soft-dirty（/proc/PID/clear_refs）';
-    if (k === 'cubeapi') v = `${{ENV.cubeapi_version || 'N/A'}}（commit ${{(ENV.cubeapi_commit || 'N/A').substring(0,8)}}，Go ${{ENV.cubeapi_go_version || 'N/A'}}）`;
-    if (k === 'python_sdk') v = `${{ENV.python_impl || ENV.python_version || '?'}} / v${{ENV.sdk_version || '?'}}`;
-    if (k === 'httpx_requests') v = `${{ENV.httpx_version || 'N/A'}} / ${{ENV.requests_version || 'N/A'}}`;
-    if (k === 'sdk_path') v = `${{ENV.sdk_import_path || 'N/A'}}`;
     cubeTable.innerHTML += `<tr><td>${{cubeLabels[k] || k}}</td><td>${{v}}</td></tr>`;
   }});
 }})();

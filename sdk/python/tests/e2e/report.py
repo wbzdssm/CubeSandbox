@@ -716,12 +716,21 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 |:---|:---|
 | **主机名** | `{env['hostname']}` |
 | **机器类型** | 裸金属云服务器 |
-| **操作系统** | {env['os_name']}（{env['os_version']}），内核 {env['kernel']}，{env['arch']} |
+| **操作系统** | {env['os_name']} |
+| **OS 版本** | {env['os_version']} |
+| **内核版本** | {env['kernel']} |
+| **架构** | {env['arch']} |
+| **处理器** | {env.get('processor', env['arch'])} |
 | **CPU 型号** | {env['cpu_model']} |
-| **CPU 配置** | {env['cpu_sockets']} 路 × {env['cpu_cores_physical']} 核 × 2 线程 = **{env['cpu_cores_logical']} 逻辑核心** |
+| **CPU 路数** | {env['cpu_sockets']} |
+| **物理核数** | {env['cpu_cores_physical']} |
+| **逻辑核数** | **{env['cpu_cores_logical']}** |
 | **NUMA 节点** | {env['numa_nodes']} |
 | **内存总量** | **{env['memory_total_gb']} GiB**（{env['memory_type']}） |
-| **数据盘** | {env['disk_size_gb']} GB {env['disk_type']}（{env['disk_model']}），文件系统 {env['disk_fs']} |
+| **磁盘型号** | {env['disk_model']} |
+| **磁盘容量** | {env['disk_size_gb']} GB |
+| **磁盘类型** | {env['disk_type']} |
+| **文件系统** | {env['disk_fs']} |
 
 ### 1.2 CubeSandbox 环境
 
@@ -733,9 +742,16 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 | **存储方式** | CoW reflink（{env['disk_fs']}） |
 | **内存追踪** | soft-dirty（`/proc/PID/clear_refs`） |
 | **API 地址** | `{env['api_url']}` |
-| **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}`（commit `{env.get('cubeapi_commit', 'N/A')[:8]}`，Go {env.get('cubeapi_go_version', 'N/A')}） |
-| **Python / SDK** | {env.get('python_impl', env['python_version'])} / v{env['sdk_version']}（{env.get('sdk_import_path', 'N/A')}） |
-| **httpx / requests** | {env.get('httpx_version', 'N/A')} / {env.get('requests_version', 'N/A')} |
+| **CubeAPI 版本** | `{env.get('cubeapi_version', 'N/A')}` |
+| **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')[:8] if env.get('cubeapi_commit') else 'N/A'}` |
+| **CubeAPI 构建时间** | `{env.get('cubeapi_build_time', 'N/A')}` |
+| **CubeAPI Go 版本** | `{env.get('cubeapi_go_version', 'N/A')}` |
+| **Python 实现** | {env.get('python_impl', env['python_version'])} |
+| **SDK 版本** | v{env['sdk_version']} |
+| **SDK 导入路径** | `{env.get('sdk_import_path', 'N/A')}` |
+| **httpx 版本** | {env.get('httpx_version', 'N/A')} |
+| **requests 版本** | {env.get('requests_version', 'N/A')} |
+| **平台摘要** | {env.get('platform_summary', 'N/A')} |
 | **每场景轮数** | {data['config']['perf_rounds']} 轮 |
 | **时间戳** | {env['timestamp']} |
 
