@@ -157,8 +157,6 @@ def _render_markdown_en(data: dict[str, Any]) -> str:
     return f"""# CubeSandbox Python SDK Integration & Performance Report
 
 **Generated**: {now}
-**SDK Version**: {env['sdk_version']}
-**Python Version**: {env['python_version']}
 
 ---
 
@@ -183,6 +181,12 @@ def _render_markdown_en(data: dict[str, Any]) -> str:
 | Item | Value |
 |:---|:---|
 | **API URL** | `{env['api_url']}` |
+| **SDK Version** | `{env['sdk_version']}` |
+| **Python Version** | `{env['python_version']}` |
+| **CubeAPI Version** | `{env.get('cubeapi_version', 'N/A')}` |
+| **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')}` |
+| **CubeAPI Build Time** | `{env.get('cubeapi_build_time', 'N/A')}` |
+| **CubeAPI Go Version** | `{env.get('cubeapi_go_version', 'N/A')}` |
 | **Template ID** | `{env['template_id']}` |
 | **Template Image** | `{env['template_image']}` |
 | **Template Instance Type** | `{env['template_instance_type']}` |
@@ -269,8 +273,6 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
     return f"""# CubeSandbox Python SDK 集成与性能测试报告
 
 **生成时间**: {now}
-**SDK 版本**: {env['sdk_version']}
-**Python 版本**: {env['python_version']}
 
 ---
 
@@ -295,6 +297,12 @@ def _render_markdown_zh(data: dict[str, Any]) -> str:
 | 项目 | 值 |
 |:---|:---|
 | **API 地址** | `{env['api_url']}` |
+| **SDK 版本** | `{env['sdk_version']}` |
+| **Python 版本** | `{env['python_version']}` |
+| **CubeAPI 版本** | `{env.get('cubeapi_version', 'N/A')}` |
+| **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')}` |
+| **CubeAPI 构建时间** | `{env.get('cubeapi_build_time', 'N/A')}` |
+| **CubeAPI Go 版本** | `{env.get('cubeapi_go_version', 'N/A')}` |
 | **模板 ID** | `{env['template_id']}` |
 | **模板镜像** | `{env['template_image']}` |
 | **模板实例类型** | `{env['template_instance_type']}` |
