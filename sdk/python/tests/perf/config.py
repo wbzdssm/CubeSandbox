@@ -29,6 +29,16 @@ def _parse_int_list(env_name: str, default: list[int]) -> list[int]:
 PERF_ROUNDS = int(os.environ.get("CUBE_PERF_ROUNDS", "10"))
 DENSITY_COUNT = int(os.environ.get("CUBE_DENSITY_COUNT", "100"))
 
+# Warm-up rounds discarded before measured rounds (removes cold-start spikes),
+# and settle seconds slept between rounds (lets the node quiesce). Mirrors the
+# methodology of the standalone examples/snapshot-rollback-clone bench scripts.
+PERF_WARMUP = int(os.environ.get("CUBE_PERF_WARMUP", "1"))
+PERF_SETTLE = float(os.environ.get("CUBE_PERF_SETTLE", "0"))
+
+# Dirty-page write sizes (MB) swept by the snapshot-dirty scenario. Matches the
+# published baseline sweep; override via CUBE_DIRTY_SWEEP, e.g. "0,100,1024".
+DIRTY_SWEEP = _parse_int_list("CUBE_DIRTY_SWEEP", [0, 10, 50, 100, 200, 500, 800, 1024])
+
 # Concurrency levels swept by the create/snapshot/rollback/pause scenarios.
 # Kept intentionally small by default so a single node does not exhaust its
 # CPU/memory quota (CubeMaster error 130597 "no more resource"). Override via

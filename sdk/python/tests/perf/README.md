@@ -33,6 +33,7 @@ This package reuses the shared infrastructure from the sibling
 | Template-based sandbox creation (single & concurrent) | `bench_template_create` |
 | Deployment density (memory overhead) | `bench_deployment_density` |
 | Snapshot creation (concurrent, dirty-page scaling) | `bench_snapshot_create` |
+| Snapshot latency vs dirty-page size (+ create-from) | `bench_snapshot_dirty` |
 | Snapshot-based sandbox creation (concurrent) | `bench_snapshot_create_from` |
 | Rollback | `bench_rollback` |
 | Clone (sequential & concurrent) | `bench_clone` |
@@ -41,6 +42,7 @@ This package reuses the shared infrastructure from the sibling
 | Volume destroy (single & concurrent) | `bench_volume_destroy` |
 | Volume metadata ops (list / get_info / connect) | `bench_volume_metadata` |
 | Sandbox creation with mounted volume (E2E) | `bench_volume_mount_sandbox` |
+| ivshmem shared-memory host-side mmap read/write | `bench_ivshmem` |
 
 ## Usage
 
@@ -100,6 +102,9 @@ The HTML report is a **self-contained, zero-dependency** page that provides:
 | `CUBE_OUTPUT_REPORT` | base path for output reports (default: `report`) |
 | `CUBE_HTML_OUTPUT` | HTML report output path (default: `perf_report.html`) |
 | `CUBE_RUN_VOLUME` | set to `1` to enable Volume scenarios (skipped by default) |
+| `CUBE_RUN_IVSHMEM` | set to `1` to enable the ivshmem scenario (skipped by default; needs an ivshmem-enabled template and must run on the host) |
+| `CUBE_IVSHMEM_TEMPLATE_ID` | ivshmem-enabled template for the ivshmem scenario (falls back to `CUBE_TEMPLATE_ID`) |
+| `CUBE_IVSHMEM_ITERATIONS` | mmap iterations for the ivshmem scenario (default: `10000`) |
 
 ### Reports
 

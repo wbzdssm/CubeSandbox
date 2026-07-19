@@ -13,10 +13,13 @@
 - Volume destroy (single & concurrent)
 - Volume metadata ops (list / get_info / connect)
 - Sandbox creation with mounted volume (end-to-end)
+- ivshmem shared-memory host-side mmap read/write
 
 NOTE: the four Volume scenarios are **skipped by default** because the
 backend `/volumes` endpoint is part of the SDK/docs-first roadmap and may not
-be deployed yet. Set ``CUBE_RUN_VOLUME=1`` to enable them.
+be deployed yet. Set ``CUBE_RUN_VOLUME=1`` to enable them. The ivshmem
+scenario is likewise opt-in (``CUBE_RUN_IVSHMEM=1``) — it needs an
+ivshmem-enabled template and must run on the CubeSandbox host.
 
 Shares its config/env/runner/report infrastructure with the `e2e` package
 (`tests/e2e/`) — the two are independent CLI entry points but talk to the
@@ -44,7 +47,7 @@ try:
 except ImportError:
     Volume = None  # type: ignore[assignment]
 
-from .config import CONCURRENCY_LEVELS, DENSITY_COUNT, PERF_ROUNDS
+from .config import CONCURRENCY_LEVELS, DENSITY_COUNT, DIRTY_SWEEP, PERF_ROUNDS, PERF_SETTLE, PERF_WARMUP
 from .env import get_free_mem_gb
 from .runner import PERF_RESULTS, PerfResult, PerfSample, measure_parallel, percentile, skip
 
@@ -481,12 +484,187 @@ def bench_volume_mount_sandbox(cfg: Config) -> None:
                 pass
 
 
+def _grep_snapshot_bytes(sandbox_id: str) -> int:
+    """Best-effort: read actual snapshot bytes written from the host vmm.log.
+
+    Returns -1 when the log is unavailable (e.g. perf runs off-host), matching
+    the standalone examples/snapshot-rollback-clone/bench_snapshot_dirty.py.
+    """
+    import re
+    import subprocess
+
+    vmm_log = os.environ.get("VMM_LOG", "/data/log/CubeVmm/vmm.log")
+    pat = re.compile(r"(?:PagemapAnon|Soft-dirty) snapshot saved:\s+(\d+)\s+\w+ bytes written")
+    try:
+        out = subprocess.check_output(["grep", "-i", sandbox_id, vmm_log], text=True, stderr=subprocess.DEVNULL)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return -1
+    for line in reversed(out.strip().splitlines()):
+        m = pat.search(line)
+        if m:
+            return int(m.group(1))
+    return -1
+
+
+def bench_snapshot_dirty(cfg: Config) -> None:
+    """Benchmark: snapshot latency vs dirty-page size (plus create-from restore).
+
+    For each write size in DIRTY_SWEEP: write N MB into the sandbox's tmpfs
+    (/dev/shm), snapshot it (timed), then restore a sandbox from that snapshot
+    (timed, after a discarded warm-up restore). Mirrors the standalone
+    examples/snapshot-rollback-clone/bench_snapshot_dirty.py. Skip with
+    CUBE_SKIP_SNAPSHOT_DIRTY=1.
+    """
+    if os.environ.get("CUBE_SKIP_SNAPSHOT_DIRTY") == "1":
+        skip("snapshot dirty-page scaling", "CUBE_SKIP_SNAPSHOT_DIRTY=1")
+        return
+
+    print(f"\n{'='*60}")
+    print(" [Perf] Snapshot Latency vs Dirty-Page Size")
+    print(f"{'='*60}")
+
+    rounds = min(PERF_ROUNDS, 3)
+    result = PerfResult(scenario="snapshot-dirty")
+
+    for size_mb in DIRTY_SWEEP:
+        snap_times: list[float] = []
+        create_times: list[float] = []
+        dirty_bytes_seen = -1
+
+        for _ in range(rounds):
+            sb = Sandbox.create(cfg.template_id, timeout=120, config=cfg)
+            sid = sb.sandbox_id
+            snap_id = None
+            try:
+                if size_mb > 0:
+                    sb.run_code(f"open('/dev/shm/dirty','wb').write(b'x' * {size_mb * 1024 * 1024})")
+
+                t0 = time.perf_counter()
+                snap = sb.create_snapshot()
+                snap_times.append((time.perf_counter() - t0) * 1000)
+                snap_id = snap.snapshot_id
+                try: sb.kill()
+                except Exception: pass
+                sb = None
+
+                b = _grep_snapshot_bytes(sid)
+                if b >= 0:
+                    dirty_bytes_seen = b
+
+                # Warm-up restore (discarded) to remove the cache-miss spike.
+                warm = Sandbox.create(snap_id, timeout=120, config=cfg)
+                try: warm.kill()
+                except Exception: pass
+
+                t1 = time.perf_counter()
+                sb2 = Sandbox.create(snap_id, timeout=120, config=cfg)
+                create_times.append((time.perf_counter() - t1) * 1000)
+                try: sb2.kill()
+                except Exception: pass
+            finally:
+                if sb is not None:
+                    try: sb.kill()
+                    except Exception: pass
+                if snap_id is not None:
+                    try: Sandbox.delete_snapshot(snap_id, config=cfg)
+                    except Exception: pass
+            if PERF_SETTLE:
+                time.sleep(PERF_SETTLE)
+
+        snap_avg = statistics.mean(snap_times) if snap_times else 0
+        create_avg = statistics.mean(create_times) if create_times else 0
+        dirty_mb = round(dirty_bytes_seen / (1024 * 1024), 1) if dirty_bytes_seen >= 0 else -1
+        result.samples.append(PerfSample(
+            label=f"dirty-{size_mb}mb",
+            latency_ms=snap_avg,
+            extra={"write_mb": size_mb, "dirty_mb": dirty_mb,
+                   "snapshot_ms": round(snap_avg, 1), "create_from_ms": round(create_avg, 1)},
+        ))
+        print(f"  write={size_mb:>4}MB dirty≈{dirty_mb:>7}MB  snapshot={snap_avg:.1f}ms  create_from={create_avg:.1f}ms")
+
+    PERF_RESULTS.append(result)
+
+
+def _ivshmem_enabled() -> bool:
+    """ivshmem is opt-in: it needs an ivshmem-enabled template and host access
+    to ``/dev/shm/ivshmem-*`` (i.e. the benchmark must run on the CubeSandbox
+    host, not a remote client)."""
+    return os.environ.get("CUBE_RUN_IVSHMEM") == "1"
+
+
+def bench_ivshmem(cfg: Config) -> None:
+    """Benchmark: host-side ivshmem shared-memory mmap read/write.
+
+    Skipped by default — set ``CUBE_RUN_IVSHMEM=1`` to enable. Requires an
+    ivshmem-enabled template (``CUBE_IVSHMEM_TEMPLATE_ID``, falls back to the
+    default template) and must run on the host so ``/dev/shm/ivshmem-{id}`` is
+    reachable. Measures single-byte latency plus 100 B / 1 KB / 100 KB block
+    write latency and throughput.
+    """
+    if not _ivshmem_enabled():
+        skip("ivshmem shared-memory", "set CUBE_RUN_IVSHMEM=1 (needs an ivshmem-enabled template + host /dev/shm access)")
+        return
+
+    from .ivshmem import run_probe, wait_for_shm_file
+
+    print(f"\n{'='*60}")
+    print(" [Perf] ivshmem Shared-Memory (host-side mmap)")
+    print(f"{'='*60}")
+
+    template = os.environ.get("CUBE_IVSHMEM_TEMPLATE_ID") or cfg.template_id
+    iterations = int(os.environ.get("CUBE_IVSHMEM_ITERATIONS", "10000"))
+
+    sb = Sandbox.create(template, timeout=120, config=cfg)
+    try:
+        try:
+            path = wait_for_shm_file(sb.sandbox_id)
+        except FileNotFoundError as exc:
+            skip("ivshmem shared-memory", str(exc))
+            return
+
+        results = run_probe(path, iterations)
+
+        # Single-byte write: report latency (converted us -> ms) + ops/s.
+        sbyte = results["single_byte"]
+        r = PerfResult(scenario="ivshmem-write-1b")
+        r.samples.append(PerfSample(
+            label="ivshmem-1b",
+            latency_ms=sbyte["latency_us"] / 1000.0,
+            extra={"latency_us": sbyte["latency_us"], "ops_per_sec": sbyte["ops_per_sec"], "iterations": sbyte["iterations"]},
+        ))
+        PERF_RESULTS.append(r)
+        print(f"  single-byte: {sbyte['latency_us']:.3f} us/op  {sbyte['ops_per_sec']:,} ops/s")
+
+        # Block writes: report latency (us -> ms) + throughput (MB/s).
+        for key, scenario, label in [
+            ("block_100b", "ivshmem-write-100b", "100B"),
+            ("block_1kb", "ivshmem-write-1kb", "1KB"),
+            ("block_100kb", "ivshmem-write-100kb", "100KB"),
+        ]:
+            blk = results[key]
+            r = PerfResult(scenario=scenario)
+            r.samples.append(PerfSample(
+                label=scenario,
+                latency_ms=blk["latency_us"] / 1000.0,
+                extra={"latency_us": blk["latency_us"], "throughput_mb": blk["throughput_mb"],
+                       "block_size": blk["block_size"], "iterations": blk["iterations"]},
+            ))
+            PERF_RESULTS.append(r)
+            print(f"  {label:>6} block: {blk['latency_us']:.3f} us/op  {blk['throughput_mb']} MB/s")
+    finally:
+        try:
+            sb.kill()
+        except Exception:
+            pass
+
+
 # Ordered list of benchmark functions for the CLI runner.
 ALL_BENCHMARKS = [
     bench_template_create,
     bench_deployment_density,
     bench_snapshot_create,
     bench_snapshot_create_from,
+    bench_snapshot_dirty,
     bench_rollback,
     bench_clone,
     bench_pause_resume,
@@ -494,6 +672,7 @@ ALL_BENCHMARKS = [
     bench_volume_destroy,
     bench_volume_metadata,
     bench_volume_mount_sandbox,
+    bench_ivshmem,
 ]
 
 

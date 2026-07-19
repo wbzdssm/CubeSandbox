@@ -16,6 +16,9 @@ Optional env vars:
     CUBE_PERF_ROUNDS         - rounds per perf scenario (default: 10)
     CUBE_DENSITY_COUNT       - max sandbox count for density test (default: 100)
     CUBE_RUN_VOLUME          - set to "1" to enable Volume scenarios
+    CUBE_RUN_IVSHMEM         - set to "1" to enable the ivshmem scenario (host-only)
+    CUBE_IVSHMEM_TEMPLATE_ID - ivshmem-enabled template (falls back to CUBE_TEMPLATE_ID)
+    CUBE_IVSHMEM_ITERATIONS  - mmap iterations for the ivshmem scenario (default: 10000)
     CUBE_HTML_OUTPUT         - path for HTML report (default: perf_report.html)
 """
 
