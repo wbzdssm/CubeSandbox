@@ -256,6 +256,15 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pin
 .env-text .env-lines {{ margin-bottom: 8px; }}
 .env-text .env-lines div {{ padding: 2px 0; color: #333; }}
 .env-text .env-lines .k {{ display: inline-block; min-width: 130px; color: #888; }}
+/* Multi-environment accordion — one <details> per env so long lists collapse. */
+.env-text .env-details {{ margin: 4px 0 8px; border: 1px solid #eef0f6; border-radius: 6px; }}
+.env-text .env-details[open] {{ background: #fafbfe; }}
+.env-text .env-details > summary {{ cursor: pointer; padding: 8px 12px; font-weight: 600; list-style: none; user-select: none; display: flex; align-items: center; gap: 8px; }}
+.env-text .env-details > summary::-webkit-details-marker {{ display: none; }}
+.env-text .env-details > summary::before {{ content: "▸"; color: #888; transition: transform 0.15s; display: inline-block; }}
+.env-text .env-details[open] > summary::before {{ transform: rotate(90deg); }}
+.env-text .env-details > .env-lines {{ padding: 4px 12px 10px 30px; margin: 0; }}
+.env-text .env-dot {{ display: inline-block; width: 10px; height: 10px; border-radius: 50%; }}
 .env-text .sub-title {{ font-size: 14px; font-weight: 600; color: #764ba2; margin: 12px 0 4px; }}
 .chart-wrap {{ margin: 12px 0; }}
 .chart-wrap canvas {{ max-height: 320px; }}
@@ -373,20 +382,34 @@ function cmpBadge(cur, ref) {{
 
   function fill(boxId, fields) {{
     const box = document.getElementById(boxId);
+    // Single env: keep the plain flat text (no accordion overhead).
+    if (RUN_ENVS.length <= 1) {{
+      const e = RUN_ENVS[0];
+      const lines = e ? renderLines(e.env, fields) : '';
+      box.innerHTML = lines || '<div class="env-lines"><div>-</div></div>';
+      return;
+    }}
+    // Multi env: collapsible <details> per env so 4+ machines don't
+    // pile up into a wall of text. First env starts open (context anchor).
     let html = '';
     RUN_ENVS.forEach((e, i) => {{
       const lines = renderLines(e.env, fields);
       if (!lines) return;
-      if (RUN_ENVS.length > 1) {{
-        html += `<div class="env-name"><span style="color:${{runColor(i)}};">■</span> ${{e.label}}</div>`;
-      }}
-      html += lines;
+      const openAttr = i === 0 ? ' open' : '';
+      html += `<details class="env-details"${{openAttr}}>` +
+              `<summary><span class="env-dot" style="background:${{runColor(i)}};"></span>` +
+              `${{e.label}}</summary>${{lines}}</details>`;
     }});
     box.innerHTML = html || '<div class="env-lines"><div>-</div></div>';
   }}
 
-  // Cube versions: single env -> plain text; multi env -> comparison table
-  // with differing rows highlighted, so version-linked regressions stand out.
+  // Cube versions:
+  //   - single env  -> plain text (same as env-info)
+  //   - multi env   -> a collapsible <details> per environment plus a
+  //                    one-line insight summarising how many component
+  //                    fields differ across envs. Keeps the "version drift
+  //                    at a glance" value the old comparison table gave us,
+  //                    but doesn't blow up horizontally with N environments.
   function renderCube() {{
     const box = document.getElementById('cube-info');
     if (RUN_ENVS.length <= 1) {{
@@ -395,31 +418,28 @@ function cmpBadge(cur, ref) {{
       return;
     }}
 
-    let head = '<tr><th>组件</th>';
-    RUN_ENVS.forEach((e, i) => {{
-      head += `<th><span style="color:${{runColor(i)}};">■</span> ${{e.label}}</th>`;
-    }});
-    head += '</tr>';
-
-    let body = '';
+    // Count component fields whose value differs across envs.
     let diffCount = 0;
-    CUBE_FIELDS.forEach(([k, label]) => {{
-      const vals = RUN_ENVS.map(e => {{
-        const v = e.env[k];
-        return (v === undefined || v === null || v === '') ? '' : String(v);
-      }});
+    CUBE_FIELDS.forEach(([k]) => {{
+      const vals = RUN_ENVS.map(e => (e.env[k] == null ? '' : String(e.env[k])));
       if (vals.every(v => v === '')) return;
-      const differ = new Set(vals).size > 1;
-      if (differ) diffCount++;
-      body += `<tr class="${{differ ? 'diff-row' : ''}}"><td>${{label}}</td>`;
-      vals.forEach(v => {{ body += `<td>${{v || '-'}}</td>`; }});
-      body += '</tr>';
+      if (new Set(vals).size > 1) diffCount++;
+    }});
+    const note = diffCount > 0
+      ? `<div class="insight">检测到 <span class="hl">${{diffCount}}</span> 项组件版本在对比环境间存在差异 —— 展开各环境查看具体值。若某环境有明显 <b>vs 首环境</b> 劣化，优先排查这些差异导致的性能回退。</div>`
+      : '<div class="insight">各对比环境的 Cube 组件版本一致，性能差异应归因于机器/负载而非组件版本。</div>';
+
+    let acc = '';
+    RUN_ENVS.forEach((e, i) => {{
+      const lines = renderLines(e.env, CUBE_FIELDS);
+      if (!lines) return;
+      const openAttr = i === 0 ? ' open' : '';
+      acc += `<details class="env-details"${{openAttr}}>` +
+             `<summary><span class="env-dot" style="background:${{runColor(i)}};"></span>` +
+             `${{e.label}}</summary>${{lines}}</details>`;
     }});
 
-    const note = diffCount > 0
-      ? `<div class="insight">检测到 <span class="hl">${{diffCount}}</span> 项组件版本在对比环境间存在差异（下表<span class="hl">高亮行</span>）。若下方性能压测中对应环境出现明显 <b>vs 首环境</b> 劣化，应优先排查这些版本差异导致的性能回退。</div>`
-      : '<div class="insight">各对比环境的 Cube 组件版本一致，性能差异应归因于机器/负载而非组件版本。</div>';
-    box.innerHTML = note + '<table class="data-table cube-compare">' + head + body + '</table>';
+    box.innerHTML = note + (acc || '<div class="env-lines"><div>-</div></div>');
   }}
 
   fill('env-info', ENV_FIELDS);
