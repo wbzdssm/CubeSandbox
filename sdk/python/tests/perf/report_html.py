@@ -547,6 +547,13 @@ const METRICS = {metrics_json};
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const n = xLabels.length;
 
+    // Two tiny helpers used only when we build <title> tooltips on data
+    // points. Kept local so they don't leak into the outer scope.
+    const escXml = s => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const formatY = v => (v == null ? '-' : (v < 10 ? v.toFixed(2) : v.toFixed(1)) + ' ms');
+
     let maxY = 0;
     const consider = v => {{ if (v !== null && v !== undefined && v > maxY) maxY = v; }};
     runLines.forEach(l => l.data.forEach(p => consider(p.y)));
@@ -590,7 +597,12 @@ const METRICS = {metrics_json};
       }});
       l.data.forEach((p, i) => {{
         if (p.y === null || p.y === undefined) return;
-        parts.push(`<circle cx="${{xAt(i)}}" cy="${{yAt(p.y)}}" r="2.5" fill="${{l.color}}"/>`);
+        const tip = `${{l.label}}（基线） · ${{xLabels[i]}}: ${{formatY(p.y)}}`;
+        parts.push(
+          `<g><title>${{escXml(tip)}}</title>` +
+          `<circle cx="${{xAt(i)}}" cy="${{yAt(p.y)}}" r="2.5" fill="${{l.color}}"/>` +
+          `</g>`
+        );
       }});
     }});
 
@@ -605,7 +617,15 @@ const METRICS = {metrics_json};
       }});
       l.data.forEach((p, i) => {{
         if (p.y === null || p.y === undefined) return;
-        parts.push(`<rect x="${{xAt(i) - 3.5}}" y="${{yAt(p.y) - 3.5}}" width="7" height="7" rx="1.5" fill="${{l.color}}"/>`);
+        // Wrap the marker in <g><title>...</title>...</g> so browsers show
+        // a native hover tooltip with the env label + x + y — cheapest way
+        // to make each series identifiable when eight lines share a chart.
+        const tip = `${{l.label}} · ${{xLabels[i]}}: ${{formatY(p.y)}}`;
+        parts.push(
+          `<g><title>${{escXml(tip)}}</title>` +
+          `<rect x="${{xAt(i) - 3.5}}" y="${{yAt(p.y) - 3.5}}" width="7" height="7" rx="1.5" fill="${{l.color}}"/>` +
+          `</g>`
+        );
       }});
     }});
 
@@ -812,12 +832,23 @@ def _env_fingerprint(env: dict[str, Any]) -> str:
 
 
 def _env_label(env: dict[str, Any]) -> str:
-    """Short human label for a series/legend/table column."""
-    host = env.get("hostname") or ""
-    arch = env.get("arch") or ""
-    if host and arch:
-        return f"{host} ({arch})"
-    return host or env.get("cpu_model") or "run"
+    """Short human label for a series/legend/table column.
+
+    Format: ``<host-or-ip> (<arch>) [· <release_version>]``.  Prefers the
+    IP over the hostname when both are present, because "9.135.79.34" is
+    what people actually recognise in a multi-env chart; hostname is kept
+    as a fallback.  Release version is appended when known so a legend
+    entry stays readable even before ``_disambiguate_labels`` runs (single
+    env, or two envs on the same release).
+    """
+    ip = (env.get("ip_address") or "").strip()
+    host = (env.get("hostname") or "").strip()
+    arch = (env.get("arch") or "").strip()
+    release = (env.get("release_version") or "").strip()
+
+    primary = ip or host or env.get("cpu_model") or "run"
+    base = f"{primary} ({arch})" if arch else primary
+    return f"{base} · {release}" if release else base
 
 
 def _disambiguate_labels(
@@ -826,8 +857,10 @@ def _disambiguate_labels(
     """Append differing component versions to labels for multi-env reports.
 
     Only version fields that actually differ across environments are added,
-    so a legend entry reads e.g. "VM-A (x86_64) · CubeMaster 0.5.1" — making
-    it obvious which build each series belongs to.
+    so a legend entry reads e.g. "9.135.79.34 (x86_64) · v0.5.1 · CubeMaster
+    0.5.1" — making it obvious which build each series belongs to.
+    ``release_version`` is skipped when already embedded by ``_env_label``,
+    to avoid awkward duplication like "· v0.5.1 · Release v0.5.1".
     """
     if len(run_envs) < 2:
         return
@@ -839,7 +872,17 @@ def _disambiguate_labels(
     if not diff_fields:
         return
     for series, env_entry in zip(run_series, run_envs):
-        tags = [f"{name} {env_entry['env'].get(k) or '-'}" for k, name in diff_fields]
+        current = series["label"]
+        tags = []
+        for k, name in diff_fields:
+            val = env_entry["env"].get(k) or "-"
+            # Skip fields whose value is already inside the base label
+            # (release_version is put there by _env_label).
+            if val and val in current:
+                continue
+            tags.append(f"{name} {val}")
+        if not tags:
+            continue
         suffix = " · " + " / ".join(tags)
         series["label"] += suffix
         env_entry["label"] += suffix
