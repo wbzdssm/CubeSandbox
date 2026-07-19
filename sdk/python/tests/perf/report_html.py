@@ -69,12 +69,32 @@ _DEFAULT_ENV_FIELDS: list[tuple[str, str]] = [
     ("platform_summary", "平台摘要"), ("timestamp", "时间戳"),
 ]
 _DEFAULT_CUBE_FIELDS: list[tuple[str, str]] = [
+    # ── Release (unified across all components) ─────────────────────────
+    ("release_version", "Release 版本"),
+    ("release_built_at", "Release 构建时间"),
+    ("release_git_commit", "Release Commit"),
+    # ── Control plane ───────────────────────────────────────────────────
     ("cubemaster_version", "CubeMaster 版本"), ("cubemaster_commit", "CubeMaster Commit"),
     ("cubemaster_build_time", "CubeMaster 构建时间"),
     ("cubeapi_version", "CubeAPI 版本"), ("cubeapi_commit", "CubeAPI Commit"),
     ("cubeapi_build_time", "CubeAPI 构建时间"), ("cubeapi_go_version", "CubeAPI Go 版本"),
-    ("cubelet_version", "Cubelet 版本"), ("cube_shim_version", "CubeShim 版本"),
-    ("guest_image_version", "Guest Image 版本"), ("kernel_version_node", "节点内核"),
+    ("cubemastercli_version", "CubeMasterCLI 版本"),
+    ("cubecli_version", "CubeCLI 版本"),
+    # ── Node / runtime ──────────────────────────────────────────────────
+    ("cubelet_version", "Cubelet 版本"),
+    ("cube_shim_version", "CubeShim 版本"),
+    ("cube_runtime_version", "CubeRuntime 版本"),
+    ("network_agent_version", "NetworkAgent 版本"),
+    # ── Egress / proxy / lifecycle ──────────────────────────────────────
+    ("cube_egress_version", "CubeEgress 版本"),
+    ("cube_proxy_version", "CubeProxy 版本"),
+    ("cube_lifecycle_manager_version", "CubeLifecycleManager 版本"),
+    # ── Guest image / kernel ────────────────────────────────────────────
+    ("guest_image_version", "Guest Image 版本"),
+    ("guest_agent_version", "Guest Agent 版本"),
+    ("cube_agent_version", "CubeAgent 版本"),
+    ("kernel_version_node", "节点内核"),
+    ("kernel_pvm_version", "PVM 内核"),
 ]
 
 
@@ -722,12 +742,19 @@ const METRICS = {metrics_json};
 
 
 # Cube component version fields, ordered for display and diff detection.
+# `release_version` is deliberately first: when the host has a release
+# manifest, it uniquely identifies the whole install and makes the
+# fingerprint diff-friendly ("v1.0.0 → v1.0.1") without depending on
+# individual component versions matching perfectly.
 _VERSION_FIELDS: list[tuple[str, str]] = [
+    ("release_version", "Release"),
     ("cubemaster_version", "CubeMaster"),
     ("cubeapi_version", "CubeAPI"),
     ("cubelet_version", "Cubelet"),
     ("cube_shim_version", "CubeShim"),
+    ("cube_runtime_version", "CubeRuntime"),
     ("guest_image_version", "GuestImage"),
+    ("guest_agent_version", "GuestAgent"),
     ("kernel_version_node", "NodeKernel"),
 ]
 

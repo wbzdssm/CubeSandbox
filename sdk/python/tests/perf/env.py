@@ -46,7 +46,7 @@ class EnvInfo:
     template_memory_mb: int = 0
     template_spec: str = ""
     timestamp: str = ""
-    # Component versions
+    # Component versions (existing, kept for backward compat with report.py)
     cubeapi_version: str = ""
     cubeapi_commit: str = ""
     cubeapi_build_time: str = ""
@@ -58,6 +58,29 @@ class EnvInfo:
     cube_shim_version: str = ""
     guest_image_version: str = ""
     kernel_version_node: str = ""
+    # Release manifest (single source of truth on installed hosts:
+    # /usr/local/services/cubetoolbox/release-manifest.json)
+    release_version: str = ""          # e.g. "v1.0.0" — git tag of the release
+    release_built_at: str = ""
+    release_built_by: str = ""          # "github-actions" | "manual"
+    release_git_commit: str = ""
+    release_manifest_path: str = ""     # path we actually read, for debugging
+    # Extra component versions (declared in the release manifest)
+    cubemastercli_version: str = ""
+    cubecli_version: str = ""
+    network_agent_version: str = ""
+    cube_agent_version: str = ""        # guest-side Rust agent
+    cube_runtime_version: str = ""      # CubeShim/cube-runtime
+    cube_egress_version: str = ""
+    cube_proxy_version: str = ""
+    cube_lifecycle_manager_version: str = ""
+    # Guest image + kernel (declared)
+    guest_agent_version: str = ""       # cube-agent version baked into the guest image
+    guest_image_digest: str = ""
+    guest_image_base: str = ""
+    kernel_digest: str = ""
+    kernel_pvm_version: str = ""
+    kernel_pvm_digest: str = ""
     # SDK / Python details
     processor: str = ""
     platform_summary: str = ""
@@ -193,64 +216,201 @@ def collect_env_info(cfg: Config) -> EnvInfo:
         info.template_status = "N/A"
         info.template_spec = "N/A"
 
-    # --- CubeAPI component versions (via /health) ---
-    try:
-        import httpx
-
-        headers = {}
-        api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
-        if api_key:
-            headers["X-API-Key"] = api_key
-        resp = httpx.get(f"{cfg.api_url}/health", headers=headers, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, dict):
-                info.cubeapi_version = str(data.get("version", ""))
-                info.cubeapi_commit = str(data.get("commit", ""))
-                info.cubeapi_build_time = str(data.get("build_time", ""))
-                info.cubeapi_go_version = str(data.get("go_version", ""))
-    except Exception:
-        pass
-
-    # --- Cluster component versions (via CubeAPI /cluster/versions) ---
-    try:
-        import httpx
-
-        headers = {}
-        api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
-        if api_key:
-            headers["X-API-Key"] = api_key
-        resp = httpx.get(f"{cfg.api_url}/cluster/versions", headers=headers, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, dict):
-                cp = data.get("control_plane", {})
-                if isinstance(cp, dict):
-                    info.cubemaster_version = str(cp.get("version", ""))
-                    info.cubemaster_commit = str(cp.get("commit", ""))
-                    info.cubemaster_build_time = str(cp.get("build_time", ""))
-                nodes = data.get("nodes", [])
-                if isinstance(nodes, list) and nodes:
-                    first_node = nodes[0]
-                    if isinstance(first_node, dict):
-                        for c in first_node.get("components", []):
-                            name = c.get("component", "")
-                            ver = c.get("version", "")
-                            if name == "cubelet":
-                                info.cubelet_version = ver
-                            elif name == "cube-shim":
-                                info.cube_shim_version = ver
-                            elif name == "guest-image":
-                                info.guest_image_version = ver
-                            elif name == "kernel":
-                                info.kernel_version_node = ver
-    except Exception:
-        pass
-
-    # --- Fallback: get versions from local binaries ---
+    # --- Component versions ---
+    # Precedence: release-manifest.json (single source of truth on installed
+    # hosts) > CubeAPI /cluster/versions (control-plane declared matrix) >
+    # local binaries (`-V`/`-v` output). Each step only fills gaps; the
+    # release manifest is authoritative when present.
+    _collect_release_manifest(info)
+    _collect_cluster_versions(info, cfg)
     _collect_local_versions(info)
 
     return info
+
+
+# ===========================================================================
+# Version collection
+# ===========================================================================
+#
+# CubeSandbox exposes three complementary version sources:
+#
+#  1. release-manifest.json — written by
+#     `deploy/one-click/build-release-bundle.sh` at install time. Lists every
+#     component's declared version + commit + build_time + sha256 digest, plus
+#     guest-image and kernel metadata. Located at
+#     `/usr/local/services/cubetoolbox/release-manifest.json` (override via
+#     the `CUBE_RELEASE_MANIFEST` env var). This is the single source of truth
+#     for what was *installed*; we read it first.
+#
+#  2. CubeAPI `/cluster/versions` — control-plane view of what's actually
+#     *running* across nodes. Fields are JSON-serialised in camelCase
+#     (`controlPlane`, `buildTime`, `nodeID`) — a common footgun.
+#
+#  3. Local `-V`/`-v` binaries — final fallback when neither of the above
+#     is reachable (e.g. running perf against a remote API from a workstation
+#     that happens to also have the tools installed).
+#
+# `/health` used to be listed as a version source but it only returns
+# `{status, sandboxes}` (see `CubeAPI/src/handlers/health.rs`); do NOT probe
+# it for version info.
+
+
+DEFAULT_RELEASE_MANIFEST = "/usr/local/services/cubetoolbox/release-manifest.json"
+
+# Mapping from a component name in release-manifest.json to the EnvInfo
+# attribute prefix we want to populate.  For each entry we set
+# `<prefix>_version`, and (when present in the manifest) also
+# `<prefix>_commit` / `<prefix>_build_time` if the dataclass declares them.
+_MANIFEST_COMPONENT_MAP: dict[str, str] = {
+    "cube-api": "cubeapi",
+    "cubemaster": "cubemaster",
+    "cubelet": "cubelet",
+    "containerd-shim-cube-rs": "cube_shim",
+    "cubemastercli": "cubemastercli",
+    "cubecli": "cubecli",
+    "network-agent": "network_agent",
+    "cube-agent": "cube_agent",
+    "cube-runtime": "cube_runtime",
+    "cube-egress": "cube_egress",
+    "cube-lifecycle-manager": "cube_lifecycle_manager",
+}
+
+
+def _collect_release_manifest(info: EnvInfo) -> None:
+    """Populate component versions from ``release-manifest.json`` if present.
+
+    The manifest is authoritative for *declared* versions and is the same
+    file that `cubelet`/`cubemaster` consume, so what we record here matches
+    what the running cluster is supposed to be.  Missing gracefully: on any
+    error we simply leave fields empty and let the other collectors fill in.
+    """
+    import json
+
+    path = os.environ.get("CUBE_RELEASE_MANIFEST", DEFAULT_RELEASE_MANIFEST)
+    if not path or not os.path.isfile(path):
+        return
+
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict):
+        return
+
+    info.release_manifest_path = path
+    info.release_version = str(data.get("release_version", "") or "")
+    info.release_built_at = str(data.get("built_at", "") or "")
+    info.release_built_by = str(data.get("built_by", "") or "")
+    info.release_git_commit = str(data.get("git_commit", "") or "")
+
+    components = data.get("components", {})
+    if isinstance(components, dict):
+        for comp_name, prefix in _MANIFEST_COMPONENT_MAP.items():
+            comp = components.get(comp_name)
+            if not isinstance(comp, dict):
+                continue
+            _set_component_fields(info, prefix, comp)
+
+    guest = data.get("guest_image", {})
+    if isinstance(guest, dict):
+        # Prefer manifest values; keep any pre-existing values otherwise.
+        info.guest_image_version = str(guest.get("version", "") or info.guest_image_version)
+        info.guest_image_digest = str(guest.get("digest_sha256", "") or "")
+        info.guest_image_base = str(guest.get("base_image", "") or "")
+        info.guest_agent_version = str(guest.get("agent_version", "") or "")
+
+    kernel = data.get("kernel", {})
+    if isinstance(kernel, dict):
+        info.kernel_version_node = str(kernel.get("version", "") or info.kernel_version_node)
+        info.kernel_digest = str(kernel.get("vmlinux_digest_sha256", "") or "")
+        info.kernel_pvm_version = str(kernel.get("pvm_version", "") or "")
+        info.kernel_pvm_digest = str(kernel.get("vmlinux_pvm_digest_sha256", "") or "")
+
+
+def _set_component_fields(info: EnvInfo, prefix: str, comp: dict) -> None:
+    """Set ``<prefix>_{version,commit,build_time}`` from a manifest entry.
+
+    Silently skips attributes that don't exist on the dataclass so we don't
+    have to declare every commit/build_time triplet up-front.
+    """
+    version = str(comp.get("version", "") or "")
+    commit = str(comp.get("commit", "") or "")
+    build_time = str(comp.get("build_time", "") or "")
+
+    for attr, value in (
+        (f"{prefix}_version", version),
+        (f"{prefix}_commit", commit),
+        (f"{prefix}_build_time", build_time),
+    ):
+        if value and hasattr(info, attr) and not getattr(info, attr):
+            setattr(info, attr, value)
+
+
+def _collect_cluster_versions(info: EnvInfo, cfg: Config) -> None:
+    """Populate versions via CubeAPI ``/cluster/versions`` (running-state view).
+
+    The endpoint is defined by ``CubeAPI/src/models/mod.rs::VersionMatrixView``
+    and serialises to **camelCase** (``controlPlane`` / ``buildTime`` /
+    ``nodeID`` / ``declaredVersion``) — we accept snake_case fallbacks in case
+    the field-renaming changes.
+    """
+    try:
+        import httpx
+    except ImportError:
+        return
+
+    headers = {}
+    api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
+    if api_key:
+        headers["X-API-Key"] = api_key
+    try:
+        resp = httpx.get(f"{cfg.api_url}/cluster/versions", headers=headers, timeout=10)
+    except (httpx.HTTPError, OSError):
+        return
+    if resp.status_code != 200:
+        return
+    try:
+        data = resp.json()
+    except ValueError:
+        return
+    if not isinstance(data, dict):
+        return
+
+    cp = data.get("controlPlane") or data.get("control_plane") or {}
+    if isinstance(cp, dict):
+        if not info.cubemaster_version:
+            info.cubemaster_version = str(cp.get("version", "") or "")
+        if not info.cubemaster_commit:
+            info.cubemaster_commit = str(cp.get("commit", "") or "")
+        if not info.cubemaster_build_time:
+            info.cubemaster_build_time = str(
+                cp.get("buildTime", "") or cp.get("build_time", "") or ""
+            )
+
+    nodes = data.get("nodes", [])
+    if isinstance(nodes, list) and nodes:
+        first_node = nodes[0]
+        if isinstance(first_node, dict):
+            for c in first_node.get("components", []) or []:
+                if not isinstance(c, dict):
+                    continue
+                name = str(c.get("component", "") or "")
+                ver = str(c.get("version", "") or "")
+                if not ver:
+                    continue
+                # Same component-name → attr-prefix mapping we use for the
+                # manifest, so /cluster/versions naturally fills gaps.
+                prefix = _MANIFEST_COMPONENT_MAP.get(name)
+                if prefix:
+                    attr = f"{prefix}_version"
+                    if hasattr(info, attr) and not getattr(info, attr):
+                        setattr(info, attr, ver)
+                # Special-cased legacy fields that don't follow the pattern.
+                if name == "guest-image" and not info.guest_image_version:
+                    info.guest_image_version = ver
+                elif name == "kernel" and not info.kernel_version_node:
+                    info.kernel_version_node = ver
 
 
 def _parse_version_output(output: str) -> tuple[str, str, str]:
@@ -269,66 +429,72 @@ def _parse_version_output(output: str) -> tuple[str, str, str]:
     return version, commit, build_time
 
 
+# Local-binary probe table: (attr_prefix, [candidate paths], version flag).
+# The prefix is joined with `_version`/`_commit`/`_build_time` so it matches
+# the dataclass field names and the manifest map.  Kept as a plain list so
+# it's obvious which components are covered by the fallback path.
+_LOCAL_BINARY_PROBES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("cubeapi", (
+        "/usr/local/services/cubetoolbox/CubeAPI/bin/cube-api",
+        "/usr/local/bin/cube-api",
+    ), "-V"),
+    ("cubemaster", (
+        "/usr/local/services/cubetoolbox/CubeMaster/bin/cubemaster",
+        "/usr/local/bin/cubemaster",
+    ), "-v"),
+    ("cubemastercli", (
+        "/usr/local/services/cubetoolbox/CubeMaster/bin/cubemastercli",
+        "/usr/local/bin/cubemastercli",
+    ), "-v"),
+    ("cubecli", (
+        "/usr/local/services/cubetoolbox/CubeMaster/bin/cubecli",
+        "/usr/local/bin/cubecli",
+    ), "-v"),
+    ("cubelet", (
+        "/usr/local/services/cubetoolbox/Cubelet/bin/cubelet",
+        "/usr/local/bin/cubelet",
+    ), "-v"),
+    ("cube_shim", (
+        "/usr/local/services/cubetoolbox/CubeShim/bin/containerd-shim-cube-rs",
+        "/usr/local/bin/containerd-shim-cube-rs",
+    ), "-v"),
+    ("cube_runtime", (
+        "/usr/local/services/cubetoolbox/CubeShim/bin/cube-runtime",
+        "/usr/local/bin/cube-runtime",
+    ), "-V"),
+    ("network_agent", (
+        "/usr/local/services/cubetoolbox/network-agent/bin/network-agent",
+        "/usr/local/bin/network-agent",
+    ), "-v"),
+)
+
+
 def _collect_local_versions(info: EnvInfo) -> None:
-    """Try to get component versions from locally installed binaries."""
+    """Fill remaining version fields from locally installed binaries.
+
+    Iterates ``_LOCAL_BINARY_PROBES``; only touches fields that the earlier
+    sources (release manifest, ``/cluster/versions``) left empty, so the
+    authoritative-source precedence is preserved.
+    """
     import shutil
 
-    # CubeAPI binary (priority: HTTP response, then local binary)
-    if not info.cubeapi_version:
-        for path in (
-            "/usr/local/services/cubetoolbox/CubeAPI/bin/cube-api",
-            "/usr/local/bin/cube-api",
-        ):
-            cubeapi_bin = shutil.which(path) or (path if os.path.exists(path) else None)
-            if cubeapi_bin:
-                out = run_cmd([cubeapi_bin, "-V"])
-                if out:
-                    v, c, bt = _parse_version_output(out)
-                    info.cubeapi_version = v or info.cubeapi_version
-                    info.cubeapi_commit = c or info.cubeapi_commit
-                    info.cubeapi_build_time = bt or info.cubeapi_build_time
-                    break
-
-    # CubeMaster binary
-    if not info.cubemaster_version:
-        for path in (
-            "/usr/local/services/cubetoolbox/CubeMaster/bin/cubemaster",
-            "/usr/local/bin/cubemaster",
-        ):
-            cm_bin = shutil.which(path) or (path if os.path.exists(path) else None)
-            if cm_bin:
-                out = run_cmd([cm_bin, "-v"])
-                if out:
-                    v, c, bt = _parse_version_output(out)
-                    info.cubemaster_version = v or info.cubemaster_version
-                    info.cubemaster_commit = c or info.cubemaster_commit
-                    info.cubemaster_build_time = bt or info.cubemaster_build_time
-                    break
-
-    # Cubelet binary
-    if not info.cubelet_version:
-        for path in (
-            "/usr/local/services/cubetoolbox/Cubelet/bin/cubelet",
-            "/usr/local/bin/cubelet",
-        ):
-            cl_bin = shutil.which(path) or (path if os.path.exists(path) else None)
-            if cl_bin:
-                out = run_cmd([cl_bin, "-v"])
-                if out:
-                    v, c, bt = _parse_version_output(out)
-                    info.cubelet_version = v or info.cubelet_version
-                    break
-
-    # CubeShim binary
-    if not info.cube_shim_version:
-        for path in (
-            "/usr/local/services/cubetoolbox/CubeShim/bin/containerd-shim-cube-rs",
-            "/usr/local/bin/containerd-shim-cube-rs",
-        ):
-            sh_bin = shutil.which(path) or (path if os.path.exists(path) else None)
-            if sh_bin:
-                out = run_cmd([sh_bin, "-v"])
-                if out:
-                    v, c, bt = _parse_version_output(out)
-                    info.cube_shim_version = v or info.cube_shim_version
-                    break
+    for prefix, paths, flag in _LOCAL_BINARY_PROBES:
+        # Skip if we already have a version from a higher-priority source.
+        attr_v = f"{prefix}_version"
+        if getattr(info, attr_v, "") or not hasattr(info, attr_v):
+            continue
+        for path in paths:
+            binary = shutil.which(path) or (path if os.path.exists(path) else None)
+            if not binary:
+                continue
+            out = run_cmd([binary, flag])
+            if not out:
+                continue
+            v, c, bt = _parse_version_output(out)
+            if v:
+                setattr(info, attr_v, v)
+                if c and hasattr(info, f"{prefix}_commit") and not getattr(info, f"{prefix}_commit"):
+                    setattr(info, f"{prefix}_commit", c)
+                if bt and hasattr(info, f"{prefix}_build_time") and not getattr(info, f"{prefix}_build_time"):
+                    setattr(info, f"{prefix}_build_time", bt)
+                break
