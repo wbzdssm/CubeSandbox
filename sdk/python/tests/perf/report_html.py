@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from .baseline import ALL_BASELINES
+from . import report_config
 
 # Solid colors for measured environments (RUN_SERIES).
 _RUN_COLORS = [
@@ -115,21 +116,34 @@ def _parse_field_spec(
 
 
 def _resolve_fields(
-    override_var: str, extra_var: str, defaults: list[tuple[str, str]]
+    override_var: str, extra_var: str, defaults: list[tuple[str, str]],
+    toml_section: str | None = None,
 ) -> list[list[str]]:
-    """Resolve a display field list from env vars.
+    """Resolve a display field list.
 
-    If *override_var* is set it fully replaces the defaults; otherwise the
-    defaults are used and any fields in *extra_var* are appended.
+    Precedence: env override (``override_var``) → env extra (``extra_var``)
+    layered on the built-in defaults → TOML (``[toml_section].fields`` /
+    ``.extra``) → built-in defaults verbatim.
     """
     override = (os.environ.get(override_var) or "").strip()
     if override:
         return _parse_field_spec(override, defaults)
-    fields = [[k, lbl] for k, lbl in defaults]
+
     extra = (os.environ.get(extra_var) or "").strip()
     if extra:
+        # Env-extra is meant as a small "append a column" tweak; keep the
+        # historical behaviour of adding onto the defaults rather than the
+        # TOML section, which would be surprising.
+        fields = [[k, lbl] for k, lbl in defaults]
         fields += _parse_field_spec(extra, defaults)
-    return fields
+        return fields
+
+    if toml_section:
+        toml_fields = report_config.resolve_fields_toml(toml_section, defaults)
+        if toml_fields is not None:
+            return toml_fields
+
+    return [[k, lbl] for k, lbl in defaults]
 
 
 # ---------------------------------------------------------------------------
@@ -227,10 +241,16 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pin
 .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 32px 24px; text-align: center; }}
 .header h1 {{ font-size: 24px; margin-bottom: 6px; }}
 .header .subtitle {{ opacity: 0.85; font-size: 13px; }}
+.header .report-subtitle {{ opacity: 0.95; font-size: 14px; margin-top: 4px; font-weight: 500; }}
 .container {{ max-width: 1100px; margin: 0 auto; padding: 20px; }}
 .section {{ background: white; border-radius: 10px; padding: 20px; margin: 16px 0; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }}
 .section h2 {{ font-size: 18px; color: #667eea; margin-bottom: 12px; border-bottom: 2px solid #e8ecf1; padding-bottom: 6px; }}
-.section .env-subhead {{ font-size: 15px; font-weight: 600; color: #764ba2; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px dashed #e8ecf1; }}
+.section .env-subhead {{ font-size: 15px; font-weight: 600; color: #764ba2; margin: 0 0 8px; padding-bottom: 4px; border-bottom: 1px dashed #e8ecf1; }}
+/* Two-column layout: 环境信息 on the left, Cube 环境信息 on the right.
+   Falls back to a single column on narrow screens so nothing overflows.
+   Column count is TOML/env configurable (see report_config.resolve_env_columns). */
+.env-grid {{ display: grid; grid-template-columns: repeat({env_columns}, 1fr); gap: 24px; }}
+@media (max-width: 900px) {{ .env-grid {{ grid-template-columns: 1fr; }} }}
 .env-text {{ font-size: 13px; }}
 .env-text .env-name {{ font-weight: 600; margin: 10px 0 4px; }}
 .env-text .env-lines {{ margin-bottom: 8px; }}
@@ -267,18 +287,26 @@ footer {{ text-align: center; padding: 20px; color: #aaa; font-size: 12px; }}
 </head>
 <body>
 <div class="header">
-  <h1>CubeSandbox 性能基准测试报告</h1>
+  <h1>{report_h1}</h1>
   <div class="subtitle">生成时间: {generated_at} &nbsp;|&nbsp; 对比环境: {env_count} &nbsp;|&nbsp; 历史基线: {baseline_count} &nbsp;|&nbsp; 场景数: {scenario_count}</div>
+  {report_subtitle_html}
 </div>
 
 <div class="container">
 
-<!-- Environment + Cube component versions (one card, two subsections) -->
+<!-- Environment + Cube component versions (one card, side-by-side subsections) -->
 <div class="section">
   <h2>测试环境</h2>
-  <div class="env-text" id="env-info"></div>
-  <h3 class="env-subhead">Cube 环境信息</h3>
-  <div class="env-text" id="cube-info"></div>
+  <div class="env-grid">
+    <div>
+      <h3 class="env-subhead">环境信息</h3>
+      <div class="env-text" id="env-info"></div>
+    </div>
+    <div>
+      <h3 class="env-subhead">Cube 环境信息</h3>
+      <div class="env-text" id="cube-info"></div>
+    </div>
+  </div>
 </div>
 
 <!-- Perf Scenarios -->
@@ -872,19 +900,27 @@ def generate_html(
 ) -> str:
     run_series, run_envs = _group_runs(data_files)
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    baseline_keys = list(ALL_BASELINES.keys())
 
     scenario_names: set[str] = set()
     for sr in run_series:
         scenario_names.update(sr["perf"].keys())
 
-    # Field lists are env-var customizable (see module docstring near
-    # _DEFAULT_ENV_FIELDS), resolved here and injected into the template.
+    # Baseline filtering — mode is TOML- and env-var-configurable, default
+    # "auto" keeps only baselines whose scenario keys intersect this run.
+    # See report_config.resolve_baseline_filter for the full contract.
+    baseline_keys, active_baselines = report_config.resolve_baseline_filter(
+        scenario_names, ALL_BASELINES
+    )
+
+    # Field lists — env-var overrides win, then TOML (`[env]` / `[cube]`
+    # `fields`/`extra`), then the built-in defaults.
     env_fields = _resolve_fields(
-        "CUBE_REPORT_ENV_FIELDS", "CUBE_REPORT_ENV_EXTRA", _DEFAULT_ENV_FIELDS
+        "CUBE_REPORT_ENV_FIELDS", "CUBE_REPORT_ENV_EXTRA", _DEFAULT_ENV_FIELDS,
+        toml_section="env",
     )
     cube_fields = _resolve_fields(
-        "CUBE_REPORT_CUBE_FIELDS", "CUBE_REPORT_CUBE_EXTRA", _DEFAULT_CUBE_FIELDS
+        "CUBE_REPORT_CUBE_FIELDS", "CUBE_REPORT_CUBE_EXTRA", _DEFAULT_CUBE_FIELDS,
+        toml_section="cube",
     )
     # Scenario groups and metric columns are likewise env-var customizable.
     scenarios = _resolve_scenarios()
@@ -892,8 +928,23 @@ def generate_html(
         "CUBE_REPORT_METRICS", "CUBE_REPORT_METRICS_EXTRA", _DEFAULT_METRICS
     )
 
+    # Title / subtitle / layout — CLI takes priority (the caller-supplied
+    # `title` argument), then env, then TOML. Subtitle is a small optional
+    # line under the main header; empty subtitle renders nothing.
+    resolved_title = report_config.resolve_title(
+        title, "CubeSandbox 性能基准测试报告"
+    )
+    subtitle = report_config.resolve_subtitle()
+    env_columns = report_config.resolve_env_columns(default=2)
+    subtitle_html = (
+        f'<div class="report-subtitle">{subtitle}</div>' if subtitle else ""
+    )
+
     html = _HTML.format(
-        title=title,
+        title=resolved_title,
+        report_h1=resolved_title,
+        report_subtitle_html=subtitle_html,
+        env_columns=env_columns,
         generated_at=generated_at,
         env_count=len(run_envs),
         baseline_count=len(baseline_keys),
@@ -901,7 +952,7 @@ def generate_html(
         run_series_json=json.dumps(run_series, ensure_ascii=False),
         run_envs_json=json.dumps(run_envs, ensure_ascii=False),
         run_colors_json=json.dumps(_RUN_COLORS, ensure_ascii=False),
-        all_baselines_json=json.dumps(ALL_BASELINES, ensure_ascii=False),
+        all_baselines_json=json.dumps(active_baselines, ensure_ascii=False),
         baseline_keys_json=json.dumps(baseline_keys, ensure_ascii=False),
         baseline_colors_json=json.dumps(_BASELINE_COLORS, ensure_ascii=False),
         env_fields_json=json.dumps(env_fields, ensure_ascii=False),

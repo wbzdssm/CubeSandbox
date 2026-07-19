@@ -1,0 +1,53 @@
+# CubeSandbox perf HTML report — optional configuration
+#
+# Copy this file to `report.toml` (in cwd, tests/perf/, tests/, or sdk/python/)
+# or point `CUBE_REPORT_CONFIG=/absolute/path` to load it. Every key is
+# optional; missing keys keep the built-in defaults.
+#
+# Precedence: CLI args > environment variables > report.toml > defaults.
+
+# Top-of-page title (falls back to CLI `--title` if provided).
+title = "CubeSandbox v0.5.1 生产回归"
+# Small secondary line under the main header; empty = hide it.
+subtitle = "9.135.79.34 · 2026-07-19"
+
+[layout]
+# 1 = stacked (环境信息 above Cube 环境信息).
+# 2 = side-by-side on wide screens (default).
+# Narrow viewports (<900px) always fall back to a single column.
+env_columns = 2
+
+[env]
+# `fields` fully replaces the default 环境信息 list.
+# Each entry: "key" (reuse default label) or "key:显示名".
+# Comment this out to keep the built-in field set.
+fields = [
+    "hostname:主机名",
+    "machine_type:机型",
+    "ip_address:IP",
+    "os_distro:操作系统",
+    "kernel:内核版本",
+    "arch:架构",
+    "cpu_cores_logical:CPU 核数",
+    "memory_total_gb:内存 (GiB)",
+    "gcc_version:GCC 版本",
+    "python_version:Python 版本",
+    "timestamp:时间",
+]
+# `extra` appends to whatever `fields` (or the default) is above.
+extra = []  # e.g. ["region:地域", "git_commit:代码版本"]
+
+[cube]
+# Same shape as [env]. Leave `fields` empty to use the built-in default
+# (release + template + all component versions).
+fields = []
+extra = ["release_git_commit:Release Commit", "kernel_version_node:节点内核"]
+
+[baselines]
+# `auto`  — keep baselines whose scenario keys intersect this run (default).
+# `all`   — keep every published baseline (legacy behaviour).
+# `none`  — hide baselines entirely.
+# `list`  — use the `include`/`exclude` allowlists below for explicit control.
+mode = "auto"
+include = []  # e.g. ["BMI5 (x86_64)", "BMSA9 (x86_64)"]
+exclude = []  # e.g. ["Kunpeng 920 (ARM64)"]
