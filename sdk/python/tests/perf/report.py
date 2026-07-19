@@ -94,6 +94,10 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
             "memory_total_gb": env.memory_total_gb, "memory_type": env.memory_type,
             "disk_model": env.disk_model, "disk_size_gb": env.disk_size_gb,
             "disk_fs": env.disk_fs, "disk_type": env.disk_type,
+            # Host identity + OS distro + toolchain (new fields for the
+            # simplified two-block env card in the HTML report).
+            "machine_type": env.machine_type, "ip_address": env.ip_address,
+            "os_distro": env.os_distro, "gcc_version": env.gcc_version,
             "python_version": env.python_version, "sdk_version": env.sdk_version,
             "api_url": env.api_url, "template_id": env.template_id,
             "template_image": env.template_image, "template_instance_type": env.template_instance_type,

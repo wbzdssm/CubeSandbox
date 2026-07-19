@@ -52,48 +52,41 @@ _BASELINE_COLORS = [
 # key is given, its default label is reused if known, otherwise the raw key.
 #   e.g. CUBE_REPORT_ENV_EXTRA="git_commit:代码版本,region:地域"
 _DEFAULT_ENV_FIELDS: list[tuple[str, str]] = [
-    ("hostname", "主机名"), ("machine_type", "机器类型"), ("os_name", "操作系统"),
-    ("os_version", "OS 版本"), ("kernel", "内核版本"), ("arch", "架构"),
-    ("processor", "处理器"), ("cpu_model", "CPU 型号"), ("cpu_sockets", "CPU 路数"),
-    ("cpu_cores_physical", "物理核数"), ("cpu_cores_logical", "逻辑核数"),
-    ("numa_nodes", "NUMA 节点"), ("memory_total_gb", "内存总量 (GiB)"),
-    ("memory_type", "内存类型"), ("disk_model", "磁盘型号"),
-    ("disk_size_gb", "磁盘容量 (GB)"), ("disk_type", "磁盘类型"),
-    ("disk_fs", "文件系统"), ("sandbox_spec", "沙箱规格"), ("template_id", "模板 ID"),
-    ("template_image", "测试镜像"), ("template_instance_type", "实例类型"),
-    ("template_spec", "模板规格"), ("template_cpu", "模板 vCPU"),
-    ("template_memory_mb", "模板内存 (MiB)"),
-    ("template_status", "模板状态"), ("api_url", "API 地址"),
-    ("python_impl", "Python 实现"), ("sdk_version", "SDK 版本"),
-    ("httpx_version", "httpx 版本"), ("requests_version", "requests 版本"),
-    ("platform_summary", "平台摘要"), ("timestamp", "时间戳"),
+    # Simplified "环境信息" block — mirrors the user-facing summary a human
+    # would jot down (hostname/model/IP/OS/kernel/arch/CPU/mem/toolchains).
+    # Add extras via CUBE_REPORT_ENV_EXTRA rather than editing this list.
+    ("hostname", "主机名"),
+    ("machine_type", "机型"),
+    ("ip_address", "IP"),
+    ("os_distro", "操作系统"),
+    ("kernel", "内核版本"),
+    ("arch", "架构"),
+    ("cpu_cores_logical", "CPU 核数"),
+    ("memory_total_gb", "内存 (GiB)"),
+    ("gcc_version", "GCC 版本"),
+    ("python_version", "Python 版本"),
+    ("timestamp", "时间"),
 ]
 _DEFAULT_CUBE_FIELDS: list[tuple[str, str]] = [
-    # ── Release (unified across all components) ─────────────────────────
+    # Simplified "Cube 信息" block — release + template + all component
+    # versions, one field per line.  commit / build_time are still available
+    # via CUBE_REPORT_CUBE_EXTRA when a diff needs sub-version detail.
     ("release_version", "Release 版本"),
-    ("release_built_at", "Release 构建时间"),
-    ("release_git_commit", "Release Commit"),
-    # ── Control plane ───────────────────────────────────────────────────
-    ("cubemaster_version", "CubeMaster 版本"), ("cubemaster_commit", "CubeMaster Commit"),
-    ("cubemaster_build_time", "CubeMaster 构建时间"),
-    ("cubeapi_version", "CubeAPI 版本"), ("cubeapi_commit", "CubeAPI Commit"),
-    ("cubeapi_build_time", "CubeAPI 构建时间"), ("cubeapi_go_version", "CubeAPI Go 版本"),
+    ("template_id", "模板 ID"),
+    ("template_image", "镜像信息"),
+    ("cubemaster_version", "CubeMaster 版本"),
+    ("cubeapi_version", "CubeAPI 版本"),
     ("cubemastercli_version", "CubeMasterCLI 版本"),
     ("cubecli_version", "CubeCLI 版本"),
-    # ── Node / runtime ──────────────────────────────────────────────────
     ("cubelet_version", "Cubelet 版本"),
     ("cube_shim_version", "CubeShim 版本"),
     ("cube_runtime_version", "CubeRuntime 版本"),
     ("network_agent_version", "NetworkAgent 版本"),
-    # ── Egress / proxy / lifecycle ──────────────────────────────────────
     ("cube_egress_version", "CubeEgress 版本"),
-    ("cube_proxy_version", "CubeProxy 版本"),
     ("cube_lifecycle_manager_version", "CubeLifecycleManager 版本"),
-    # ── Guest image / kernel ────────────────────────────────────────────
     ("guest_image_version", "Guest Image 版本"),
     ("guest_agent_version", "Guest Agent 版本"),
     ("cube_agent_version", "CubeAgent 版本"),
-    ("kernel_version_node", "节点内核"),
     ("kernel_pvm_version", "PVM 内核"),
 ]
 

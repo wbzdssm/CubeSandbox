@@ -20,7 +20,10 @@ class EnvInfo:
     """Collected environment information."""
 
     hostname: str = ""
+    machine_type: str = ""      # "腾讯云 BMSA5" / "Tencent Cloud BMSA5" etc.
+    ip_address: str = ""        # primary non-loopback IPv4
     os_name: str = ""
+    os_distro: str = ""         # "Ubuntu 22.04 LTS" / "TencentOS Server 3.1"
     os_version: str = ""
     kernel: str = ""
     arch: str = ""
@@ -35,6 +38,7 @@ class EnvInfo:
     disk_size_gb: float = 0
     disk_fs: str = ""
     disk_type: str = ""
+    gcc_version: str = ""       # `gcc --version` first line (e.g. "gcc 11.4.0")
     python_version: str = ""
     sdk_version: str = ""
     api_url: str = ""
@@ -104,6 +108,83 @@ def get_free_mem_gb() -> float:
     return round(int(mem_kb) / (1024 * 1024), 2) if mem_kb.isdigit() else 0
 
 
+def _detect_primary_ipv4() -> str:
+    """Return the primary non-loopback IPv4 address of this host.
+
+    Uses a UDP socket "trick" (connect to a public IP, read the local end of
+    the ephemeral socket) so it works without a route to the internet — the
+    UDP connect is stateless.  Returns "" on any failure so callers can render
+    "-" instead of raising.
+    """
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            # 8.8.8.8 is a canonical "somewhere non-local" endpoint; we never
+            # send anything, we just need the kernel to pick a source IP.
+            s.connect(("8.8.8.8", 80))
+            ip = s.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return ip
+    except OSError:
+        pass
+
+    # Fallback: `hostname -I` first non-loopback token (Linux only).
+    out = run_cmd(["sh", "-c", "hostname -I 2>/dev/null | tr ' ' '\\n' | grep -v '^127\\.' | head -n1"])
+    return out or ""
+
+
+def _detect_machine_type() -> str:
+    """Best-effort detection of the machine model / cloud instance type.
+
+    Prefers Tencent Cloud metadata (matches the fleet this perf suite targets),
+    falls back to DMI product name (bare-metal / other clouds), then to a
+    virt-what hint.  Returns "" when nothing can be determined.
+    """
+    # 1) Tencent Cloud CVM metadata: instance-name is the human label
+    #    (e.g. "SA5.MEDIUM8"). 169.254.0.23 is TC's IMDS.
+    for path in ("instance/instance-type", "instance/family"):
+        out = run_cmd([
+            "sh", "-c",
+            f"curl -sS --max-time 1 http://metadata.tencentyun.com/latest/meta-data/{path}",
+        ])
+        if out and not out.startswith("<") and "not found" not in out.lower():
+            return f"腾讯云 {out}"
+
+    # 2) DMI product name (bare-metal servers / VMware / KVM / etc.)
+    for path in ("/sys/class/dmi/id/product_name", "/sys/class/dmi/id/product_family"):
+        out = run_cmd(["sh", "-c", f"cat {path} 2>/dev/null"])
+        if out and out.lower() not in ("none", "to be filled by o.e.m.", "not specified", "system product name"):
+            return out
+
+    # 3) virt-what — coarse hypervisor hint if all else fails.
+    out = run_cmd(["sh", "-c", "sudo -n virt-what 2>/dev/null | head -n1"])
+    return out or ""
+
+
+def _read_os_release_pretty() -> str:
+    """Return PRETTY_NAME from /etc/os-release (e.g. "Ubuntu 22.04.4 LTS").
+
+    Fallbacks: /etc/lsb-release DISTRIB_DESCRIPTION, then "".
+    """
+    for path in ("/etc/os-release", "/usr/lib/os-release"):
+        try:
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        return line.partition("=")[2].strip().strip('"').strip("'")
+        except OSError:
+            continue
+    try:
+        with open("/etc/lsb-release", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("DISTRIB_DESCRIPTION="):
+                    return line.partition("=")[2].strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
 def collect_env_info(cfg: Config) -> EnvInfo:
     """Gather host machine, CPU, memory, disk, and template information."""
     info = EnvInfo()
@@ -117,6 +198,11 @@ def collect_env_info(cfg: Config) -> EnvInfo:
     info.arch = platform.machine()
     info.python_version = sys.version.split()[0]
     info.sdk_version = cubesandbox.__version__
+
+    # Primary non-loopback IPv4 (best-effort, silent on failure).
+    info.ip_address = _detect_primary_ipv4()
+    # Machine model / cloud vendor label (e.g. "腾讯云 BMSA5").
+    info.machine_type = _detect_machine_type()
 
     # --- SDK / Python details ---
     info.processor = platform.processor() or platform.machine()
@@ -190,6 +276,20 @@ def collect_env_info(cfg: Config) -> EnvInfo:
         # Check NVMe
         if "nvme" in (root_dev or "").lower():
             info.disk_type = "NVMe SSD"
+
+        # OS distribution (PRETTY_NAME from /etc/os-release, e.g.
+        # "Ubuntu 22.04.4 LTS" or "TencentOS Server 3.1"). This is the
+        # user-facing OS name that people actually recognise, unlike
+        # platform.system() which just says "Linux".
+        info.os_distro = _read_os_release_pretty()
+
+        # GCC version — useful for reproducing build-time perf differences.
+        gcc_out = run_cmd(["sh", "-c", "gcc --version 2>/dev/null | head -n1"])
+        if gcc_out:
+            # `gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0` → keep the last token
+            # (the semantic version) prefixed with `gcc `.
+            parts = gcc_out.split()
+            info.gcc_version = f"gcc {parts[-1]}" if parts else gcc_out
 
     # --- SDK / API ---
     info.api_url = cfg.api_url
