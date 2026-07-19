@@ -230,6 +230,7 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Pin
 .container {{ max-width: 1100px; margin: 0 auto; padding: 20px; }}
 .section {{ background: white; border-radius: 10px; padding: 20px; margin: 16px 0; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }}
 .section h2 {{ font-size: 18px; color: #667eea; margin-bottom: 12px; border-bottom: 2px solid #e8ecf1; padding-bottom: 6px; }}
+.section .env-subhead {{ font-size: 15px; font-weight: 600; color: #764ba2; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px dashed #e8ecf1; }}
 .env-text {{ font-size: 13px; }}
 .env-text .env-name {{ font-weight: 600; margin: 10px 0 4px; }}
 .env-text .env-lines {{ margin-bottom: 8px; }}
@@ -272,15 +273,11 @@ footer {{ text-align: center; padding: 20px; color: #aaa; font-size: 12px; }}
 
 <div class="container">
 
-<!-- Environment info -->
+<!-- Environment + Cube component versions (one card, two subsections) -->
 <div class="section">
   <h2>测试环境</h2>
   <div class="env-text" id="env-info"></div>
-</div>
-
-<!-- Cube component versions -->
-<div class="section">
-  <h2>Cube 组件版本</h2>
+  <h3 class="env-subhead">Cube 环境信息</h3>
   <div class="env-text" id="cube-info"></div>
 </div>
 
