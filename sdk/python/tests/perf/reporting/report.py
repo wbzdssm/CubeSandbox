@@ -25,9 +25,9 @@ import sys
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from .config import DENSITY_COUNT, PERF_ROUNDS
-from .env import EnvInfo
-from .runner import FAIL, PASS, PERF_RESULTS, SKIP, RESULTS, PerfResult
+from ..framework.config import DENSITY_COUNT, PERF_ROUNDS
+from ..framework.env import EnvInfo
+from ..framework.runner import FAIL, PASS, PERF_RESULTS, SKIP, RESULTS, PerfResult
 
 Lang = Literal["en", "zh"]
 
@@ -46,10 +46,7 @@ def _ensure_baselines() -> None:
         return
     _BASELINE_LOADED = True
     try:
-        _tests_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        if _tests_dir not in sys.path:
-            sys.path.insert(0, _tests_dir)
-        from perf.baseline import ALL_BASELINES as bl  # type: ignore[import-untyped]
+        from .baseline import ALL_BASELINES as bl
         _ALL_BASELINES = bl
         _BASELINE_KEYS = list(bl.keys())
     except ImportError:

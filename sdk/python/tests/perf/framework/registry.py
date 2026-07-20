@@ -1,0 +1,546 @@
+# Copyright (c) 2026 Tencent Inc.
+# SPDX-License-Identifier: Apache-2.0
+"""Benchmark registry, scenario selection, and the run driver.
+
+This is the framework core that the scenario modules under ``cases/`` plug
+into. The ``@benchmark`` decorator collects every scenario's metadata (CLI
+aliases, opt-in/opt-out skip gates, HTML report chart groups) in one place and
+auto-populates three derived tables — so a new scenario never has to touch a
+registry, an alias table, a hand-written skip block, or the report module.
+
+The decoration order (== the order in which ``cases/__init__.py`` imports the
+scenario modules) is the canonical run order. Importing ``perf.cases`` is what
+fills these tables; ``run_all`` then just iterates the populated registry.
+"""
+
+from __future__ import annotations
+
+import functools
+import inspect
+import os
+import platform
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass
+from typing import Any, Callable, Iterator
+
+from cubesandbox import Config
+
+from .config import CONCURRENCY_LEVELS, PERF_ROUNDS, PERF_SETTLE, PERF_WARMUP
+from .runner import (
+    PERF_RESULTS,
+    measure_parallel,
+    print_parallel_stats,
+    sandbox_op,
+    snapshot_op,
+    skip,
+)
+
+# ---------------------------------------------------------------------------
+# Scenario registry (populated by the @benchmark decorator)
+# ---------------------------------------------------------------------------
+#
+# Adding a benchmark is a one-liner: write the function and tag it with
+# ``@benchmark("my-scenario")``. Everything a scenario needs lives on that one
+# decorator — CLI aliases, the opt-in/opt-out skip gate, and the HTML report
+# chart group — so a new benchmark never has to touch a registry, an alias
+# table, a hand-written skip block, or the report module. The decoration order
+# (== the order scenario modules are imported in ``cases/__init__.py``) is the
+# canonical run order.
+BENCHMARK_REGISTRY: "dict[str, Callable[[Config], None]]" = {}
+BENCHMARK_ALIASES: "dict[str, list[str]]" = {}
+# Report chart/table groups contributed via ``report=...``, in decoration
+# order. Consumed by ``report_html`` (see ``default_report_scenarios``).
+REPORT_SCENARIOS: "list[dict]" = []
+# Scenario keys explicitly named on the CLI (``--scenarios``/``--only``).
+# Populated by ``select_benchmarks``; an explicitly-selected scenario bypasses
+# its default opt-in/opt-out gate — naming a scenario *is* the intent to run
+# it, so ``--only ivshmem`` no longer also needs ``CUBE_RUN_IVSHMEM=1``.
+_FORCED_KEYS: "set[str]" = set()
+
+
+@dataclass(frozen=True)
+class ReportGroup:
+    """One chart + summary-table group in the HTML perf report.
+
+    A benchmark may declare zero, one, or several groups (e.g. the
+    pause/resume benchmark feeds both a 暂停 and a 恢复 chart). *prefix*
+    defaults to the benchmark key and is the scenario-name prefix the report
+    matches against (``<prefix>-<x_key><N>``).
+    """
+    title: str
+    prefix: "str | None" = None
+    x_key: str = "c"
+    x_label: str = "并发数"
+    fallback: "tuple[int, ...]" = (1, 2, 4)
+
+
+def benchmark(
+    key: str,
+    *,
+    aliases: "list[str] | None" = None,
+    opt_in_env: "str | None" = None,
+    opt_out_env: "str | None" = None,
+    skip_reason: "str | None" = None,
+    available: bool = True,
+    report: "ReportGroup | list[ReportGroup] | None" = None,
+):
+    """Register the decorated function as a benchmark under *key*.
+
+    Every knob keeps a scenario's metadata in one place:
+
+    - *aliases*: friendly group names (several benchmarks may share one, e.g.
+      every ``volume-*`` scenario under ``volume``).
+    - *opt_in_env*: env var that must equal ``"1"`` for the scenario to run;
+      otherwise it is skipped (default-off scenarios like volume / ivshmem).
+      Explicitly naming the scenario on the CLI (``--only``/``--scenarios``)
+      bypasses this gate — see ``_FORCED_KEYS`` / ``select_benchmarks``.
+    - *opt_out_env*: env var that, when equal to ``"1"``, skips the scenario
+      (default-on scenarios like density / snapshot-dirty). Also bypassed when
+      the scenario is explicitly named on the CLI.
+    - *skip_reason*: extra human hint appended to the opt-in skip message.
+    - *available*: evaluated at import time; ``False`` skips unconditionally
+      (e.g. the optional ``Volume`` type failed to import).
+    - *report*: one ``ReportGroup`` or a list of them, contributing the HTML
+      report's default chart/table groups.
+    """
+    def deco(fn: "Callable[[Config], None]") -> "Callable[[Config], None]":
+        if key in BENCHMARK_REGISTRY:
+            raise ValueError(f"duplicate benchmark key: {key}")
+
+        # Wrap only when a gate is declared, so plain scenarios stay zero-cost.
+        if not available or opt_in_env or opt_out_env:
+            @functools.wraps(fn)
+            def registered(cfg: Config) -> None:
+                if not available:
+                    skip(key, "requires an optional dependency missing from this build")
+                    return
+                # Explicit CLI selection is a hard "run it" signal: it overrides
+                # the default opt-in/opt-out env gates (but never the missing
+                # optional-dependency guard above).
+                forced = key in _FORCED_KEYS
+                if not forced and opt_in_env and os.environ.get(opt_in_env) != "1":
+                    reason = f"set {opt_in_env}=1 (or name it via --only {key})"
+                    if skip_reason:
+                        reason += f" ({skip_reason})"
+                    skip(key, reason)
+                    return
+                if not forced and opt_out_env and os.environ.get(opt_out_env) == "1":
+                    skip(key, f"{opt_out_env}=1")
+                    return
+                fn(cfg)
+        else:
+            registered = fn
+
+        BENCHMARK_REGISTRY[key] = registered
+        for alias in aliases or []:
+            BENCHMARK_ALIASES.setdefault(alias, []).append(key)
+        groups = [report] if isinstance(report, ReportGroup) else (report or [])
+        for grp in groups:
+            prefix = grp.prefix or key
+            REPORT_SCENARIOS.append({
+                "id": prefix.replace("-", "_"),
+                "title": grp.title,
+                "prefix": prefix,
+                "xKey": grp.x_key,
+                "fallback": list(grp.fallback),
+                "xLabel": grp.x_label,
+            })
+        return registered
+    return deco
+
+
+def parallel_sweep(
+    label: str,
+    *,
+    header: "str | None" = None,
+    levels: "list[int] | None" = None,
+    metrics: "tuple[str, ...] | None" = None,
+    rounds: "int | None" = None,
+    warmup: "int | None" = None,
+    settle: "float | None" = None,
+):
+    """Declaratively turn a per-level generator into a concurrency-sweep benchmark.
+
+    Instead of hand-writing the ``for concurrency in CONCURRENCY_LEVELS`` loop
+    (with its ``n = PERF_ROUNDS * concurrency`` sizing, ``measure_parallel``
+    call, result append, and stats print-out) in every scenario, decorate a
+    *generator* ``(cfg, concurrency, n)`` that:
+
+      * sets up the level's resources,
+      * ``yield``s the single-shot operation to be timed ``n`` times, then
+      * tears the resources down after the yield (put it in a ``finally`` /
+        lean on ``sandbox_pool()`` so cleanup runs even mid-sweep).
+
+    The framework owns the loop, timing, collection, and the shared stats line;
+    the scenario body only declares "what to set up, what to measure, what to
+    clean up". Stack it *under* ``@benchmark`` so the registry still sees the
+    required ``fn(cfg)``::
+
+        @benchmark("template-create", aliases=["create"])
+        @parallel_sweep("template-create", header=" [Perf] ...")
+        def bench(cfg, concurrency, n):
+            with sandbox_pool() as pool:
+                yield lambda: pool.add(Sandbox.create(cfg.template_id, config=cfg))
+
+    *header* prints once above the sweep; *levels* overrides the default
+    ``CONCURRENCY_LEVELS`` for scenarios that need a bespoke set; *metrics*
+    picks which latency fields the shared stats line shows (see
+    ``print_parallel_stats``).
+
+    Timing knobs (each ``None`` falls back to its global default, so a scenario
+    only names the ones it wants to bend):
+
+    - *rounds*: measured ops **per worker** (total ``n = rounds * concurrency``);
+      defaults to ``PERF_ROUNDS`` (env ``CUBE_PERF_ROUNDS``).
+    - *warmup*: unmeasured ops run once per level before timing, to shed
+      cold-start spikes; defaults to ``PERF_WARMUP`` (env ``CUBE_PERF_WARMUP``).
+    - *settle*: seconds slept **between** concurrency levels to let the node
+      quiesce; defaults to ``PERF_SETTLE`` (env ``CUBE_PERF_SETTLE``).
+    """
+    def deco(gen: "Callable[..., Iterator[Callable[[], Any]]]") -> "Callable[[Config], None]":
+        make_level = contextmanager(gen)
+        # Let a stacked ``@metrics(...)`` supply the default field list; an
+        # explicit ``metrics=`` on this decorator always wins.
+        effective_metrics = metrics if metrics is not None else getattr(gen, "_perf_metrics", None)
+
+        @functools.wraps(gen)
+        def run(cfg: Config) -> None:
+            if header:
+                print(f"\n{'='*60}")
+                print(header)
+                print(f"{'='*60}")
+            rounds_n = PERF_ROUNDS if rounds is None else rounds
+            warmup_n = PERF_WARMUP if warmup is None else warmup
+            settle_s = PERF_SETTLE if settle is None else settle
+            for i, concurrency in enumerate(levels or CONCURRENCY_LEVELS):
+                # Let the node quiesce between levels (skip before the first).
+                if i and settle_s:
+                    time.sleep(settle_s)
+                n = rounds_n * concurrency
+                with make_level(cfg, concurrency, n) as op:
+                    # Shed cold-start spikes: run a few unmeasured ops first.
+                    for _ in range(warmup_n):
+                        op()
+                    result = measure_parallel(
+                        f"{label}-c{concurrency}", op, n=n, concurrency=concurrency)
+                    PERF_RESULTS.append(result)
+                    print_parallel_stats(result, effective_metrics)
+
+        return run
+    return deco
+
+
+def sandbox_action(
+    *,
+    pool: "Callable[..., Any] | None" = None,
+    fixture: str = "sandbox",
+    template_id: "str | None" = None,
+    **create_opts: Any,
+):
+    """Business layer — turn a *plain action* into a ``parallel_sweep`` generator.
+
+    This is the "业务" decorator of the four-layer split (see the module's
+    ``sandbox_benchmark`` docstring / ``DESIGN.zh.md`` §4.6). It removes the
+    ``yield`` boilerplate: decorate a function that **is** the per-op action and
+    get back the ``gen(cfg, concurrency, n)`` generator ``parallel_sweep``
+    expects.
+
+    *fixture* picks what each measured op is handed (built by the matching
+    ``*_op`` helper in ``runner``):
+
+    - ``"sandbox"`` (default): a throwaway sandbox — action signature ``(sb)``,
+      or ``(sb, pool)`` when *pool* is given (feed the product to ``pool.add``)::
+
+          @sandbox_action(pool=snapshot_pool)
+          def snapshot_create(sb, snaps):
+              snaps.add(sb.create_snapshot().snapshot_id)
+
+    - ``"snapshot"``: a throwaway sandbox *plus* one of its snapshots — action
+      signature ``(sb, snap_id)``, or ``(sb, snap_id, pool)`` with *pool*. Suits
+      ops that need a live box and a snapshot to act on (e.g. rollback)::
+
+          @sandbox_action(fixture="snapshot")
+          def rollback(sb, snap_id):
+              sb.rollback(snap_id)
+
+    *template_id* / ``**create_opts`` pass straight to the fixture /
+    ``Sandbox.create`` (e.g. ``timeout=300``, ``volume_mounts=[...]``).
+    """
+    op_builder = snapshot_op if fixture == "snapshot" else sandbox_op
+
+    def deco(action: "Callable[..., Any]") -> "Callable[..., Iterator[Callable[[], Any]]]":
+        @functools.wraps(action)
+        def gen(cfg: Config, concurrency: int, n: int):
+            if pool is None:
+                yield op_builder(cfg, action, template_id, **create_opts)
+            elif fixture == "snapshot":
+                with _open_pool(pool, cfg) as p:
+                    yield op_builder(
+                        cfg, lambda sb, sid: action(sb, sid, p), template_id, **create_opts)
+            else:
+                with _open_pool(pool, cfg) as p:
+                    yield op_builder(
+                        cfg, lambda sb: action(sb, p), template_id, **create_opts)
+
+        return gen
+    return deco
+
+
+def metrics(*names: str):
+    """Metrics layer — declare which latency fields the stats line shows.
+
+    The "指标" decorator of the four-layer split: it just tags the generator
+    with a ``_perf_metrics`` attribute that ``parallel_sweep`` reads as its
+    default field list (an explicit ``metrics=`` on ``parallel_sweep`` wins).
+    Valid names: ``avg`` / ``min`` / ``p50`` / ``p95`` / ``p99`` / ``max`` (see
+    ``print_parallel_stats``). Stack it between ``@parallel_sweep`` and
+    ``@sandbox_action``::
+
+        @parallel_sweep("snapshot-create")
+        @metrics("avg", "p50", "p95", "max")
+        @sandbox_action(pool=snapshot_pool)
+        def snapshot_create(sb, snaps): ...
+    """
+    def deco(gen: "Callable[..., Any]") -> "Callable[..., Any]":
+        gen._perf_metrics = tuple(names)  # type: ignore[attr-defined]
+        return gen
+    return deco
+
+
+def sandbox_benchmark(
+    key: str,
+    *,
+    title: "str | None" = None,
+    header: "str | None" = None,
+    aliases: "list[str] | None" = None,
+    pool: "Callable[..., Any] | None" = None,
+    fixture: str = "sandbox",
+    metrics: "tuple[str, ...] | None" = None,
+    template_id: "str | None" = None,
+    levels: "list[int] | None" = None,
+    rounds: "int | None" = None,
+    warmup: "int | None" = None,
+    settle: "float | None" = None,
+    report: "ReportGroup | None" = None,
+    **create_opts: Any,
+):
+    """Fully declarative sandbox scenario — decorate the *action*, get the sweep.
+
+    This is the one-line **sugar** that stacks the four single-concern layers of
+    the split (see ``DESIGN.zh.md`` §4.6) for the most common shape: *"each
+    measured op spins up a throwaway fixture, does one thing to it, tears it
+    down"*. There is no generator and no ``yield`` — the decorated function
+    **is** the per-op action, so a scenario collapses to its one measured line::
+
+        @sandbox_benchmark("snapshot-create", title="创建快照（并发）",
+                           header=" [Perf] Snapshot Creation", aliases=["snapshot"],
+                           pool=snapshot_pool, metrics=("avg", "p50", "p95", "max"),
+                           levels=[1, 5, 10], rounds=20, warmup=2, settle=1.0)
+        def snapshot_create(sb, snaps):
+            snaps.add(sb.create_snapshot().snapshot_id)
+
+    Internally it is exactly::
+
+        benchmark(key, aliases=aliases, report=...)(
+            parallel_sweep(key, header=..., levels=..., metrics=...,
+                           rounds=..., warmup=..., settle=...)(
+                sandbox_action(pool=pool, fixture=fixture,
+                               template_id=template_id, **create_opts)(action)))
+
+    Reach for the four decorators directly (``@benchmark`` / ``@parallel_sweep``
+    / ``@metrics`` / ``@sandbox_action``) when you want to split concerns, reuse
+    a middle layer, or swap one layer's implementation.
+
+    - *title*: HTML report chart title (omit for no report group).
+    - *fixture*: what each measured op is handed — ``"sandbox"`` (default,
+      action ``(sb)`` / ``(sb, pool)``) or ``"snapshot"`` (a box *and* one of its
+      snapshots, action ``(sb, snap_id)`` / ``(sb, snap_id, pool)``). See
+      ``sandbox_action``.
+    - *pool*: a pool context-manager factory (``sandbox_pool`` / ``snapshot_pool``);
+      when set, the action takes a trailing ``pool`` arg and typically feeds its
+      product to ``pool.add(...)``.
+    - *metrics*: latency fields the stats line shows (see ``print_parallel_stats``).
+    - *levels*: concurrency ladder for this scenario; defaults to the global
+      ``CONCURRENCY_LEVELS`` (env ``CUBE_PERF_CONCURRENCY``, default 1/2/4).
+    - *rounds* / *warmup* / *settle*: per-scenario timing overrides; each
+      ``None`` falls back to its global default (``PERF_ROUNDS`` /
+      ``PERF_WARMUP`` / ``PERF_SETTLE`` — see ``parallel_sweep``).
+    - *template_id* / ``**create_opts``: passed straight to the fixture /
+      ``Sandbox.create`` (e.g. a bespoke template, ``timeout=300``,
+      ``volume_mounts=[...]``).
+    """
+    report_group = report or (ReportGroup(title) if title else None)
+
+    def deco(action: "Callable[..., Any]") -> "Callable[[Config], None]":
+        gen = sandbox_action(
+            pool=pool, fixture=fixture, template_id=template_id, **create_opts)(action)
+        swept = parallel_sweep(
+            key, header=header, levels=levels, metrics=metrics,
+            rounds=rounds, warmup=warmup, settle=settle)(gen)
+        return benchmark(key, aliases=aliases, report=report_group)(swept)
+
+    return deco
+
+
+def _open_pool(factory: "Callable[..., Any]", cfg: Config) -> Any:
+    """Open a pool context manager, passing *cfg* only if the factory takes it.
+
+    Bridges the two pool shapes: ``sandbox_pool()`` (no args) and
+    ``snapshot_pool(cfg)`` (needs the config to delete snapshots).
+    """
+    if inspect.signature(factory).parameters:
+        return factory(cfg)
+    return factory()
+
+
+# ---------------------------------------------------------------------------
+# Scenario selection
+# ---------------------------------------------------------------------------
+#
+# The registry / aliases / report groups are all populated by the
+# ``@benchmark`` decorator as ``cases/`` modules import, so this section only
+# derives the run list and the report-scenario view — there is nothing to
+# hand-maintain here.
+
+
+def default_report_scenarios() -> "list[dict]":
+    """Default HTML-report chart/table groups, derived from ``@benchmark(report=...)``.
+
+    ``report_html`` consumes this so a charted scenario is declared in the
+    same one-liner that registers the benchmark (see ``ReportGroup``).
+    """
+    return [dict(g) for g in REPORT_SCENARIOS]
+
+
+def available_scenarios() -> "list[str]":
+    """Return the canonical scenario keys plus aliases, for CLI help / listing."""
+    return list(BENCHMARK_REGISTRY.keys()) + list(BENCHMARK_ALIASES.keys())
+
+
+def select_benchmarks(selected: "list[str] | None") -> "list[Callable[[Config], None]]":
+    """Resolve scenario keys/aliases into an ordered, de-duplicated bench list.
+
+    *selected* is a list of scenario keys or aliases (case-insensitive; a
+    leading ``no-``/``skip-`` prefix excludes that scenario). When it is
+    ``None`` / empty, the full suite is returned. Unknown tokens raise
+    ``ValueError`` listing the valid choices.
+
+    Side effect: rebuilds ``_FORCED_KEYS`` with the scenarios explicitly named
+    here (excluding the ``all`` wildcard), so a named default-off/-on scenario
+    bypasses its opt-in/opt-out env gate at run time.
+    """
+    _FORCED_KEYS.clear()
+    if not selected:
+        return list(BENCHMARK_REGISTRY.values())
+
+    def _expand(key: str) -> "list[str]":
+        if key == "all":  # derived alias for the whole suite
+            return list(BENCHMARK_REGISTRY)
+        if key in BENCHMARK_ALIASES:
+            return list(BENCHMARK_ALIASES[key])
+        if key in BENCHMARK_REGISTRY:
+            return [key]
+        return []
+
+    include: "set[str]" = set()
+    exclude: "set[str]" = set()
+    unknown: "list[str]" = []
+    for raw in selected:
+        token = raw.strip().lower()
+        if not token:
+            continue
+        negate = False
+        for prefix in ("no-", "skip-", "!", "^"):
+            if token.startswith(prefix):
+                negate, token = True, token[len(prefix):]
+                break
+        keys = _expand(token)
+        if not keys:
+            unknown.append(raw)
+            continue
+        if negate:
+            exclude.update(keys)
+        else:
+            include.update(keys)
+            # ``all`` is a bulk wildcard, not an explicit pick — it must not
+            # force default-off scenarios (volume / ivshmem) on.
+            if token != "all":
+                _FORCED_KEYS.update(keys)
+
+    if unknown:
+        valid = ", ".join(sorted(set(BENCHMARK_REGISTRY) | set(BENCHMARK_ALIASES) | {"all"}))
+        raise ValueError(
+            f"unknown scenario(s): {', '.join(unknown)}\n  valid choices: {valid}"
+        )
+
+    # If only exclusions were given, start from the full set.
+    chosen = (include or set(BENCHMARK_REGISTRY)) - exclude
+    # Preserve the canonical registry order.
+    return [fn for key, fn in BENCHMARK_REGISTRY.items() if key in chosen]
+
+
+def collect_component_versions(cfg: Config) -> dict[str, str]:
+    """Collect component version info for the HTML report environment section.
+
+    Queries CubeAPI health endpoint and local system for component versions.
+    """
+    versions: dict[str, str] = {
+        "python_version": platform.python_version(),
+        "platform": platform.platform(),
+    }
+
+    # Try to get CubeAPI version from health endpoint
+    try:
+        import httpx
+
+        headers = {}
+        api_key = os.environ.get("CUBE_API_KEY") or os.environ.get("E2B_API_KEY", "")
+        if api_key:
+            headers["X-API-Key"] = api_key
+        resp = httpx.get(f"{cfg.api_url}/health", headers=headers, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                for key in ("version", "commit", "build_time", "go_version"):
+                    if key in data:
+                        versions[f"cubeapi_{key}"] = str(data[key])
+    except Exception:
+        pass
+
+    # Try to get SDK version
+    try:
+        import cubesandbox
+
+        versions["sdk_version"] = cubesandbox.__version__
+    except Exception:
+        pass
+
+    return versions
+
+
+def run_all(cfg: Config, selected: "list[str] | None" = None) -> None:
+    """Run performance benchmarks in order.
+
+    *selected* is an optional list of scenario keys/aliases (see
+    ``BENCHMARK_REGISTRY`` / ``BENCHMARK_ALIASES``). When None/empty, the full
+    suite runs. Otherwise only the resolved subset runs.
+
+    Requires the ``perf.cases`` package to have been imported already so the
+    registry is populated (the CLI entry point does this).
+    """
+    benches = select_benchmarks(selected)
+
+    # Print component versions
+    versions = collect_component_versions(cfg)
+    print("\n--- Component Versions ---")
+    for k, v in sorted(versions.items()):
+        print(f"  {k}: {v}")
+    print()
+
+    if selected:
+        keys = [k for k, fn in BENCHMARK_REGISTRY.items() if fn in benches]
+        print(f"--- Selected scenarios ({len(benches)}): {', '.join(keys)} ---\n")
+
+    for bench_fn in benches:
+        bench_fn(cfg)

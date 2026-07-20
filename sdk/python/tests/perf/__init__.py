@@ -10,7 +10,7 @@ Run it via the CLI entry point (from the ``tests/`` directory)::
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
 
 Modules:
-    benchmarks  - 11 benchmark scenarios + run_all()
+    benchmarks  - 13 benchmark scenarios + run_all()
     baseline    - official CubeSandbox perf baseline data (4 machines)
     report_html - self-contained HTML report with Chart.js line charts
     report      - Markdown + JSON report generation

@@ -6,11 +6,16 @@ Usage:
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf              # run benchmarks, produce JSON + HTML
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --html       # also generate HTML report
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --rounds 20  # run 20 rounds per scenario
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios snapshot-create-from  # only cold-start-from-snapshot
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback           # only selected scenarios
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only ivshmem                      # default-off scenario, no extra env needed
+    python3 -m perf --list-scenarios                              # list scenario keys/aliases
     python3 -m perf --html-only data/*.json                        # generate HTML from existing data files
     python3 -m perf --compare data/run1.json data/run2.json        # compare two runs (HTML)
 
 Optional env vars:
     CUBE_TEMPLATE_ID         - skip auto-discovery
+    CUBE_PERF_SCENARIOS      - comma/space separated scenario keys/aliases to run (default: all)
     CUBE_SKIP_DENSITY        - set to "1" to skip deployment density test
     CUBE_OUTPUT_REPORT       - base path for output reports (default: report)
     CUBE_PERF_ROUNDS         - rounds per perf scenario (default: 10)
@@ -29,13 +34,14 @@ import os
 import sys
 from datetime import datetime, timezone
 
-from . import report
-from .config import DENSITY_COUNT, PERF_ROUNDS, resolve_config
-from .env import collect_env_info
-from .runner import PERF_RESULTS, reset
+from .reporting import report
+from .framework.config import DENSITY_COUNT, PERF_ROUNDS, resolve_config
+from .framework.env import collect_env_info
+from .framework.runner import PERF_RESULTS, reset
 
-from . import benchmarks
-from .report_html import generate_html
+from . import cases  # noqa: F401 — importing registers every @benchmark scenario
+from .framework import registry
+from .reporting.report_html import generate_html
 
 
 def _data_file_path(base: str, suffix: str = "") -> str:
@@ -44,8 +50,27 @@ def _data_file_path(base: str, suffix: str = "") -> str:
     return f"{base}{suffix}_{ts}.json"
 
 
-def run_benchmarks() -> str:
-    """Run all benchmarks, write JSON data file, return the file path."""
+def _resolve_selected(cli_scenarios: "list[str] | None") -> "list[str] | None":
+    """Merge --scenarios CLI values with the CUBE_PERF_SCENARIOS env var and
+    flatten comma/space-separated tokens into a clean list. CLI wins over env;
+    returns None when neither is set (i.e. run the full suite)."""
+    raw = cli_scenarios
+    if not raw:
+        env = os.environ.get("CUBE_PERF_SCENARIOS", "").strip()
+        raw = [env] if env else None
+    if not raw:
+        return None
+    tokens: list[str] = []
+    for item in raw:
+        for part in item.replace(",", " ").split():
+            if part:
+                tokens.append(part)
+    return tokens or None
+
+
+def run_benchmarks(selected: "list[str] | None" = None) -> str:
+    """Run benchmarks (all by default, or the *selected* subset), write JSON
+    data file, return the file path."""
     cfg = resolve_config()
 
     print("=" * 60)
@@ -67,7 +92,7 @@ def run_benchmarks() -> str:
     print(f"  Density max count: {DENSITY_COUNT}")
     print()
 
-    benchmarks.run_all(cfg)
+    registry.run_all(cfg, selected=selected)
 
     # --- Write JSON data ---
     data = report.build_report_data(env)
@@ -103,6 +128,10 @@ Examples:
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --html
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --rounds 20
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios snapshot-create-from
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios all no-ivshmem
+  python3 -m perf --list-scenarios
   python3 -m perf --html-only report_20260717T120000Z.json
   python3 -m perf --compare run1.json run2.json
         """,
@@ -133,6 +162,26 @@ Examples:
         help=f"override CUBE_PERF_ROUNDS (default: {PERF_ROUNDS})",
     )
     parser.add_argument(
+        "--scenarios",
+        "--only",
+        dest="scenarios",
+        nargs="+",
+        metavar="SCENARIO",
+        default=None,
+        help="run only the given scenario(s); accepts keys or aliases, "
+        "comma/space separated, and 'no-<key>' to exclude "
+        "(e.g. --scenarios snapshot-create-from, --only snapshot, "
+        "--scenarios all no-ivshmem). Explicitly naming a default-off scenario "
+        "(e.g. --only ivshmem / volume) auto-enables it, so its opt-in env "
+        "(CUBE_RUN_IVSHMEM / CUBE_RUN_VOLUME) is no longer required. "
+        "Overrides CUBE_PERF_SCENARIOS. Use --list-scenarios to see all choices.",
+    )
+    parser.add_argument(
+        "--list-scenarios",
+        action="store_true",
+        help="list available benchmark scenario keys/aliases and exit",
+    )
+    parser.add_argument(
         "--output",
         type=str,
         default=None,
@@ -147,10 +196,22 @@ Examples:
 
     args = parser.parse_args()
 
+    # --list-scenarios: print available scenario keys/aliases and exit.
+    if args.list_scenarios:
+        print("Available scenarios (canonical keys):")
+        for key in registry.BENCHMARK_REGISTRY:
+            print(f"  {key}")
+        print("\nAliases:")
+        for alias, keys in registry.BENCHMARK_ALIASES.items():
+            print(f"  {alias:<20} -> {', '.join(keys)}")
+        print("\nExclude a scenario with a 'no-'/'skip-' prefix, e.g. "
+              "--scenarios all no-ivshmem")
+        return
+
     # Override rounds if specified
     if args.rounds is not None:
         os.environ["CUBE_PERF_ROUNDS"] = str(args.rounds)
-        from . import config as _cfg
+        from .framework import config as _cfg
 
         _cfg.PERF_ROUNDS = args.rounds
 
@@ -167,8 +228,15 @@ Examples:
         return
 
     # Default mode: run benchmarks
+    selected = _resolve_selected(args.scenarios)
+    # Validate selection early (raises with a helpful message on typos).
+    try:
+        registry.select_benchmarks(selected)
+    except ValueError as exc:
+        sys.exit(f"error: {exc}")
+
     reset()
-    json_path = run_benchmarks()
+    json_path = run_benchmarks(selected=selected)
 
     # --html flag: also generate HTML
     if args.html:

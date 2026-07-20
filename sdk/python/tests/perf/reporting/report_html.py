@@ -159,14 +159,25 @@ def _resolve_fields(
 # int list defaulting to "1+2+4". When `prefix` matches a default group its
 # title/xKey/fallback are inherited for any omitted field.
 #   e.g. CUBE_REPORT_SCENARIOS_EXTRA="fork|Fork 沙箱|c|1+2+4"
-_DEFAULT_SCENARIOS: list[dict[str, Any]] = [
-    {"id": "coldstart", "title": "基于模板创建沙箱（冷启动）", "prefix": "template-create", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-    {"id": "snapshot", "title": "创建快照（并发）", "prefix": "snapshot-create", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-    {"id": "createfrom", "title": "基于快照启动沙箱", "prefix": "snapshot-create-from", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-    {"id": "rollback", "title": "回滚（Rollback）", "prefix": "rollback", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-    {"id": "pause", "title": "暂停（Pause）", "prefix": "pause", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-    {"id": "resume", "title": "恢复（Resume）", "prefix": "resume", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-]
+# Default chart groups are derived from the benchmark decorators
+# (``@benchmark(report=ReportGroup(...))`` under ``cases/``) so a charted
+# scenario is declared in the same one-liner that registers the benchmark.
+# Fall back to a static list when the scenarios (and thus the cubesandbox SDK
+# they import) can't be loaded in a pure-report context.
+try:
+    from .. import cases  # noqa: F401 — populate the registry via @benchmark
+    from ..framework.registry import default_report_scenarios as _default_report_scenarios
+
+    _DEFAULT_SCENARIOS: list[dict[str, Any]] = _default_report_scenarios()
+except Exception:  # pragma: no cover - defensive fallback
+    _DEFAULT_SCENARIOS = [
+        {"id": "coldstart", "title": "基于模板创建沙箱（冷启动）", "prefix": "template-create", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+        {"id": "snapshot", "title": "创建快照（并发）", "prefix": "snapshot-create", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+        {"id": "createfrom", "title": "基于快照启动沙箱", "prefix": "snapshot-create-from", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+        {"id": "rollback", "title": "回滚（Rollback）", "prefix": "rollback", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+        {"id": "pause", "title": "暂停（Pause）", "prefix": "pause", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+        {"id": "resume", "title": "恢复（Resume）", "prefix": "resume", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+    ]
 
 # Summary-table metric columns (env-var customizable)
 #   CUBE_REPORT_METRICS       - replace the *entire* column list
