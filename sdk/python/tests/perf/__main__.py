@@ -220,6 +220,23 @@ Examples:
         "Overrides CUBE_PERF_SCENARIOS. Use --list-scenarios to see all choices.",
     )
     parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="delete all snap-* snapshot templates from the backend before running benchmarks",
+    )
+    parser.add_argument(
+        "--cleanup-dry-run",
+        action="store_true",
+        help="list snap-* snapshots that --cleanup would delete, then exit",
+    )
+    parser.add_argument(
+        "--cleanup-older-than",
+        type=int,
+        default=0,
+        metavar="MINUTES",
+        help="with --cleanup, only delete snapshots older than N minutes",
+    )
+    parser.add_argument(
         "--list-scenarios",
         action="store_true",
         help="list available benchmark scenario keys/aliases and exit",
@@ -278,6 +295,27 @@ Examples:
     if args.compare:
         _generate_html(args.compare, output_path=html_output, title=args.title)
         return
+
+    # --cleanup-dry-run: list snapshots only, then exit
+    if args.cleanup_dry_run or args.cleanup:
+        from . import cleanup_snapshots as _cleanup
+
+        snaps = _cleanup.list_snaps()
+        if not snaps:
+            print("No snap-* snapshot templates found.")
+        else:
+            print(f"\nFound {len(snaps)} snap-* snapshot templates:")
+            for s in snaps:
+                print(f"  {s['templateID']:<36} {s.get('status',''):<12} {s.get('createdAt','')}")
+            if args.cleanup_dry_run:
+                print("\n[DRY RUN] Remove --cleanup-dry-run and use --cleanup to delete.")
+            else:
+                ids = [s["templateID"] for s in snaps]
+                print(f"\nDeleting {len(ids)} snapshots ...")
+                ok, fail = _cleanup.delete_snaps(ids)
+                print(f"Done: {ok} deleted, {fail} failed.\n")
+        if args.cleanup_dry_run:
+            return
 
     # Default mode: run benchmarks
     selected = _resolve_selected(args.scenarios)

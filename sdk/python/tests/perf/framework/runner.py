@@ -47,8 +47,14 @@ class PerfResult:
     samples: list[PerfSample] = field(default_factory=list)
 
     @property
+    def errored(self) -> int:
+        """Number of samples that failed with an exception."""
+        return sum(1 for s in self.samples if s.extra.get("error"))
+
+    @property
     def latencies(self) -> list[float]:
-        return [s.latency_ms for s in self.samples]
+        """Valid latencies only — errored samples are excluded from stats."""
+        return [s.latency_ms for s in self.samples if not s.extra.get("error")]
 
     @property
     def avg(self) -> float:
@@ -222,9 +228,19 @@ def measure(label: str, fn: Callable[[], Any], concurrency: int = 1, extra: dict
 
 def measure_one(fn: Callable[[], Any]) -> PerfSample:
     start = time.perf_counter()
-    fn()
+    try:
+        fn()
+    except Exception as exc:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        sample = PerfSample(label="", latency_ms=elapsed_ms)
+        sample.extra["error"] = _shorten(str(exc))
+        return sample
     elapsed_ms = (time.perf_counter() - start) * 1000
     return PerfSample(label="", latency_ms=elapsed_ms)
+
+
+def _shorten(msg: str, limit: int = 200) -> str:
+    return msg[:limit] + ("…" if len(msg) > limit else "")
 
 
 def measure_parallel(label: str, fn: Callable[[], Any], n: int, concurrency: int) -> PerfResult:
@@ -272,9 +288,12 @@ def print_parallel_stats(result: PerfResult, metrics: "tuple[str, ...] | None" =
         for name in (metrics or DEFAULT_STAT_METRICS)
         if name in _STAT_GETTERS
     )
+    suffix = ""
+    if result.errored:
+        suffix = yellow(f"  errors={result.errored}/{result.count}")
     print(f"  concurrency={result.concurrency:>2}: {stats}  "
           f"wall={extra.get('wall_ms', 0):.0f}ms "
-          f"per={extra.get('per_ms', 0):.1f}ms")
+          f"per={extra.get('per_ms', 0):.1f}ms{suffix}")
 
 
 # ===========================================================================

@@ -57,6 +57,7 @@ def _perf_result_to_dict(r: PerfResult) -> dict[str, Any]:
         "scenario": r.scenario,
         "count": r.count,
         "concurrency": r.concurrency,
+        "errors": r.errored,
         "avg_ms": round(r.avg, 2),
         "min_ms": round(r.min, 2),
         "p50_ms": round(r.p50, 2),

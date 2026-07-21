@@ -296,9 +296,11 @@ def collect_env_info(cfg: Config) -> EnvInfo:
     info.template_id = cfg.template_id or ""
 
     # --- Template metadata ---
+    _template_image: str | None = None
     try:
+        # Prefer the detail endpoint (GET /templates/{id}) for most fields.
         tmpl = Template.get(cfg.template_id, config=cfg)
-        info.template_image = tmpl.image_info or "N/A"
+        _template_image = tmpl.image_info or None
         info.template_instance_type = tmpl.instance_type or "N/A"
         info.template_status = tmpl.status or "N/A"
         # Template size / spec (CPU + memory). memory_mb is normalized to GiB
@@ -311,10 +313,21 @@ def collect_env_info(cfg: Config) -> EnvInfo:
         else:
             info.template_spec = info.template_instance_type or "N/A"
     except Exception:
-        info.template_image = "N/A"
         info.template_instance_type = "N/A"
         info.template_status = "N/A"
         info.template_spec = "N/A"
+
+    # imageInfo is missing from the detail endpoint; fall back to the list endpoint.
+    if not _template_image:
+        try:
+            all_tmpls = Template.list(config=cfg)
+            for t in all_tmpls:
+                if t.template_id == cfg.template_id and t.image_info:
+                    _template_image = t.image_info
+                    break
+        except Exception:
+            pass
+    info.template_image = _template_image or "N/A"
 
     # --- Component versions ---
     # Precedence: release-manifest.json (single source of truth on installed

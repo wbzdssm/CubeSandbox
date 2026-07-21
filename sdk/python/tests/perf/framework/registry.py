@@ -29,11 +29,14 @@ from cubesandbox import Config
 from .config import CONCURRENCY_LEVELS, PERF_ROUNDS, PERF_SETTLE, PERF_WARMUP
 from .runner import (
     PERF_RESULTS,
+    green,
     measure_parallel,
     print_parallel_stats,
+    red,
     sandbox_op,
     snapshot_op,
     skip,
+    yellow,
 )
 
 # ---------------------------------------------------------------------------
@@ -312,8 +315,16 @@ def parallel_sweep(
                 n = rounds_n * concurrency
                 with make_level(cfg, concurrency, n) as op:
                     # Shed cold-start spikes: run a few unmeasured ops first.
+                    warmup_errors = 0
                     for _ in range(warmup_n):
-                        op()
+                        try:
+                            op()
+                        except Exception:
+                            warmup_errors += 1
+                    if warmup_errors:
+                        print(yellow(
+                            f"  warmup: {warmup_errors}/{warmup_n} ops failed "
+                            f"(concurrency={concurrency})"))
                     result = measure_parallel(
                         f"{label}-c{concurrency}", op, n=n, concurrency=concurrency)
                     PERF_RESULTS.append(result)
