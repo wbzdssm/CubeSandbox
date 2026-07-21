@@ -91,6 +91,25 @@ def _validate_name(name: str) -> None:
         )
 
 
+def _validate_volume_id(volume_id: str) -> str:
+    """Raise ``ValueError`` if ``volume_id`` is unsafe to embed in a URL path.
+
+    Defense-in-depth against path traversal: a malicious ``volume_id`` such as
+    ``../other`` or ``..%2f`` must not be interpolated into the request URL.
+    We accept the same character class as volume names (letters, digits, ``_``,
+    ``-``) — this covers both named volumes and auto-generated UUIDs, and
+    rejects any ``/`` or segment-breaking character.
+    """
+    if not isinstance(volume_id, str) or not volume_id:
+        raise ValueError(f"volume_id must be a non-empty string, got {volume_id!r}")
+    if not _VOLUME_NAME_RE.match(volume_id):
+        raise ValueError(
+            "volume_id must match ^[a-zA-Z0-9_-]+$ "
+            f"(letters, digits, '_' and '-'), got {volume_id!r}"
+        )
+    return volume_id
+
+
 @dataclass
 class VolumeInfo:
     """A CubeSandbox persistent volume descriptor.
@@ -114,6 +133,13 @@ class VolumeInfo:
             volume_id=data.get("volumeID") or data.get("volume_id", ""),
             name=data.get("name", ""),
             token=data.get("token", "") or "",
+        )
+
+    def __repr__(self) -> str:
+        # Mask the token so it never leaks into logs / REPL / exception text.
+        return (
+            f"VolumeInfo(volume_id={self.volume_id!r}, name={self.name!r}, "
+            f"token={'***' if self.token else ''!r})"
         )
 
 
@@ -363,6 +389,7 @@ class Volume:
             ApiError: On unexpected backend error.
         """
         cfg = config or Config()
+        _validate_volume_id(volume_id)
         s = _shared_session()
         resp = s.get(
             f"{cfg.api_url}/volumes/{volume_id}",
@@ -433,6 +460,7 @@ class Volume:
             ApiError: On unexpected backend error (non-404).
         """
         cfg = config or Config()
+        _validate_volume_id(volume_id)
         s = _shared_session()
         resp = s.delete(
             f"{cfg.api_url}/volumes/{volume_id}",

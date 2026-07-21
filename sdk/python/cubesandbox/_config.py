@@ -61,3 +61,14 @@ class Config:
                 f"transmitting the API key in cleartext.",
                 stacklevel=3,
             )
+
+    def __repr__(self) -> str:
+        # Mask api_key so it never leaks into logs / REPL / exception text.
+        masked = "***" if self.api_key else None
+        return (
+            f"Config(api_url={self.api_url!r}, api_key={masked!r}, "
+            f"template_id={self.template_id!r}, "
+            f"proxy_node_ip={self.proxy_node_ip!r}, proxy_port={self.proxy_port!r}, "
+            f"sandbox_domain={self.sandbox_domain!r}, timeout={self.timeout!r}, "
+            f"request_timeout={self.request_timeout!r})"
+        )

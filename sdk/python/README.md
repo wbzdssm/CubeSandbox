@@ -6,7 +6,7 @@
   <a href="https://github.com/TencentCloud/CubeSandbox"><img src="https://img.shields.io/badge/CubeSandbox-GitHub-blue" alt="CubeSandbox" /></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-green" alt="Apache 2.0" /></a>
   <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python 3.9+" />
-  <img src="https://img.shields.io/badge/version-0.4.0-orange" alt="v0.4.0" />
+  <img src="https://img.shields.io/badge/version-0.6.0-orange" alt="v0.6.0" />
 </p>
 
 ---
@@ -249,7 +249,7 @@ with Sandbox.create(
     sb.files.write("/workspace/note.txt", "persisted!")
     print(sb.files.read("/workspace/note.txt"))
 
-# A plain dict works too: {"name": <volumeID>, "path": <mount-path>}
+# The value can be a Volume, a VolumeInfo, or a bare volume_id string.
 
 # List / get_info / connect / destroy
 for v in Volume.list():                 # list[VolumeInfo] (token always "")

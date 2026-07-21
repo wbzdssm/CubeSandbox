@@ -6,7 +6,7 @@
   <a href="https://github.com/TencentCloud/CubeSandbox"><img src="https://img.shields.io/badge/CubeSandbox-GitHub-blue" alt="CubeSandbox" /></a>
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-green" alt="Apache 2.0" /></a>
   <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python 3.9+" />
-  <img src="https://img.shields.io/badge/version-0.4.0-orange" alt="v0.4.0" />
+  <img src="https://img.shields.io/badge/version-0.6.0-orange" alt="v0.6.0" />
 </p>
 
 ---
@@ -246,7 +246,7 @@ with Sandbox.create(
     sb.files.write("/workspace/note.txt", "已持久化！")
     print(sb.files.read("/workspace/note.txt"))
 
-# 普通 dict 同样可用：{"name": <volumeID>, "path": <挂载路径>}
+# 值可以是 Volume、VolumeInfo 或 volume_id 字符串。
 
 # 列出 / 查询信息 / 连接 / 销毁
 for v in Volume.list():                 # list[VolumeInfo]（token 恒为 ""）
@@ -315,6 +315,7 @@ with Sandbox.create(config=cfg) as sb:
 | `sb.pause(*, wait, timeout, interval)` | `POST /sandboxes/:id/pause` — 暂停沙箱 |
 | `sb.resume(timeout)` | `POST /sandboxes/:id/resume` — 恢复（已弃用，请用 `connect`） |
 | `sb.kill()` | `DELETE /sandboxes/:id` — 销毁沙箱 |
+| `sb.set_timeout(timeout)` | `POST /sandboxes/:id/timeout` — 设置沙箱空闲超时 |
 | `sb.get_host(port)` | 返回虚拟主机名 `{port}-{id}.{domain}` |
 
 ### `sb.files` — 文件系统
