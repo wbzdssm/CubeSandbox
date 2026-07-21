@@ -8,7 +8,7 @@ import time
 
 from cubesandbox import Config
 
-from ...framework.config import CONCURRENCY_LEVELS, PERF_ROUNDS
+from ...framework.config import CREATE_CONCURRENCY_LEVELS, PERF_ROUNDS
 from ...framework.registry import ReportSection, benchmark
 from ...framework.runner import PERF_RESULTS, PerfResult, PerfSample, sandbox
 
@@ -27,10 +27,10 @@ from ...framework.runner import PERF_RESULTS, PerfResult, PerfSample, sandbox
 def bench_clone(cfg: Config) -> None:
     """Benchmark: Clone (sequential & concurrent fan-out).
 
-    Fan-out is intentionally kept small (driven by CONCURRENCY_LEVELS, default
-    1/2/4) so a single node does not exhaust its resource quota (CubeMaster
-    error 130597 "no more resource"). Override via CUBE_PERF_CONCURRENCY,
-    e.g. "1,5,10".
+    Fan-out is intentionally kept small (driven by CREATE_CONCURRENCY_LEVELS,
+    default 1/10/20/50) so a single node does not exhaust its resource quota
+    (CubeMaster error 130597 "no more resource"). Override via
+    CUBE_CREATE_CONCURRENCY, e.g. "1,10,20,50".
     """
     print(f"\n{'='*60}")
     print(" [Perf] Clone")
@@ -38,7 +38,7 @@ def bench_clone(cfg: Config) -> None:
 
     # (concurrency, n) pairs: a single-clone baseline plus one fan-out per
     # configured concurrency level, with the fan-out count equal to the level.
-    workloads = [(1, 1)] + [(c, c) for c in CONCURRENCY_LEVELS if c > 1]
+    workloads = [(1, 1)] + [(c, c) for c in CREATE_CONCURRENCY_LEVELS if c > 1]
 
     for concurrency, n in workloads:
         rounds = min(PERF_ROUNDS, 3)

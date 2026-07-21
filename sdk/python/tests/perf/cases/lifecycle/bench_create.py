@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from cubesandbox import Config, Sandbox
 
+from ...framework.config import CREATE_CONCURRENCY_LEVELS
 from ...framework.registry import ReportChart, ReportSection, benchmark, parallel_sweep
 from ...framework.runner import sandbox_pool
 
@@ -26,7 +27,11 @@ from ...framework.runner import sandbox_pool
         charts=(ReportChart("基于模板创建沙箱（冷启动）"),),
     ),
 )
-@parallel_sweep("template-create", header=" [Perf] Template-Based Sandbox Creation")
+@parallel_sweep(
+    "template-create",
+    header=" [Perf] Template-Based Sandbox Creation",
+    levels=CREATE_CONCURRENCY_LEVELS,
+)
 def bench_template_create(cfg: Config, concurrency: int, n: int):
     """Benchmark: Template-based sandbox creation (single & concurrent).
 

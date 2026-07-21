@@ -366,12 +366,16 @@ def snapshot_create(sb, snaps):
 | `PERF_WARMUP` | `CUBE_PERF_WARMUP` | `1` |
 | `PERF_SETTLE` | `CUBE_PERF_SETTLE` | `0` |
 | `DIRTY_SWEEP` | `CUBE_DIRTY_SWEEP` | `0,10,50,100,200,500,800,1024` |
-| `CONCURRENCY_LEVELS` | `CUBE_PERF_CONCURRENCY` | `1,2,4` |
+| `CONCURRENCY_LEVELS` | `CUBE_PERF_CONCURRENCY` | `1,5,10`（轻量场景） |
+| `CREATE_CONCURRENCY_LEVELS` | `CUBE_CREATE_CONCURRENCY` | `1,10,20,50`（重型场景） |
 | `CLEANUP_ENABLED` | `CUBE_PERF_CLEANUP` | `1`（`"0"` 关闭） |
 | `CLEANUP_CMD` | `CUBE_CLEANUP_CMD` | `echo y \| cubecli unsafe destroyall -f` |
 
-- **并发档位刻意小**（默认 1/2/4）：单节点资源有限，过大会触发 CubeMaster `130597 no more resource`；
-  跨机压力测试请显式抬高 `CUBE_PERF_CONCURRENCY`。
+- **并发档位分两档**：轻量场景（snapshot-create / rollback / pause-resume）默认 `1,5,10`，
+  重型场景（template-create / create-from-snapshot / clone）默认 `1,10,20,50`；
+  档位与已发布的「CubeSandbox 核心操作性能基准测试报告」对齐。单节点资源有限，过大会触发
+  CubeMaster `130597 no more resource`；跨机压力测试请显式抬高 `CUBE_PERF_CONCURRENCY` /
+  `CUBE_CREATE_CONCURRENCY`。
 - **`resolve_config()`**：未设 `CUBE_API_URL` 直接退出；未设 `CUBE_TEMPLATE_ID` 时查 `/templates`
   自动挑第一个 `READY` 模板，挑不到则退出。
 - **这些是全局兜底值**：`PERF_ROUNDS` / `PERF_WARMUP` / `PERF_SETTLE` / `CONCURRENCY_LEVELS`

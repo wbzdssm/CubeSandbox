@@ -234,7 +234,8 @@ python3 -m perf --md-only report_20260720T120000Z.json
 | `CUBE_TEMPLATE_ID` | 自动发现 | 指定后跳过 READY 模板自动发现 |
 | `CUBE_PERF_SCENARIOS` | 全部 | 场景键/别名，逗号或空格分隔（被 `--scenarios` 覆盖） |
 | `CUBE_PERF_ROUNDS` | `10` | 每场景轮数 |
-| `CUBE_PERF_CONCURRENCY` | `1,2,4` | 并发扫描档位 |
+| `CUBE_PERF_CONCURRENCY` | `1,5,10` | 轻量场景（snapshot-create / rollback / pause-resume）并发扫描档位 |
+| `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` | 重型场景（template-create / create-from-snapshot / clone）并发扫描档位 |
 | `CUBE_PERF_WARMUP` | `1` | 计时前丢弃的预热轮数 |
 | `CUBE_PERF_SETTLE` | `0` | 并发档位间静默秒数 |
 | `CUBE_DIRTY_SWEEP` | `0,10,...,1024` | `snapshot-dirty` 脏页写入 MB 档位 |

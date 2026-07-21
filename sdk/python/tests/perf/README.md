@@ -253,7 +253,8 @@ corresponding env var to run.
 | `CUBE_TEMPLATE_ID` | auto-discover | Skip READY template auto-discovery when set |
 | `CUBE_PERF_SCENARIOS` | all | Scenario keys/aliases, comma or space separated (overridden by `--scenarios`) |
 | `CUBE_PERF_ROUNDS` | `10` | Rounds per scenario |
-| `CUBE_PERF_CONCURRENCY` | `1,2,4` | Concurrency sweep levels |
+| `CUBE_PERF_CONCURRENCY` | `1,5,10` | Concurrency sweep levels for light scenarios (snapshot-create / rollback / pause-resume) |
+| `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` | Concurrency sweep levels for heavy scenarios (template-create / create-from-snapshot / clone) |
 | `CUBE_PERF_WARMUP` | `1` | Warm-up rounds discarded before timing |
 | `CUBE_PERF_SETTLE` | `0` | Settle seconds between concurrency levels |
 | `CUBE_DIRTY_SWEEP` | `0,10,...,1024` | `snapshot-dirty` dirty-page write MB levels |

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from cubesandbox import Config, Sandbox
 
+from ...framework.config import CREATE_CONCURRENCY_LEVELS
 from ...framework.registry import ReportChart, ReportSection, benchmark, parallel_sweep
 from ...framework.runner import sandbox_pool, snapshot_pool
 
@@ -25,7 +26,11 @@ from ...framework.runner import sandbox_pool, snapshot_pool
         charts=(ReportChart("基于快照启动沙箱"),),
     ),
 )
-@parallel_sweep("snapshot-create-from", header=" [Perf] Create from Snapshot")
+@parallel_sweep(
+    "snapshot-create-from",
+    header=" [Perf] Create from Snapshot",
+    levels=CREATE_CONCURRENCY_LEVELS,
+)
 def bench_snapshot_create_from(cfg: Config, concurrency: int, n: int):
     """Benchmark: create sandbox from a snapshot (single & concurrent).
 

@@ -454,7 +454,7 @@ def sandbox_benchmark(
       product to ``pool.add(...)``.
     - *metrics*: latency fields the stats line shows (see ``print_parallel_stats``).
     - *levels*: concurrency ladder for this scenario; defaults to the global
-      ``CONCURRENCY_LEVELS`` (env ``CUBE_PERF_CONCURRENCY``, default 1/2/4).
+      ``CONCURRENCY_LEVELS`` (env ``CUBE_PERF_CONCURRENCY``, default 1/5/10).
     - *rounds* / *warmup* / *settle*: per-scenario timing overrides; each
       ``None`` falls back to its global default (``PERF_ROUNDS`` /
       ``PERF_WARMUP`` / ``PERF_SETTLE`` — see ``parallel_sweep``).

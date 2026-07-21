@@ -39,11 +39,17 @@ PERF_SETTLE = float(os.environ.get("CUBE_PERF_SETTLE", "0"))
 # published baseline sweep; override via CUBE_DIRTY_SWEEP, e.g. "0,100,1024".
 DIRTY_SWEEP = _parse_int_list("CUBE_DIRTY_SWEEP", [0, 10, 50, 100, 200, 500, 800, 1024])
 
-# Concurrency levels swept by the create/snapshot/rollback/pause scenarios.
-# Kept intentionally small by default so a single node does not exhaust its
-# CPU/memory quota (CubeMaster error 130597 "no more resource"). Override via
-# CUBE_PERF_CONCURRENCY, e.g. "1,5,10".
-CONCURRENCY_LEVELS = _parse_int_list("CUBE_PERF_CONCURRENCY", [1, 2, 4])
+# Concurrency ladders, matching the published benchmark report
+# (cubesandbox.com/zh/blog "CubeSandbox 核心操作性能基准测试报告"):
+#   - the "light" ladder 1/5/10 for the snapshot-create / rollback / pause-resume
+#     scenarios (report §4.1 / §4.4 / §4.6);
+#   - the "create" ladder 1/10/20/50 for the heavier template-create /
+#     create-from-snapshot / clone scenarios (report §3.2 / §4.3 / §4.5).
+# Override via CUBE_PERF_CONCURRENCY / CUBE_CREATE_CONCURRENCY. On a small node
+# the top levels may hit CubeMaster error 130597 ("no more resource"); trim the
+# ladders there.
+CONCURRENCY_LEVELS = _parse_int_list("CUBE_PERF_CONCURRENCY", [1, 5, 10])
+CREATE_CONCURRENCY_LEVELS = _parse_int_list("CUBE_CREATE_CONCURRENCY", [1, 10, 20, 50])
 
 # Node-local cleanup of residual micro-VMs (mvm) between rounds. Perf runs leak
 # residual sandboxes that the SDK ``kill()`` does not always reap, eventually
