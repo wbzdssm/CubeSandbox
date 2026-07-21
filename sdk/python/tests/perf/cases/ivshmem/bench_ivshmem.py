@@ -37,7 +37,7 @@ def bench_ivshmem(cfg: Config) -> None:
     template = os.environ.get("CUBE_IVSHMEM_TEMPLATE_ID") or cfg.template_id
     iterations = int(os.environ.get("CUBE_IVSHMEM_ITERATIONS", "10000"))
 
-    with sandbox(cfg, template) as sb:
+    with sandbox(cfg, template, metadata={"cube.ivshmem.enable": "true"}) as sb:
         try:
             path = wait_for_shm_file(sb.sandbox_id)
         except FileNotFoundError as exc:

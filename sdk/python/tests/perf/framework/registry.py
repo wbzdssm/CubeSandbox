@@ -486,6 +486,69 @@ def sandbox_benchmark(
     return deco
 
 
+# ---------------------------------------------------------------------------
+# Quick‑start helper: declare a scenario with the fewest imports possible.
+# ---------------------------------------------------------------------------
+#
+#    from framework.registry import perf_test, sandbox_op
+#
+#    @perf_test("my-scenario", title="My Scenario", levels=(1, 5, 10))
+#    def bench(cfg, concurrency, n):
+#        yield sandbox_op(cfg, lambda sb: sb.exec("whoami"))
+#
+# Without *levels* the body runs once, no sweep:
+#
+#    @perf_test("once-off")
+#    def bench(cfg):
+#        with sandbox(cfg) as sb:
+#            print(sb.exec("whoami"))
+# ---------------------------------------------------------------------------
+
+
+def perf_test(
+    key: str,
+    title: str = "",
+    *,
+    aliases: "list[str] | None" = None,
+    levels: "list[int] | None" = None,
+    concurrency_key: str = "CONCURRENCY_LEVELS",
+    warmup: "int | None" = None,
+    rounds: "int | None" = None,
+    metrics: "tuple[str, ...] | None" = None,
+    header: "str | None" = None,
+):
+    """Minimal‑boilerplate entry point for a new benchmark.
+
+    Put a ``bench_<name>.py`` under ``cases/<category>/`` and decorate a
+    standalone function.  Three lines of imports cover 90 % of scenarios.
+
+    - If *levels* is given the decorated function receives three positional
+      args ``(cfg, concurrency, n)`` and is expected to **yield** a callable
+      (e.g. ``yield sandbox_op(cfg, ...)`` or ``yield snapshot_op(cfg, ...)``).
+    - If *levels* is omitted the function gets ``(cfg)`` and runs once — use
+      this for density / snapshot‑dirty / anything that does not need
+      concurrency sweeps.
+    """
+    report = ReportGroup(title) if title else None
+    header = header or f" [Perf] {title or key.capitalize()}"
+
+    def deco(fn: "Callable[..., Any]") -> "Callable[[Config], None]":
+        if levels is not None:
+            swept = parallel_sweep(
+                key, header=header, levels=levels,
+                concurrency_key=concurrency_key,
+                warmup=warmup, rounds=rounds, metrics=metrics)(fn)
+            return benchmark(key, aliases=aliases, report=report)(swept)
+        else:
+            # Single‑shot benchmark without concurrency sweep
+            @benchmark(key, aliases=aliases, report=report)
+            def _fn(cfg: Config) -> None:
+                fn(cfg)
+            return _fn
+
+    return deco
+
+
 def _open_pool(factory: "Callable[..., Any]", cfg: Config) -> Any:
     """Open a pool context manager, passing *cfg* only if the factory takes it.
 

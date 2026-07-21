@@ -61,6 +61,14 @@ _TUNABLE_ENV_KEYS = (
     "CUBE_DENSITY_COUNT",
     "CUBE_PERF_CLEANUP",
     "CUBE_CLEANUP_CMD",
+    # Scenario toggles — persisted so subsequent runs reuse the same set
+    # without re-exporting CUBE_RUN_IVSHMEM=1 / CUBE_SKIP_DENSITY=1 etc.
+    "CUBE_RUN_IVSHMEM",
+    "CUBE_RUN_VOLUME",
+    "CUBE_SKIP_DENSITY",
+    "CUBE_SKIP_SNAPSHOT_DIRTY",
+    "CUBE_IVSHMEM_TEMPLATE_ID",
+    "CUBE_IVSHMEM_ITERATIONS",
 )
 
 _DOTENV_HEADER = (
@@ -88,14 +96,14 @@ def _dotenv_candidates() -> "list[str]":
 
 def _dotenv_path() -> str:
     """The ``.env`` file to read/write: the first existing candidate, else the
-    default ``tests/perf/.env`` next to this package."""
+    default ``tests/.env`` (so ``cd tests && python3 -m perf`` just works)."""
     explicit = os.environ.get("CUBE_DOTENV")
     if explicit:
         return explicit
     for p in _dotenv_candidates():
         if os.path.isfile(p):
             return p
-    return os.path.join(_PKG_DIR, ".env")
+    return os.path.join(_TESTS_DIR, ".env")
 
 
 def _ensure_dotenv() -> None:
@@ -125,7 +133,7 @@ def _ensure_dotenv() -> None:
         else:
             out.append(f"# {key}=\n")
 
-    target = os.path.join(_PKG_DIR, ".env")
+    target = os.path.join(_TESTS_DIR, ".env")
     try:
         with open(target, "w", encoding="utf-8") as f:
             f.writelines(out)
