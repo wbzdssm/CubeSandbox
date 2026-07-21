@@ -1,312 +1,366 @@
-# `perf` — Standalone Performance Benchmark Suite
+# `perf` — CubeSandbox Python SDK Performance Benchmark Suite
 
-[中文文档](./README.zh.md)
+[中文文档](./README.zh.md) · Architecture & implementation details in [DESIGN.zh.md](./DESIGN.zh.md)
 
-Performance benchmark scenarios for the CubeSandbox Python SDK, matching
-the official CubeSandbox perf report. Split out of `tests/e2e/` so it can
-be run and maintained independently from the functional integration tests.
+One script, one command: run every performance scenario and produce a
+**JSON + Markdown** report. Every sandbox / snapshot / volume is **destroyed
+right after use** — no leftovers. Self-contained, zero third-party dependencies
+(besides the SDK itself).
 
-## Package Layout
+> The HTML report is an optional extra — see "HTML report (optional)" at the end.
+> The default path only produces JSON + Markdown.
 
-| Module | Responsibility |
-|---|---|
-| `benchmarks.py` | 13 benchmark scenarios + `@benchmark` decorator/registry + `run_all()` + component version collection |
-| `__main__.py` | CLI entry point (`python3 -m perf`) with HTML generation support |
-| `config.py` | Config resolution (`resolve_config()`) + runtime tunables (`PERF_ROUNDS`, `CONCURRENCY_LEVELS`, `DIRTY_SWEEP`, node cleanup, ...) |
-| `env.py` | Environment info collection (host/CPU/memory/disk/template metadata, `get_free_mem_gb()`, component versions) |
-| `runner.py` | Timing/stats primitives (`PerfResult`, `PerfSample`, `measure_parallel`, `percentile`, `skip`, `PERF_RESULTS`) |
-| `report.py` | Markdown + JSON report generation (English & Chinese) |
-| `report_html.py` | Self-contained interactive HTML report with baseline comparison |
-| `report_config.py` | HTML report group/field customization (env / `report.toml` overrides) |
-| `baseline.py` | Official CubeSandbox performance baseline data (from blog) |
-| `ivshmem.py` | Host-side ivshmem shared-memory mmap probe |
-| `__init__.py` | `sys.path` bootstrap (locates `sdk/python`) + zero-dependency `.env` loading |
-
-This package is **self-contained** — `config`/`env`/`runner`/`report` and the rest
-all live inside the `perf/` directory; it no longer depends on the sibling
-`tests/e2e/` package. The two are independent CLI entry points that talk to the
-same underlying SDK.
-
-## Benchmark Scenarios
-
-Listed in source decoration order (== run order), 13 total:
-
-| Scenario | Function | Default |
-|---|---|---|
-| Template-based sandbox creation (single & concurrent) | `bench_template_create` | on |
-| Deployment density (memory overhead) | `bench_deployment_density` | on, skip with `CUBE_SKIP_DENSITY=1` |
-| Snapshot creation (concurrent) | `bench_snapshot_create` | on |
-| Snapshot latency vs dirty-page size (+ create-from) | `bench_snapshot_dirty` | on, skip with `CUBE_SKIP_SNAPSHOT_DIRTY=1` |
-| Snapshot-based sandbox creation (concurrent) | `bench_snapshot_create_from` | on |
-| Rollback | `bench_rollback` | on |
-| Clone (sequential & concurrent) | `bench_clone` | on |
-| Pause / Resume | `bench_pause_resume` | on |
-| Volume create (single & concurrent) | `bench_volume_create` | off, enable with `CUBE_RUN_VOLUME=1` |
-| Volume destroy (single & concurrent) | `bench_volume_destroy` | off, enable with `CUBE_RUN_VOLUME=1` |
-| Volume metadata ops (list / get_info / connect) | `bench_volume_metadata` | off, enable with `CUBE_RUN_VOLUME=1` |
-| Sandbox creation with mounted volume (E2E) | `bench_volume_mount_sandbox` | off, enable with `CUBE_RUN_VOLUME=1` |
-| ivshmem shared-memory host-side mmap read/write | `bench_ivshmem` | off, enable with `CUBE_RUN_IVSHMEM=1` |
-
-## Usage
+## Quick start
 
 Run from the `tests/` directory:
 
 ```bash
+# Run all scenarios, produce JSON + Markdown
 CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
 ```
 
-### CLI Options
+Not specifying scenarios means **run everything**. When `CUBE_TEMPLATE_ID` is
+unset, a READY template is auto-discovered.
+
+## Selecting which scenarios to run
+
+```bash
+# Run all default-on scenarios (default behavior, no args needed)
+python3 -m perf
+
+# Run only a subset (keys or aliases, comma/space separated; --only == --scenarios)
+python3 -m perf --only snapshot rollback
+python3 -m perf --scenarios snapshot-create-from
+
+# Run all default-on scenarios, then exclude a few (exclusion only makes sense for default-on)
+python3 -m perf --scenarios all no-density no-clone
+
+# Explicitly name a default-off scenario — auto-enables it, no opt-in env var needed
+python3 -m perf --only ivshmem
+python3 -m perf --only volume
+
+# List all scenario keys / aliases and exit (no benchmarks, no backend)
+python3 -m perf --list-scenarios
+```
+
+**Selection syntax**
+
+| Form | Meaning |
+|---|---|
+| `--only` / `--scenarios` | Fully equivalent; take one or more "canonical keys" or "aliases", comma or space separated |
+| `all` | Wildcard for all scenarios (equivalent to passing no args; still bound by default gates, see note below) |
+| `no-<key/alias>` | Exclude a scenario; `skip-` / `!` / `^` prefixes are equivalent (e.g. `no-clone`, `skip-density`, `!snapshot`) |
+
+> ⚠️ **Exclusion only affects default-on scenarios.** `all` is a "wildcard", not
+> "explicitly naming each scenario", so it does **not** auto-enable default-off
+> scenarios (`volume` / `ivshmem`) — writing `no-ivshmem` for them is a no-op.
+> To run a default-off scenario, use `--only ivshmem` to explicitly name it (auto-enables),
+> or set the corresponding opt-in env var (see "Scenario reference" below).
+
+All canonical keys, aliases and default gates are in [Scenario reference](#scenario-reference) below.
+
+### Freezing toggles in `.env` (avoid retyping the command)
+
+Scenario toggles are all `CUBE_*` environment variables, and the suite
+**auto-loads `.env`** on startup (zero-dependency, see `__init__.py`). So you can
+write "which to run / which to enable / which to disable" into `.env` once, then
+just run `python3 -m perf`. Real environment variables and CLI args always win;
+`.env` only fills the gaps.
+
+**Auto-scaffold + write-back**: if no `.env` is found on startup, the suite
+generates a **minimal `.env`** under `tests/perf/` containing only the *data-flow
+(connection) variables* — `CUBE_API_URL`, `CUBE_API_KEY`, `CUBE_TEMPLATE_ID`,
+`CUBE_PROXY_NODE_IP`, `CUBE_PROXY_PORT_HTTP`, `CUBE_SANDBOX_DOMAIN`; no scenario/
+run knobs are written (defaults apply). **Against a local backend (the default
+`http://127.0.0.1:3000`) you need to fill nothing** — just run; only set
+`CUBE_API_URL` (and `CUBE_API_KEY`) to hit a remote deployment. Leave
+`CUBE_TEMPLATE_ID` empty to auto-discover a READY one. After each run, the
+data-flow values the run actually used (**including an auto-discovered template
+id**) are **written back** to that `.env`, so the 2nd/3rd run just needs
+`python3 -m perf` — no re-exporting. An existing `.env` is only updated in place
+for those keys; every other line (your comments, scenario toggles) is preserved.
+To tune scenarios/run params, copy the relevant lines from `.env.example` into
+your `.env`.
+
+```bash
+# Local backend (defaults to http://127.0.0.1:3000): nothing to set, just run.
+python3 -m perf
+
+# Remote backend: set CUBE_API_URL (and CUBE_API_KEY); they get written back to .env.
+CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
+
+# To freeze scenario toggles, edit tests/perf/.env (see .env.example), e.g.:
+#   CUBE_PERF_SCENARIOS=snapshot rollback   # run only these two (== --only)
+#   CUBE_RUN_IVSHMEM=1                        # enable default-off ivshmem
+#   CUBE_SKIP_DENSITY=1                       # skip default-on density
+python3 -m perf
+```
+
+| Goal | Write in `.env` | Equivalent CLI |
+|---|---|---|
+| Run only a few | `CUBE_PERF_SCENARIOS=snapshot rollback` | `--only snapshot rollback` |
+| Run all, then exclude | `CUBE_PERF_SCENARIOS=all no-density` | `--scenarios all no-density` |
+| Enable Volume (default off) | `CUBE_RUN_VOLUME=1` | `--only volume` |
+| Enable ivshmem (default off) | `CUBE_RUN_IVSHMEM=1` | `--only ivshmem` |
+| Disable density (default on) | `CUBE_SKIP_DENSITY=1` | `--scenarios all no-density` |
+| Disable snapshot-dirty (default on) | `CUBE_SKIP_SNAPSHOT_DIRTY=1` | `--scenarios all no-snapshot-dirty` |
+
+> `.env` lookup order (nearest first): current dir → `tests/perf/` → `tests/` →
+> `sdk/python/`; or use `CUBE_DOTENV=/path/to/other.env` to point at a specific file.
+> `.env` is `.gitignore`d — don't commit secrets.
+
+## Resource cleanup (destroy right after use)
+
+The suite guarantees **every created resource is destroyed immediately after
+use**, without relying on manual reclamation:
+
+- Spin up a temporary sandbox for one thing → `sandbox.kill()` on exit (`sandbox` fixture).
+- Need a sandbox + snapshot → on exit, `delete_snapshot` then `kill` (`snapshot` fixture).
+- Creation itself is the operation under test (`template-create` / `density` / `clone` / `volume`) → collected in a resource pool, batch-destroyed at the end of each level.
+- Cleanup is always **best-effort** (swallows exceptions); a single destroy failure never aborts the run.
+
+> Node residual backstop: the SDK's `kill()` doesn't always reap residual
+> micro-VMs, so a long run gradually exhausts node resources. Before each timed
+> round the suite shells out to the node-local `cubecli` to force `destroyall`,
+> returning to a clean cold-start state. Disable with `CUBE_PERF_CLEANUP=0`, or
+> override the command via `CUBE_CLEANUP_CMD`.
+
+## Output artifacts
+
+A default run writes **1 raw data file + 4 reports**, all under the base path
+given by `CUBE_OUTPUT_REPORT` (default `report`):
+
+| File | Format | Content |
+|---|---|---|
+| `report_<timestamp>.json` | JSON | **Raw data snapshot** of this run (structure below), for re-render / multi-machine merge / HTML |
+| `report.md` | Markdown | Full report (English), paste straight into a PR / Wiki |
+| `report.zh.md` | Markdown | Full report (Chinese) |
+| `report.json` | JSON | Report summary (English); adds `language` / `overall_status` over the raw data |
+| `report.zh.json` | JSON | Report summary (Chinese) |
+
+### What's in the JSON
+
+The raw data is a single object with four top-level blocks:
+
+| Key | Description |
+|---|---|
+| `generated_at` | UTC generation timestamp |
+| `environment` | Full test-environment fingerprint: hostname / CPU / memory / disk, template spec, plus CubeAPI / CubeMaster / Cubelet / CubeShim / Guest Image / kernel / SDK component versions |
+| `config` | This run's params: `perf_rounds` (rounds per scenario), `density_max_count` (density cap) |
+| `perf` | Array of per-scenario per-concurrency results; per-item fields below |
+
+Each `perf` array item maps to one `<key>-c<concurrency>` level:
+
+| Field | Meaning |
+|---|---|
+| `scenario` | Scenario name (with concurrency suffix, e.g. `snapshot-create-c4`) |
+| `count` / `concurrency` | Sample count / concurrency degree |
+| `avg_ms` / `min_ms` / `p50_ms` / `p95_ms` / `p99_ms` / `max_ms` | Per-operation latency distribution (ms) |
+| `wall_ms` / `per_ms` | Whole-batch wall time / amortized per-operation time |
+| `raw_latencies` | Raw per-sample latency array (for scatter plots / re-computing stats) |
+| `extra` | Scenario-specific extras (e.g. dirty-page `write_mb`, density `baseline_gb` / `final_free_gb`) |
+
+### What's in the Markdown
+
+`report.md` / `report.zh.md` are directly readable full reports with three parts:
+
+1. **Test environment** — hardware info, sandbox spec & template, component versions, test config.
+2. **Performance benchmarks** — one section per scenario: template-based creation
+   (with throughput column), deployment density (per-VM memory amortization),
+   snapshot creation, snapshot latency vs dirty-page size (two sub-tables: snapshot
+   creation + snapshot-based restore), snapshot-based startup, rollback, clone,
+   pause / resume. Each section's **title, test-method note, table type, throughput
+   column and conclusion wording** are declared in that scenario's
+   `@benchmark(report=ReportSection(...))` in `bench_*.py`, and rendered in `order`
+   field order (see "Adding a scenario" below).
+3. **Summary** — scenarios collected, rounds per scenario, success rate.
+
+### Re-render without a backend
+
+The raw JSON is the complete input to report rendering, so you can **regenerate
+Markdown + JSON summaries from existing JSON** without a backend:
+
+```bash
+python3 -m perf --md-only report_20260720T120000Z.json
+```
+
+## Scenario reference
+
+The table below lists all **13 scenarios** in **run order** (== registration
+order == `--list-scenarios` output order, determined by the sorted paths of
+modules under `cases/`). Scenarios with default "on" run without any config;
+"off" ones need `--only <key>` to be explicitly named (auto-enables) or the
+corresponding env var to run.
+
+| Canonical key | Aliases | Default | Operation under test |
+|---|---|:---:|---|
+| `clone` | — | on | `clone` N new sandboxes from a running one (sequential & concurrent) |
+| `ivshmem` | — | **off** | Host-side `mmap` read/write against ivshmem shared memory |
+| `template-create` | `create` | on | Template-based sandbox cold start (single & concurrent, report includes throughput) |
+| `density` | — | on | Deployment density: accumulate sandboxes, measure per-VM memory overhead |
+| `pause-resume` | `pause`, `resume` | on | Concurrent `pause` (flush to disk) + `resume` |
+| `snapshot-create` | `snapshot` | on | Concurrently snapshot a running sandbox |
+| `snapshot-create-from` | `snapshot-cold-start`, `cold-start`, `coldstart`, `restore` | on | Concurrently create sandboxes from a snapshot (cold-start restore) |
+| `snapshot-dirty` | `dirty` | on | Snapshot latency vs dirty-page size (0~1024 MB sweep, incl. create-from restore sub-table) |
+| `rollback` | — | on | In-place `rollback` of a running sandbox to a snapshot |
+| `volume-create` | `volume` | **off** | Create Volume (single & concurrent) |
+| `volume-destroy` | `volume` | **off** | Destroy Volume (single & concurrent) |
+| `volume-metadata` | `volume` | **off** | Volume metadata ops: `list` / `get_info` / `connect` |
+| `volume-mount-sandbox` | `volume` | **off** | End-to-end sandbox creation with a mounted Volume |
+
+> The `volume` alias selects all 4 `volume-*` scenarios at once; `snapshot` points
+> only to `snapshot-create` (the other snapshot scenarios each have their own keys / aliases).
+
+### Default-off scenarios & how to enable
+
+| Scenario | How to enable (either) | Extra requirements |
+|---|---|---|
+| `ivshmem` | `--only ivshmem`, or `CUBE_RUN_IVSHMEM=1` | Needs an ivshmem template (`CUBE_IVSHMEM_TEMPLATE_ID`, falls back to `CUBE_TEMPLATE_ID`) + running on the node host |
+| 4 `volume-*` | `--only volume` (selects all 4 at once), or `CUBE_RUN_VOLUME=1` | Backend `/volumes` endpoint available + SDK ships the `Volume` type |
+
+### Default-on scenarios that can be disabled
+
+| Scenario | How to disable (either) |
+|---|---|
+| `density` | `CUBE_SKIP_DENSITY=1`, or `--scenarios all no-density` |
+| `snapshot-dirty` | `CUBE_SKIP_SNAPSHOT_DIRTY=1`, or `--scenarios all no-snapshot-dirty` (alias `no-dirty`) |
+
+## CLI options
+
+### Basics
 
 | Option | Description |
 |---|---|
-| `--html` | Generate an interactive HTML report after running benchmarks |
-| `--rounds N` | Override `CUBE_PERF_ROUNDS` (default: 10) |
-| `--scenarios / --only SCENARIO...` | Run only the given scenario(s) (keys or aliases, comma/space separated, `no-<key>` to exclude). See "Scenario selection" |
-| `--list-scenarios` | List all available scenario keys/aliases and exit |
-| `--output PATH` | HTML output path (default: `perf_report.html`) |
+| `--scenarios / --only SCENARIO...` | Run only the given scenarios; keys or aliases, comma/space separated, `no-`/`skip-`/`!`/`^` prefix to exclude. Explicitly naming a default-off scenario auto-enables it. See "Scenario reference" |
+| `--rounds N` | Override `CUBE_PERF_ROUNDS` (default 10) |
+| `--list-scenarios` | List all scenario keys/aliases and exit |
+| `--md-only JSON` | Re-render Markdown + JSON from existing JSON (no benchmarks, no backend) |
+
+### HTML (optional, see end)
+
+| Option | Description |
+|---|---|
+| `--html` | Also generate an interactive HTML report after the run |
+| `--html-only JSON...` | Generate HTML from existing JSON (no benchmarks) |
+| `--compare JSON1 JSON2` | Generate a comparison HTML from multiple JSON files |
+| `--output PATH` | HTML output path (default `perf_report.html`) |
 | `--title TITLE` | Custom HTML report title |
-| `--html-only JSON...` | Generate HTML from existing JSON data files (skip benchmarks) |
-| `--compare JSON1 JSON2` | Generate HTML comparison of two runs |
 
-### Scenario selection
-
-All scenarios run by default. Use `--scenarios`/`--only` (or the
-`CUBE_PERF_SCENARIOS` env var) to run just a subset — handy for exercising a
-single path such as snapshot cold-start or snapshot creation:
-
-```bash
-# Only "create sandbox from snapshot" (snapshot cold-start)
-python3 -m perf --scenarios snapshot-create-from
-# Equivalent via alias
-python3 -m perf --only cold-start
-
-# Only "snapshot creation"
-python3 -m perf --only snapshot
-
-# Multiple scenarios (comma or space separated)
-python3 -m perf --scenarios snapshot-create,rollback
-
-# Everything except ivshmem and the volume group
-python3 -m perf --scenarios all no-ivshmem no-volume
-
-# Via env var (CLI takes precedence)
-CUBE_PERF_SCENARIOS="snapshot rollback" python3 -m perf
-```
-
-Canonical keys: `template-create`, `density`, `snapshot-create`,
-`snapshot-create-from`, `snapshot-dirty`, `rollback`, `clone`, `pause-resume`,
-`volume-create`, `volume-destroy`, `volume-metadata`, `volume-mount-sandbox`,
-`ivshmem`.
-
-Common aliases: `create`→`template-create`, `snapshot`→`snapshot-create`,
-`cold-start`/`snapshot-cold-start`/`restore`→`snapshot-create-from`,
-`dirty`→`snapshot-dirty`, `pause`/`resume`→`pause-resume`, `volume`→the four
-volume scenarios. Run `python3 -m perf --list-scenarios` for the full list.
-
-### HTML Report
-
-The HTML report is a **self-contained, zero-dependency** page that provides:
-
-- **Environment overview**: host, CPU, memory, disk, OS, SDK version, CubeAPI version
-- **Baseline comparison**: side-by-side with [official CubeSandbox perf data](https://cubesandbox.com/zh/blog/posts/2026-06-01-cubesandbox-perf-benchmark.html)
-- **Per-scenario tables**: avg / min / p50 / p95 / max / wall / per-operation
-- **Bar charts**: visual latency comparison (current vs baseline)
-- **Multi-run merge**: pass multiple JSON files to compare runs from different machines
-
-### Multi-machine workflow
-
-1. On each DevCloud machine, run:
-   ```bash
-   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
-   ```
-   This produces `report_YYYYMMDDTHHMMSSZ.json`.
-
-2. Collect all JSON files and generate a merged HTML report:
-   ```bash
-   python3 -m perf --html-only machine1.json machine2.json machine3.json --output merged_report.html
-   ```
-
-3. To check for performance regressions, compare two runs:
-   ```bash
-   python3 -m perf --compare before.json after.json --output diff_report.html
-   ```
-
-### Optional environment variables
+## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
-| `CUBE_TEMPLATE_ID` | auto-discover | skip auto-discovery of a READY template |
-| `CUBE_PERF_SCENARIOS` | all | comma/space separated scenario keys/aliases to run (overridden by `--scenarios`) |
-| `CUBE_PERF_ROUNDS` | `10` | rounds per perf scenario |
-| `CUBE_PERF_CONCURRENCY` | `1,2,4` | concurrency levels swept by create/snapshot/rollback/pause scenarios |
-| `CUBE_PERF_WARMUP` | `1` | warm-up rounds discarded before measured rounds (removes cold-start spikes) |
-| `CUBE_PERF_SETTLE` | `0` | settle seconds slept between rounds |
-| `CUBE_DIRTY_SWEEP` | `0,10,50,100,200,500,800,1024` | dirty-page write sizes (MB) swept by `snapshot-dirty` |
-| `CUBE_DENSITY_COUNT` | `100` | max sandbox count for density test |
-| `CUBE_SKIP_DENSITY` | — | set to `1` to skip the deployment density benchmark |
-| `CUBE_SKIP_SNAPSHOT_DIRTY` | — | set to `1` to skip the `snapshot-dirty` benchmark |
-| `CUBE_RUN_VOLUME` | — | set to `1` to enable the four Volume scenarios (skipped by default) |
-| `CUBE_RUN_IVSHMEM` | — | set to `1` to enable the ivshmem scenario (skipped by default; needs an ivshmem-enabled template and must run on the host) |
-| `CUBE_IVSHMEM_TEMPLATE_ID` | falls back to `CUBE_TEMPLATE_ID` | ivshmem-enabled template for the ivshmem scenario |
-| `CUBE_IVSHMEM_ITERATIONS` | `10000` | mmap iterations for the ivshmem scenario |
-| `CUBE_PERF_CLEANUP` | `1` (on) | set to `0` to disable node-local residual micro-VM cleanup between rounds |
-| `CUBE_CLEANUP_CMD` | `echo y \| cubecli unsafe destroyall -f` | override the node cleanup command |
-| `CUBE_OUTPUT_REPORT` | `report` | base path for output reports |
+| `CUBE_TEMPLATE_ID` | auto-discover | Skip READY template auto-discovery when set |
+| `CUBE_PERF_SCENARIOS` | all | Scenario keys/aliases, comma or space separated (overridden by `--scenarios`) |
+| `CUBE_PERF_ROUNDS` | `10` | Rounds per scenario |
+| `CUBE_PERF_CONCURRENCY` | `1,2,4` | Concurrency sweep levels |
+| `CUBE_PERF_WARMUP` | `1` | Warm-up rounds discarded before timing |
+| `CUBE_PERF_SETTLE` | `0` | Settle seconds between concurrency levels |
+| `CUBE_DIRTY_SWEEP` | `0,10,...,1024` | `snapshot-dirty` dirty-page write MB levels |
+| `CUBE_DENSITY_COUNT` | `100` | Max sandbox count for density test |
+| `CUBE_SKIP_DENSITY` | — | `1` to skip deployment density |
+| `CUBE_SKIP_SNAPSHOT_DIRTY` | — | `1` to skip `snapshot-dirty` |
+| `CUBE_RUN_VOLUME` | — | `1` to enable the 4 Volume scenarios |
+| `CUBE_RUN_IVSHMEM` | — | `1` to enable the ivshmem scenario (needs host + ivshmem template) |
+| `CUBE_IVSHMEM_TEMPLATE_ID` | falls back to `CUBE_TEMPLATE_ID` | ivshmem-dedicated template |
+| `CUBE_IVSHMEM_ITERATIONS` | `10000` | ivshmem mmap iterations |
+| `CUBE_PERF_CLEANUP` | `1` | `0` disables node residual micro-VM cleanup between rounds |
+| `CUBE_CLEANUP_CMD` | `echo y \| cubecli unsafe destroyall -f` | Override node cleanup command |
+| `CUBE_OUTPUT_REPORT` | `report` | Output report base path |
 | `CUBE_HTML_OUTPUT` | `perf_report.html` | HTML report output path |
 
-> **Node cleanup**: the SDK's `kill()` does not always reap residual sandboxes, so a
-> long run eventually exhausts node resources. Before each measured round the suite
-> shells out to the node-local `cubecli` to force a `destroyall` back to a clean
-> cold-start state. Disable with `CUBE_PERF_CLEANUP=0` or override via `CUBE_CLEANUP_CMD`.
+## Directory layout
 
-### Reports
+| Path | Responsibility |
+|---|---|
+| `__main__.py` | CLI entry point (`python3 -m perf`) |
+| `__init__.py` | `sys.path` bootstrap + zero-dependency `.env` loading |
+| `framework/` | Framework core: `config` (configuration), `env` (environment collection), `runner` (timing/stats/cleanup primitives), `registry` (`@benchmark` registry + `ReportSection`/`ReportChart` report declarations + scenario selection + `run_all`) |
+| `cases/` | Concrete benchmark scenarios, **auto-discovered** by the `bench_*.py` convention; each declares its own `ReportSection` in the decorator |
+| `reporting/` | Reporting system: `report` (Markdown + JSON, renders by iterating each scenario's `ReportSection`), `report_html` (HTML, optional, derived from the same declarations' `charts`), `report_config` (HTML customization layer) |
 
-Each run produces:
+## Adding a scenario
 
-- `report_YYYYMMDDTHHMMSSZ.json` — JSON data (for HTML report & multi-machine merge)
-- `report.md` / `report.zh.md` — Markdown, English / Chinese
-- `report.json` / `report.zh.json` — JSON summary, English / Chinese
-- `perf_report.html` — Interactive HTML report (with `--html` flag)
+**Drop a `bench_<name>.py` file under `cases/` and it auto-registers** — no need
+to touch the registry, alias table, or report code. The most common "spin up a
+temporary sandbox, do one thing to it, destroy it" is a one-liner with
+`@sandbox_benchmark`:
 
-### Programmatic usage
+```python
+from cubesandbox import Sandbox
+from ...framework.registry import ReportChart, ReportSection, sandbox_benchmark
+
+@sandbox_benchmark(
+    "rollback",
+    header=" [Perf] Rollback",
+    fixture="snapshot",
+    report=ReportSection(
+        table="latency",                 # table type: latency|density|dirty|clone|pause_resume
+        order=7,                          # Markdown section order (§1 is always the environment)
+        title_zh="回滚（Rollback）",      # section title
+        title_en="Rollback",
+        method_zh="对运行中沙箱调用 `POST /sandboxes/{id}/rollback` …",  # "Method" note
+        method_en="`POST /sandboxes/{id}/rollback` restores memory + filesystem in place …",
+        noun_zh="回滚", noun_en="rollback",  # word used in conclusions (e.g. "single-concurrency **rollback** latency …")
+        charts=(ReportChart("回滚（Rollback）"),),  # HTML charts (zero or more; leave empty for no chart)
+    ),
+)
+def bench_rollback(sb: Sandbox, snap_id: str) -> None:
+    """Benchmark: in-place rollback to a snapshot."""
+    sb.rollback(snap_id)  # this line is the operation under test; sandbox & snapshot auto-cleaned
+```
+
+The framework handles concurrency scheduling, timing, stats, report collection,
+and **destroy-right-after-use cleanup**. Scenario names follow `<key>-c<concurrency>`;
+reports aggregate data points by that prefix.
+
+**Report metadata is decorator-driven**: each scenario's section title / method
+note / table type / throughput column (`throughput=True`) / conclusion wording all
+live in `@benchmark(report=ReportSection(...))` (`@sandbox_benchmark` accepts
+`report=` too). The Markdown renderer iterates all `ReportSection` declarations
+ordered by `order`; HTML charts are derived from the same declarations' `charts` —
+so **adding a scenario never requires editing `reporting/report.py`**. Latency-style
+scenarios attach a `ReportChart`; density / dirty / clone scenarios (no line chart)
+just leave `charts` empty.
+
+When you need to split concerns or customize sampling, use the four underlying
+decorators directly (`@benchmark` / `@parallel_sweep` / `@metrics` /
+`@sandbox_action`) — full details in [DESIGN.zh.md](./DESIGN.zh.md) §4.
+
+## Programmatic usage
 
 ```python
 import sys
 sys.path.insert(0, "tests")
 
-from perf.config import resolve_config
-from perf.env import collect_env_info
-from perf import benchmarks, report
-from perf.report_html import generate_html
+from perf.framework.config import resolve_config
+from perf.framework.env import collect_env_info
+from perf.framework import registry
+from perf import cases  # noqa: F401 — importing registers every scenario
+from perf.reporting import report
 
 cfg = resolve_config()
 env = collect_env_info(cfg)
-benchmarks.run_all(cfg)
-
-report.write_reports(env)          # writes report.md / report.json (en & zh)
-generate_html(["report.json"], output_path="my_report.html")
+registry.run_all(cfg)              # or registry.run_all(cfg, selected=["snapshot"])
+report.write_reports(env)          # writes report.md / report.zh.md / report.json / report.zh.json
 ```
 
-## Adding a benchmark (one-line decorator)
+## HTML report (optional)
 
-**Everything a scenario needs is co-located in the single `@benchmark(...)` line
-above the function**: registration, CLI aliases, the opt-in/opt-out skip gate,
-optional-dependency detection, and the HTML report chart group. Adding a
-benchmark is therefore **two steps** — write the function and tag it — with **no**
-need to touch a registry, an alias table, a `skip` block, or `report_html.py`.
+The base flow only produces JSON + Markdown. Add `--html` when you want an
+interactive single-page report:
 
-### Where the code goes
+```bash
+# Also generate HTML after the run
+python3 -m perf --html
 
-In `benchmarks.py`, insert the new function wherever you want it to run:
-**decoration order (== source order) is the canonical run order** of the suite
-and the order charts appear in the HTML report. Put a generic scenario near
-`bench_clone`, a volume-related one inside the volume group, etc.
+# No benchmarks, generate HTML from existing JSON
+python3 -m perf --html-only report_20260720T120000Z.json
 
-Minimal skeleton:
-
-```python
-@benchmark("my-scenario")
-def bench_my_scenario(cfg: Config) -> None:
-    """Benchmark: one-line description."""
-    print(f"\n{'='*60}")
-    print(" [Perf] My Scenario")
-    print(f"{'='*60}")
-
-    for concurrency in CONCURRENCY_LEVELS:
-        n = PERF_ROUNDS * concurrency
-
-        def do_one():
-            sb = Sandbox.create(cfg.template_id, timeout=120, config=cfg)
-            try:
-                ...  # operation under test
-            finally:
-                try: sb.kill()
-                except Exception: pass
-
-        # the shared runner handles concurrency scheduling + timing + stats
-        result = measure_parallel(f"my-scenario-c{concurrency}", do_one,
-                                  n=n, concurrency=concurrency)
-        PERF_RESULTS.append(result)
+# Multi-machine merge / regression comparison (pass multiple JSON files)
+python3 -m perf --html-only machine1.json machine2.json --output merged.html
+python3 -m perf --compare before.json after.json --output diff.html
 ```
 
-The body has only two hard rules:
-
-1. **Results must be `PERF_RESULTS.append(result)`** (`result` from
-   `measure_parallel`, or a hand-built
-   `PerfResult(scenario=..., samples=[PerfSample(...)])`). Only entries in
-   `PERF_RESULTS` are picked up by the Markdown / JSON / HTML reports.
-2. **Name the scenario (`PerfResult.scenario`) `<key>-c<concurrency>`**, e.g.
-   `my-scenario-c4`. Charts aggregate data points by this prefix
-   (`<prefix>-c<N>`).
-
-For working references: concurrent sampling → `bench_template_create`;
-single-sandbox serial + hand-built `PerfResult` → `bench_snapshot_create`;
-a single non-latency metric → `bench_deployment_density`.
-
-### `@benchmark` parameters
-
-`key` is the canonical scenario key (used for CLI selection); everything else is
-an optional keyword argument:
-
-| Parameter | Type | Purpose |
-|---|---|---|
-| `key` (positional) | `str` | Canonical scenario key; selected via `--scenarios <key>`, default chart prefix |
-| `aliases` | `list[str]` | Friendly aliases; several benchmarks may share one (e.g. all `volume-*` under `volume`) |
-| `opt_in_env` | `str` | **Default-off**: runs only when this env var `=1`, otherwise skipped (volume / ivshmem) |
-| `opt_out_env` | `str` | **Default-on**: skipped when this env var `=1` (density / snapshot-dirty) |
-| `skip_reason` | `str` | Extra human hint appended to the opt-in skip message |
-| `available` | `bool` | Evaluated at import time; `False` skips unconditionally (e.g. `Volume is not None`) |
-| `report` | `ReportGroup \| list[ReportGroup]` | Contributes the HTML report's chart + summary-table group(s) |
-
-The decorator only wraps the function when a gate is declared
-(`opt_in_env` / `opt_out_env` / `available=False`); plain scenarios call the
-original function directly at zero cost.
-
-### Producing a chart (`ReportGroup`)
-
-Pass a `ReportGroup` to `report=` to emit a bar chart + summary table in the
-HTML report:
-
-```python
-@benchmark("my-scenario", report=ReportGroup("My Scenario Title"))
-def bench_my_scenario(cfg: Config) -> None: ...
-```
-
-`ReportGroup` fields: `title` (chart title, required), `prefix` (match prefix,
-defaults to `key`), `x_key` (default `"c"`), `x_label` (default `"并发数"`),
-`fallback` (fallback x-axis when no data, default `(1, 2, 4)`). The chart
-matches `PERF_RESULTS` scenario names via `<prefix>-<x_key><N>`.
-
-A single benchmark may declare **multiple** groups — e.g. pause/resume feeds a
-Pause chart and a Resume chart from one function:
-
-```python
-@benchmark("pause-resume", aliases=["pause", "resume"],
-           report=[ReportGroup("暂停（Pause）", prefix="pause"),
-                   ReportGroup("恢复（Resume）", prefix="resume")])
-def bench_pause_resume(cfg: Config) -> None: ...
-```
-
-Scenarios without `report=` only appear in the Markdown / JSON summaries (no
-HTML chart) — e.g. `density`, `clone`.
-
-### Common recipes
-
-```python
-# 1) default-on scenario that also renders a chart
-@benchmark("my-scenario", report=ReportGroup("My Scenario"))
-
-# 2) default-off, requires env=1 (external dependency not ready yet)
-@benchmark("my-scenario", opt_in_env="CUBE_RUN_MINE",
-           skip_reason="backend endpoint not available yet")
-
-# 3) default-on, set env=1 to skip temporarily
-@benchmark("my-scenario", opt_out_env="CUBE_SKIP_MINE")
-
-# 4) depends on an optional SDK type; skip unconditionally if missing
-@benchmark("my-scenario", available=MyOptionalType is not None)
-```
-
-Once decorated, `--list-scenarios`, `--scenarios <key>`, `no-<key>` exclusion,
-the `all` selector, and HTML chart grouping pick up the new benchmark
-**automatically** — nothing else to change.
+The HTML is a self-contained, zero-dependency single page with an environment
+overview, per-scenario tables, and latency line charts.

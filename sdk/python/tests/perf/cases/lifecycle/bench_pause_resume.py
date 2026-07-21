@@ -10,13 +10,26 @@ import time
 from cubesandbox import Config, Sandbox
 
 from ...framework.config import CONCURRENCY_LEVELS, PERF_ROUNDS
-from ...framework.registry import ReportGroup, benchmark
+from ...framework.registry import ReportChart, ReportSection, benchmark
 from ...framework.runner import PERF_RESULTS, PerfResult, PerfSample, percentile, sandbox
 
 
-@benchmark("pause-resume", aliases=["pause", "resume"],
-           report=[ReportGroup("暂停（Pause）", prefix="pause"),
-                   ReportGroup("恢复（Resume）", prefix="resume")])
+@benchmark(
+    "pause-resume",
+    aliases=["pause", "resume"],
+    report=ReportSection(
+        table="pause_resume",
+        order=9,
+        title_zh="暂停与恢复（Pause & Resume）",
+        title_en="Pause & Resume",
+        method_zh="并发调用 `pause` 将沙箱内存写入持久化存储，再经 `connect` 恢复。当前 Pause 采用 **full-memory-copy** 模式，耗时与沙箱总内存量线性相关；后续将升级为 soft-dirty 增量模式。",
+        method_en="`pause` persists sandbox memory, then `connect` resumes. Pause currently uses **full-memory-copy** (latency scales with total sandbox memory); a soft-dirty incremental mode is planned.",
+        charts=(
+            ReportChart("暂停（Pause）", prefix="pause"),
+            ReportChart("恢复（Resume）", prefix="resume"),
+        ),
+    ),
+)
 def bench_pause_resume(cfg: Config) -> None:
     """Benchmark: Pause & Resume latency."""
     print(f"\n{'='*60}")

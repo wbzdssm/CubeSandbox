@@ -49,9 +49,14 @@ from .runner import (
 # canonical run order.
 BENCHMARK_REGISTRY: "dict[str, Callable[[Config], None]]" = {}
 BENCHMARK_ALIASES: "dict[str, list[str]]" = {}
-# Report chart/table groups contributed via ``report=...``, in decoration
+# HTML report chart groups contributed via ``report=...``, in decoration
 # order. Consumed by ``report_html`` (see ``default_report_scenarios``).
 REPORT_SCENARIOS: "list[dict]" = []
+# Markdown report sections contributed via ``report=ReportSection(...)``.
+# Consumed by ``reporting.report`` (see ``default_report_sections``); the
+# Markdown report iterates these declarations instead of hard-coding one
+# f-string block per scenario. Sorted by ``order`` at render time.
+REPORT_SECTIONS: "list[dict]" = []
 # Scenario keys explicitly named on the CLI (``--scenarios``/``--only``).
 # Populated by ``select_benchmarks``; an explicitly-selected scenario bypasses
 # its default opt-in/opt-out gate — naming a scenario *is* the intent to run
@@ -60,10 +65,10 @@ _FORCED_KEYS: "set[str]" = set()
 
 
 @dataclass(frozen=True)
-class ReportGroup:
+class ReportChart:
     """One chart + summary-table group in the HTML perf report.
 
-    A benchmark may declare zero, one, or several groups (e.g. the
+    A benchmark may declare zero, one, or several charts (e.g. the
     pause/resume benchmark feeds both a 暂停 and a 恢复 chart). *prefix*
     defaults to the benchmark key and is the scenario-name prefix the report
     matches against (``<prefix>-<x_key><N>``).
@@ -75,6 +80,58 @@ class ReportGroup:
     fallback: "tuple[int, ...]" = (1, 2, 4)
 
 
+# Backward-compatible alias — ``ReportGroup`` was the original name for the
+# HTML chart group before ``ReportSection`` was introduced for the Markdown
+# report. Kept so old ``report=ReportGroup(...)`` declarations keep working.
+ReportGroup = ReportChart
+
+
+@dataclass(frozen=True)
+class ReportSection:
+    """One numbered section of the Markdown perf report (and its HTML charts).
+
+    This is the single declaration that drives *both* reports for a scenario:
+    the Markdown renderer (``reporting.report``) iterates these sections in
+    ``order`` and renders each one's title / "测试方式" note / table / "关键结论"
+    from the fields here (no more one hand-written f-string block per
+    scenario), and the ``charts`` a section carries feed the HTML report's
+    chart groups (via ``ReportChart``), so a scenario's whole report presence
+    lives in the same ``@benchmark(report=...)`` one-liner.
+
+    Fields:
+
+    - *table*: which table/conclusion renderer the Markdown report uses —
+      one of ``"latency"`` / ``"density"`` / ``"dirty"`` / ``"clone"`` /
+      ``"pause_resume"``. ``"latency"`` matches the concurrency-sweep rows
+      ``<benchmark-key>-c<N>``; the others have bespoke renderers.
+    - *title_zh* / *title_en*: the section heading in each language.
+    - *method_zh* / *method_en*: the "测试方式" / "Method" note (Markdown, may
+      contain inline code / ``{id}`` etc. — plain strings, no f-string escapes).
+    - *order*: sort key deciding the section's position (and its rendered
+      number) in the Markdown report. The environment section is always 1, so
+      scenario sections conventionally start at 2.
+    - *throughput*: ``"latency"`` tables only — add an amortized throughput
+      column.
+    - *noun_zh* / *noun_en*: ``"latency"`` conclusions only — the operation
+      noun woven into the "单并发 …延迟" / "Single-concurrency … latency" bullets.
+    - *star*: append a ``⭐`` to the heading (highlights a flagship scenario).
+    - *charts*: zero or more ``ReportChart`` for the HTML report. Empty for
+      scenarios whose data shape is not a concurrency sweep (density / dirty /
+      clone), so they appear in Markdown but contribute no HTML chart.
+    """
+    table: str
+    title_zh: str
+    title_en: str
+    method_zh: str = ""
+    method_en: str = ""
+    order: float = 100.0
+    throughput: bool = False
+    noun_zh: str = ""
+    noun_en: str = ""
+    star: bool = False
+    charts: "tuple[ReportChart, ...]" = ()
+
+
 def benchmark(
     key: str,
     *,
@@ -83,7 +140,7 @@ def benchmark(
     opt_out_env: "str | None" = None,
     skip_reason: "str | None" = None,
     available: bool = True,
-    report: "ReportGroup | list[ReportGroup] | None" = None,
+    report: "ReportSection | ReportChart | list | None" = None,
 ):
     """Register the decorated function as a benchmark under *key*.
 
@@ -101,8 +158,10 @@ def benchmark(
     - *skip_reason*: extra human hint appended to the opt-in skip message.
     - *available*: evaluated at import time; ``False`` skips unconditionally
       (e.g. the optional ``Volume`` type failed to import).
-    - *report*: one ``ReportGroup`` or a list of them, contributing the HTML
-      report's default chart/table groups.
+    - *report*: the scenario's report presence. Pass a ``ReportSection`` to
+      declare a Markdown section (which may itself carry HTML ``charts``), a
+      bare ``ReportChart``/``ReportGroup`` (legacy) for an HTML-only chart, or
+      a list mixing the two.
     """
     def deco(fn: "Callable[[Config], None]") -> "Callable[[Config], None]":
         if key in BENCHMARK_REGISTRY:
@@ -135,8 +194,43 @@ def benchmark(
         BENCHMARK_REGISTRY[key] = registered
         for alias in aliases or []:
             BENCHMARK_ALIASES.setdefault(alias, []).append(key)
-        groups = [report] if isinstance(report, ReportGroup) else (report or [])
-        for grp in groups:
+        _register_report(key, report)
+        return registered
+    return deco
+
+
+def _register_report(
+    key: str, report: "ReportSection | ReportChart | list | None"
+) -> None:
+    """Populate ``REPORT_SECTIONS`` / ``REPORT_SCENARIOS`` from a ``report=``.
+
+    A ``ReportSection`` contributes one Markdown section plus its ``charts``;
+    a bare ``ReportChart``/``ReportGroup`` contributes an HTML-only chart. The
+    section's data key defaults to the benchmark *key*, and each chart's
+    ``prefix`` defaults to it too.
+    """
+    items = report if isinstance(report, (list, tuple)) else ([report] if report is not None else [])
+    for item in items:
+        if isinstance(item, ReportSection):
+            REPORT_SECTIONS.append({
+                "key": key,
+                "table": item.table,
+                "title_zh": item.title_zh,
+                "title_en": item.title_en,
+                "method_zh": item.method_zh,
+                "method_en": item.method_en,
+                "order": item.order,
+                "throughput": item.throughput,
+                "noun_zh": item.noun_zh,
+                "noun_en": item.noun_en,
+                "star": item.star,
+            })
+            charts = item.charts
+        elif isinstance(item, ReportChart):
+            charts = (item,)
+        else:
+            charts = ()
+        for grp in charts:
             prefix = grp.prefix or key
             REPORT_SCENARIOS.append({
                 "id": prefix.replace("-", "_"),
@@ -146,8 +240,6 @@ def benchmark(
                 "fallback": list(grp.fallback),
                 "xLabel": grp.x_label,
             })
-        return registered
-    return deco
 
 
 def parallel_sweep(
@@ -322,7 +414,7 @@ def sandbox_benchmark(
     rounds: "int | None" = None,
     warmup: "int | None" = None,
     settle: "float | None" = None,
-    report: "ReportGroup | None" = None,
+    report: "ReportSection | ReportChart | None" = None,
     **create_opts: Any,
 ):
     """Fully declarative sandbox scenario — decorate the *action*, get the sweep.
@@ -408,9 +500,21 @@ def default_report_scenarios() -> "list[dict]":
     """Default HTML-report chart/table groups, derived from ``@benchmark(report=...)``.
 
     ``report_html`` consumes this so a charted scenario is declared in the
-    same one-liner that registers the benchmark (see ``ReportGroup``).
+    same one-liner that registers the benchmark (see ``ReportChart``).
     """
     return [dict(g) for g in REPORT_SCENARIOS]
+
+
+def default_report_sections() -> "list[dict]":
+    """Default Markdown-report sections, derived from ``@benchmark(report=...)``.
+
+    ``reporting.report`` consumes this so a scenario's Markdown section (title,
+    "测试方式" note, table type, throughput/conclusion knobs) is declared in the
+    same one-liner that registers the benchmark (see ``ReportSection``).
+    Returned sorted by ``order`` so the caller can render / number them
+    directly; a stable secondary sort keeps declaration order for ties.
+    """
+    return sorted((dict(s) for s in REPORT_SECTIONS), key=lambda s: s["order"])
 
 
 def available_scenarios() -> "list[str]":

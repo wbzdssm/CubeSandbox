@@ -59,13 +59,10 @@ def resolve_config() -> Config:
     """Resolve a `Config` from environment variables, auto-discovering a
     READY template if `CUBE_TEMPLATE_ID` is not set.
     """
-    if not os.environ.get("CUBE_API_URL"):
-        sys.exit(
-            "set CUBE_API_URL to run integration tests\n"
-            "  example: CUBE_API_URL=https://api.example.com "
-            "CUBE_API_KEY=sk-... python3 integration_test_full.py"
-        )
-
+    # CUBE_API_URL is optional: when unset the SDK Config defaults to the
+    # local CubeAPI at http://127.0.0.1:3000, so `python3 -m perf` works
+    # out of the box against a local backend. Point it elsewhere via
+    # CUBE_API_URL (env or .env) to hit a remote deployment.
     cfg = Config()
 
     if not cfg.template_id:

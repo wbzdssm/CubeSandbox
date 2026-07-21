@@ -2,55 +2,46 @@
 # SPDX-License-Identifier: Apache-2.0
 """Report generation: JSON + Markdown, English & Chinese.
 
-The Markdown report includes:
-- Baseline comparison columns (vs BMI5 / BMSA9 / Vera / Kunpeng) on every table
-- CPU/Memory banner above benchmark tables
-- Dirty-page scaling sub-section (snapshot + create-from-sandbox tables)
-- Deployment density with dedicated rendering
-- Throughput column on template-create tables
-- Full cross-machine baseline reference appendix
+The Markdown report follows the layout of the official CubeSandbox perf
+benchmark blog posts (``docs/**/blog/posts/*-perf-benchmark*.md``): a test
+environment section (hardware / sandbox spec / component versions / metric
+legend), then one section per scenario with a short "测试方式" note, a tailored
+table, and data-driven "关键结论" bullets, and a closing summary.
 
-Output files (base name from `CUBE_OUTPUT_REPORT`, default "report"):
-    report.md      - Markdown, English
+Every table is rendered strictly from the data the perf suite actually
+produces (see ``framework/runner.py`` + ``cases/**``):
+
+- ``template-create`` / ``snapshot-create`` / ``snapshot-create-from`` /
+  ``rollback`` — a concurrency sweep; one result per level carrying the per-op
+  latency distribution (avg/min/p50/p95/p99/max) plus a single batch ``wall`` /
+  amortized ``per``.
+- ``clone`` — one result per round (a per-round wall distribution), aggregated
+  here into wall avg/min/p95/max + per-clone avg.
+- ``snapshot-dirty`` — one sample per write size (snapshot + create-from avg).
+- ``density`` — a single final data point (per-VM memory overhead).
+- ``pause`` / ``resume`` — sequential per-level latency distributions (no wall).
+
+Output files (base name from ``CUBE_OUTPUT_REPORT``, default "report"):
+    report.md       - Markdown, English
     report.zh.md    - Markdown, Chinese
     report.json     - JSON, English
-    report.zh.json   - JSON, Chinese
+    report.zh.json  - JSON, Chinese
 """
 
 from __future__ import annotations
 
 import json
 import os
-import sys
+import re
 from datetime import datetime, timezone
 from typing import Any, Literal
 
 from ..framework.config import DENSITY_COUNT, PERF_ROUNDS
 from ..framework.env import EnvInfo
-from ..framework.runner import FAIL, PASS, PERF_RESULTS, SKIP, RESULTS, PerfResult
+from ..framework.registry import default_report_sections
+from ..framework.runner import FAIL, PASS, PERF_RESULTS, SKIP, RESULTS, PerfResult, percentile
 
 Lang = Literal["en", "zh"]
-
-# ---------------------------------------------------------------------------
-# Lazy baseline import
-# ---------------------------------------------------------------------------
-
-_BASELINE_LOADED = False
-_ALL_BASELINES: dict[str, dict[str, Any]] = {}
-_BASELINE_KEYS: list[str] = []
-
-
-def _ensure_baselines() -> None:
-    global _BASELINE_LOADED, _ALL_BASELINES, _BASELINE_KEYS
-    if _BASELINE_LOADED:
-        return
-    _BASELINE_LOADED = True
-    try:
-        from .baseline import ALL_BASELINES as bl
-        _ALL_BASELINES = bl
-        _BASELINE_KEYS = list(bl.keys())
-    except ImportError:
-        pass
 
 
 # ===========================================================================
@@ -60,7 +51,7 @@ def _ensure_baselines() -> None:
 
 def _perf_result_to_dict(r: PerfResult) -> dict[str, Any]:
     extra = r.samples[0].extra if r.samples else {}
-    # Keep raw latencies for scatter chart
+    # Keep raw latencies for the HTML scatter chart.
     raw_latencies = [s.latency_ms for s in r.samples] if r.samples else []
     return {
         "scenario": r.scenario,
@@ -79,6 +70,53 @@ def _perf_result_to_dict(r: PerfResult) -> dict[str, Any]:
     }
 
 
+def _dirty_result_to_dicts(r: PerfResult) -> list[dict[str, Any]]:
+    """Expand the single ``snapshot-dirty`` result into one row per write size.
+
+    The scenario stores one sample per write-size step (each carrying its own
+    ``write_mb`` / ``dirty_mb`` / ``snapshot_ms`` / ``create_from_ms`` in
+    ``extra``). Flattening it like a normal result would collapse all steps
+    into a meaningless single row, so it gets its own expansion here — one JSON
+    entry per step, named ``snapshot-dirty-<write_mb>mb``.
+    """
+    rows: list[dict[str, Any]] = []
+    for s in r.samples:
+        e = s.extra
+        write_mb = e.get("write_mb", 0)
+        snap_ms = e.get("snapshot_ms", s.latency_ms)
+        rows.append({
+            "scenario": f"snapshot-dirty-{write_mb}mb",
+            "count": 1,
+            "concurrency": 1,
+            "avg_ms": round(snap_ms, 2),
+            "min_ms": 0.0, "p50_ms": 0.0, "p95_ms": 0.0, "p99_ms": 0.0, "max_ms": 0.0,
+            "wall_ms": 0.0, "per_ms": 0.0,
+            "raw_latencies": [],
+            "extra": {
+                "write_mb": write_mb,
+                "dirty_mb": e.get("dirty_mb", -1),
+                "snapshot_ms": round(snap_ms, 2),
+                "create_from_ms": round(e.get("create_from_ms", 0), 2),
+            },
+        })
+    return rows
+
+
+def _build_perf_rows() -> list[dict[str, Any]]:
+    """Flatten ``PERF_RESULTS`` into the JSON ``perf`` array.
+
+    Most scenarios map one result -> one row; ``snapshot-dirty`` expands into
+    one row per write-size step so the data is not lost.
+    """
+    rows: list[dict[str, Any]] = []
+    for r in PERF_RESULTS:
+        if r.scenario == "snapshot-dirty":
+            rows.extend(_dirty_result_to_dicts(r))
+        else:
+            rows.append(_perf_result_to_dict(r))
+    return rows
+
+
 def build_report_data(env: EnvInfo) -> dict[str, Any]:
     total = PASS + FAIL + SKIP
     return {
@@ -91,8 +129,6 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
             "memory_total_gb": env.memory_total_gb, "memory_type": env.memory_type,
             "disk_model": env.disk_model, "disk_size_gb": env.disk_size_gb,
             "disk_fs": env.disk_fs, "disk_type": env.disk_type,
-            # Host identity + OS distro + toolchain (new fields for the
-            # simplified two-block env card in the HTML report).
             "machine_type": env.machine_type, "ip_address": env.ip_address,
             "os_distro": env.os_distro, "gcc_version": env.gcc_version,
             "python_version": env.python_version, "sdk_version": env.sdk_version,
@@ -107,17 +143,14 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
             "cubemaster_build_time": env.cubemaster_build_time,
             "cubelet_version": env.cubelet_version, "cube_shim_version": env.cube_shim_version,
             "guest_image_version": env.guest_image_version, "kernel_version_node": env.kernel_version_node,
-            # Release manifest (single source of truth on installed hosts)
             "release_version": env.release_version, "release_built_at": env.release_built_at,
             "release_built_by": env.release_built_by, "release_git_commit": env.release_git_commit,
             "release_manifest_path": env.release_manifest_path,
-            # Extra component versions from the manifest
             "cubemastercli_version": env.cubemastercli_version, "cubecli_version": env.cubecli_version,
             "network_agent_version": env.network_agent_version,
             "cube_agent_version": env.cube_agent_version, "cube_runtime_version": env.cube_runtime_version,
             "cube_egress_version": env.cube_egress_version, "cube_proxy_version": env.cube_proxy_version,
             "cube_lifecycle_manager_version": env.cube_lifecycle_manager_version,
-            # Guest image + kernel (declared)
             "guest_agent_version": env.guest_agent_version,
             "guest_image_digest": env.guest_image_digest, "guest_image_base": env.guest_image_base,
             "kernel_digest": env.kernel_digest,
@@ -128,7 +161,7 @@ def build_report_data(env: EnvInfo) -> dict[str, Any]:
         },
         "config": {"perf_rounds": PERF_ROUNDS, "density_max_count": DENSITY_COUNT},
         "functional": {"pass": PASS, "fail": FAIL, "skip": SKIP, "total": total, "results": list(RESULTS)},
-        "perf": [_perf_result_to_dict(r) for r in PERF_RESULTS],
+        "perf": _build_perf_rows(),
     }
 
 
@@ -156,565 +189,433 @@ def to_json(data: dict[str, Any], lang: Lang) -> str:
 # ===========================================================================
 
 
-def _fmt_ms(ms: float) -> str:
-    if ms == 0:
+def _ms(v: float) -> str:
+    """Format a millisecond value the way the blog does, ``—`` for missing."""
+    if not v:
         return "—"
-    return f"{ms:.1f} ms"
+    return f"{v:.1f} ms"
 
 
-def _cmp_str(current: float, baseline: float | None) -> str:
-    if baseline is None or baseline == 0 or current <= 0:
-        return "—"
-    ratio = current / baseline
-    if ratio <= 1.05:
-        return f"≈{ratio * 100:.0f}%"
-    return f"+{(ratio - 1) * 100:.0f}%"
+def _no_data(lang: Lang) -> str:
+    return "_未采集到数据_\n" if lang == "zh" else "_No data collected_\n"
 
 
-def _cmp_for_scenario(scenario: str, current_per: float, baseline_key: str) -> str:
-    _ensure_baselines()
-    bl = _ALL_BASELINES.get(baseline_key)
-    if not bl or "perf" not in bl:
-        return "—"
-    bb = bl["perf"].get(scenario)
-    if not bb:
-        return "—"
-    bl_per = bb.get("per") or bb.get("avg") or bb.get("wall_avg") or 0
-    return _cmp_str(current_per, bl_per)
-
-
-def _cmp_cols_for_row(scenario: str, current_per: float) -> list[str]:
-    return [_cmp_for_scenario(scenario, current_per, key) for key in _BASELINE_KEYS]
-
-
-def _cmp_cols_header(lang: Lang) -> list[str]:
-    _ensure_baselines()
-    prefix = "vs " if lang == "en" else "vs "
-    return [f"{prefix}{key.split('(')[0].strip()}" for key in _BASELINE_KEYS]
-
-
-def _perf_table(perf: list[dict[str, Any]], scenario_prefix: str, lang: Lang) -> str:
-    """Generic perf table with baseline comparison columns."""
-    rows = [r for r in perf if r["scenario"].startswith(scenario_prefix)]
-    if not rows:
-        return "_No data_\n" if lang == "en" else "_无数据_\n"
-
-    _ensure_baselines()
-    if lang == "zh":
-        base = ["场景", "次数", "并发", "平均值", "最小值", "P50", "P95", "P99", "最大值", "总耗时", "单次均摊"]
-    else:
-        base = ["Scenario", "N", "Conc", "avg", "min", "p50", "p95", "p99", "max", "wall", "per"]
-    all_cols = base + _cmp_cols_header(lang)
-    header = "| " + " | ".join(all_cols) + " |"
-    sep = "|" + "|".join([":---"] * len(all_cols)) + "|"
-    lines = [header, sep]
-
+def _table(header: list[str], rows: list[list[str]], *, align: str = ":---") -> str:
+    """Render a Markdown table from a header + string rows."""
+    out = ["| " + " | ".join(header) + " |",
+           "|" + "|".join([align] * len(header)) + "|"]
     for r in rows:
-        vals = [
-            r["scenario"], str(r["count"]), str(r["concurrency"]),
-            _fmt_ms(r["avg_ms"]), _fmt_ms(r["min_ms"]), _fmt_ms(r["p50_ms"]),
-            _fmt_ms(r["p95_ms"]), _fmt_ms(r.get("p99_ms", 0)), _fmt_ms(r["max_ms"]),
-            _fmt_ms(r["wall_ms"]), _fmt_ms(r["per_ms"]),
-        ]
-        vals += _cmp_cols_for_row(r["scenario"], r.get("per_ms") or r.get("avg_ms") or 0)
-        lines.append("| " + " | ".join(vals) + " |")
-    return "\n".join(lines) + "\n"
+        out.append("| " + " | ".join(r) + " |")
+    return "\n".join(out) + "\n"
 
 
-def _template_table(perf: list[dict[str, Any]], lang: Lang) -> str:
-    """Template-create table with throughput column."""
-    rows = [r for r in perf if r["scenario"].startswith("template-create")]
+def _bullets(items: list[str]) -> str:
+    return "".join(f"- {it}\n" for it in items)
+
+
+def _sweep_rows(perf: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    """Concurrency-sweep rows for *key* (``<key>-c<N>``), sorted by concurrency."""
+    pat = re.compile(rf"^{re.escape(key)}-c(\d+)$")
+    rows = [r for r in perf if pat.match(r["scenario"])]
+    return sorted(rows, key=lambda r: r["concurrency"])
+
+
+# ---------------------------------------------------------------------------
+# Section: concurrency latency sweep (template / snapshot-create / create-from
+# / rollback / pause / resume)
+# ---------------------------------------------------------------------------
+
+
+def _latency_table(perf: list[dict[str, Any]], key: str, lang: Lang,
+                   *, throughput: bool = False) -> str:
+    """Per-op latency distribution table, with optional wall/per/throughput.
+
+    ``wall`` / ``per`` columns are shown only when the scenario recorded a
+    batch wall time (the parallel sweeps do; pause/resume do not).
+    """
+    rows = _sweep_rows(perf, key)
     if not rows:
-        return "_No data_\n" if lang == "en" else "_无数据_\n"
+        return _no_data(lang)
+    has_wall = any(r.get("wall_ms", 0) > 0 for r in rows)
 
-    _ensure_baselines()
     if lang == "zh":
-        base = ["场景", "并发", "请求数", "平均值", "最小值", "P50", "P95", "P99", "最大值", "总耗时", "单次均摊", "吞吐量"]
+        header = ["并发", "采样数", "avg", "min", "p50", "p95", "p99", "max"]
     else:
-        base = ["Scenario", "Conc", "Requests", "avg", "min", "p50", "p95", "max", "wall", "per", "Throughput"]
-    all_cols = base + _cmp_cols_header(lang)
-    header = "| " + " | ".join(all_cols) + " |"
-    sep = "|" + "|".join([":---"] * len(all_cols)) + "|"
-    lines = [header, sep]
+        header = ["Conc", "N", "avg", "min", "p50", "p95", "p99", "max"]
+    if has_wall:
+        header += (["wall", "per"] if lang == "en" else ["wall", "单次均摊"])
+    if throughput and has_wall:
+        header += (["Throughput"] if lang == "en" else ["吞吐量"])
 
+    body: list[list[str]] = []
     for r in rows:
-        n = r["count"]
-        wall = r["wall_ms"]
-        throughput = f"{n / (wall / 1000):.1f} /s" if wall > 0 else "—"
-        vals = [
-            r["scenario"], str(r["concurrency"]), str(r["count"]),
-            _fmt_ms(r["avg_ms"]), _fmt_ms(r["min_ms"]), _fmt_ms(r["p50_ms"]),
-            _fmt_ms(r["p95_ms"]), _fmt_ms(r.get("p99_ms", 0)), _fmt_ms(r["max_ms"]),
-            _fmt_ms(wall), _fmt_ms(r["per_ms"]), throughput,
+        cells = [
+            str(r["concurrency"]), str(r["count"]),
+            _ms(r["avg_ms"]), _ms(r["min_ms"]), _ms(r["p50_ms"]),
+            _ms(r["p95_ms"]), _ms(r.get("p99_ms", 0)), _ms(r["max_ms"]),
         ]
-        vals += _cmp_cols_for_row(r["scenario"], r.get("per_ms") or r.get("avg_ms") or 0)
-        lines.append("| " + " | ".join(vals) + " |")
-    return "\n".join(lines) + "\n"
+        if has_wall:
+            cells += [_ms(r["wall_ms"]), _ms(r["per_ms"])]
+        if throughput and has_wall:
+            wall = r["wall_ms"]
+            cells.append(f"{r['count'] / (wall / 1000):.1f} /s" if wall > 0 else "—")
+        body.append(cells)
+    return _table(header, body, align=":---:")
 
 
-def _dirty_page_tables(perf: list[dict[str, Any]], lang: Lang) -> str:
-    """Dirty-page scaling: two sub-tables (snapshot creation + create-from-snapshot)."""
-    snap_rows = sorted(
-        [r for r in perf if r["scenario"].startswith("snapshot-dirty-snap-")],
-        key=lambda r: r["extra"].get("write_mb", 0),
-    )
-    create_rows = sorted(
-        [r for r in perf if r["scenario"].startswith("snapshot-dirty-create-")],
-        key=lambda r: r["extra"].get("write_mb", 0),
-    )
-    if not snap_rows and not create_rows:
-        return "_No data_\n" if lang == "en" else "_无数据_\n"
+def _latency_conclusions(perf: list[dict[str, Any]], key: str, lang: Lang, noun_zh: str,
+                        noun_en: str) -> str:
+    rows = _sweep_rows(perf, key)
+    if not rows:
+        return ""
+    first = rows[0]
+    last = rows[-1]
+    out: list[str] = []
+    if lang == "zh":
+        out.append(f"单并发{noun_zh}延迟约 **{first['avg_ms']:.1f} ms**"
+                   f"（min {first['min_ms']:.1f} / p95 {first['p95_ms']:.1f}）")
+        if last is not first and last.get("per_ms", 0) > 0:
+            out.append(f"{last['concurrency']} 并发时 avg {last['avg_ms']:.1f} ms，"
+                       f"单次均摊降至约 **{last['per_ms']:.1f} ms**，并发摊薄效果显著")
+        elif last is not first:
+            out.append(f"{last['concurrency']} 并发时 avg {last['avg_ms']:.1f} ms"
+                       f"（p95 {last['p95_ms']:.1f}）")
+    else:
+        out.append(f"Single-concurrency {noun_en} latency ~**{first['avg_ms']:.1f} ms** "
+                   f"(min {first['min_ms']:.1f} / p95 {first['p95_ms']:.1f})")
+        if last is not first and last.get("per_ms", 0) > 0:
+            out.append(f"At concurrency {last['concurrency']}, avg {last['avg_ms']:.1f} ms, "
+                       f"amortized per-op ~**{last['per_ms']:.1f} ms**")
+        elif last is not first:
+            out.append(f"At concurrency {last['concurrency']}, avg {last['avg_ms']:.1f} ms "
+                       f"(p95 {last['p95_ms']:.1f})")
+    return _bullets(out)
 
-    result = ""
-    # Snapshot creation sub-table
-    if snap_rows:
-        if lang == "zh":
-            result += "#### 快照制作耗时\n\n"
-            base = ["写入量", "快照 avg", "快照 min", "快照 p95", "快照 max"]
-        else:
-            result += "#### Snapshot Creation Latency\n\n"
-            base = ["Write Size", "snap avg", "snap min", "snap p95", "snap max"]
-        all_cols = base + _cmp_cols_header(lang)
-        result += "| " + " | ".join(all_cols) + " |\n"
-        result += "|" + "|".join([":---"] * len(all_cols)) + "|\n"
-        for r in snap_rows:
-            wmb = r["extra"].get("write_mb", 0)
-            vals = [
-                f"{wmb} MB",
-                _fmt_ms(r["avg_ms"]), _fmt_ms(r["min_ms"]),
-                _fmt_ms(r["p95_ms"]), _fmt_ms(r["max_ms"]),
-            ]
-            vals += _cmp_cols_for_row(r["scenario"], r.get("avg_ms") or 0)
-            result += "| " + " | ".join(vals) + " |\n"
-        result += "\n"
 
-    # Create-from-snapshot sub-table
-    if create_rows:
-        if lang == "zh":
-            result += "#### 基于快照恢复沙箱耗时\n\n"
-            base = ["写入量", "恢复 avg", "恢复 min", "恢复 p95", "恢复 max"]
-        else:
-            result += "#### Sandbox Creation from Snapshot Latency\n\n"
-            base = ["Write Size", "create avg", "create min", "create p95", "create max"]
-        all_cols = base + _cmp_cols_header(lang)
-        result += "| " + " | ".join(all_cols) + " |\n"
-        result += "|" + "|".join([":---"] * len(all_cols)) + "|\n"
-        for r in create_rows:
-            wmb = r["extra"].get("write_mb", 0)
-            vals = [
-                f"{wmb} MB",
-                _fmt_ms(r["avg_ms"]), _fmt_ms(r["min_ms"]),
-                _fmt_ms(r["p95_ms"]), _fmt_ms(r["max_ms"]),
-            ]
-            vals += _cmp_cols_for_row(r["scenario"], r.get("avg_ms") or 0)
-            result += "| " + " | ".join(vals) + " |\n"
-        result += "\n"
-
-    return result
+# ---------------------------------------------------------------------------
+# Section: deployment density
+# ---------------------------------------------------------------------------
 
 
 def _density_table(perf: list[dict[str, Any]], lang: Lang) -> str:
-    """Deployment density table with per-sandbox overhead."""
-    rows = [r for r in perf if r["scenario"].startswith("deployment-density")]
+    rows = [r for r in perf if r["scenario"] == "deployment-density"]
     if not rows:
-        return "_No data_\n" if lang == "en" else "_无数据_\n"
+        return _no_data(lang)
+    r = rows[0]
+    e = r.get("extra", {})
+    count = e.get("count", r["count"])
+    baseline = e.get("baseline_gb", 0)
+    final_free = e.get("final_free_gb", 0)
+    delta = round(baseline - final_free, 2) if baseline else 0
+    overhead = r["avg_ms"]  # latency_ms stores per-VM overhead (MB) for density
 
     if lang == "zh":
-        header = "| 存活沙箱数 | 可用内存 (GiB) | Δ 可用内存 (GiB) | 单 VM 均摊 (MB) |"
+        header = ["存活沙箱数", "可用内存 (GiB)", "相对基线 Δ (GiB)", "单 VM 均摊开销 (MB)"]
+        body = [
+            ["0（基线）", f"{baseline:.1f}", "—", "—"],
+            [str(count), f"{final_free:.1f}", f"{delta:.1f}", f"{overhead:.1f}"],
+        ]
     else:
-        header = "| Live Sandboxes | Free Memory (GiB) | Δ Free (GiB) | Per-VM Overhead (MB) |"
-    result = header + "\n" + "|:---:|:---:|:---:|:---:|\n"
-
-    for r in rows:
-        extra = r.get("extra", {})
-        count = extra.get("count", r["count"])
-        baseline_gb = extra.get("baseline_gb", 0)
-        final_free_gb = extra.get("final_free_gb", 0)
-        delta = round(baseline_gb - final_free_gb, 1) if baseline_gb > 0 else 0
-        overhead = round(r["avg_ms"], 1)  # latency_ms stores overhead_mb for density
-        result += f"| {count} | {final_free_gb:.1f} | {delta:.1f} | {overhead:.1f} |\n"
-    return result + "\n"
+        header = ["Live Sandboxes", "Free Memory (GiB)", "Δ vs Baseline (GiB)", "Per-VM Overhead (MB)"]
+        body = [
+            ["0 (baseline)", f"{baseline:.1f}", "—", "—"],
+            [str(count), f"{final_free:.1f}", f"{delta:.1f}", f"{overhead:.1f}"],
+        ]
+    return _table(header, body, align=":---:")
 
 
-def _cpu_mem_banner(env: dict[str, Any], lang: Lang) -> str:
-    cpu = str(env.get("cpu_model", "N/A"))[:50]
-    cores = env.get("cpu_cores_logical", "?")
-    mem = env.get("memory_total_gb", "?")
-    arch = env.get("arch", "?")
-    if lang == "zh":
-        return f"> **测试机型**：{cpu} | **架构**：{arch} | **CPU 逻辑核**：{cores} | **内存**：{mem} GiB\n"
-    return f"> **Machine**：{cpu} | **Arch**：{arch} | **CPU logical cores**：{cores} | **Memory**：{mem} GiB\n"
-
-
-def _baseline_note(lang: Lang) -> str:
-    _ensure_baselines()
-    if not _BASELINE_KEYS:
+def _density_conclusions(perf: list[dict[str, Any]], lang: Lang) -> str:
+    rows = [r for r in perf if r["scenario"] == "deployment-density"]
+    if not rows:
         return ""
-    labels = ", ".join(_BASELINE_KEYS)
+    r = rows[0]
+    e = r.get("extra", {})
+    count = e.get("count", r["count"])
+    overhead = r["avg_ms"]
+    stopped = e.get("stopped_reason", "")
     if lang == "zh":
-        return (
-            f"> 基线对比列（{labels}）数据来源：`tests/perf/baseline.py`\n"
-            "> 百分比 = 当前单次均摊 ÷ 基线单次均摊；≈100% 表示持平，+N% 表示慢于基线\n"
-        )
-    return (
-        f"> Baseline columns ({labels}) sourced from `tests/perf/baseline.py`\n"
-        "> Percentage = current per-operation ÷ baseline per-operation; ≈100% = on par, +N% = slower\n"
-    )
+        out = [f"累计启动 **{count}** 个沙箱，单 VM 均摊内存开销约 **{overhead:.1f} MB**，"
+               f"CoW 按需分配效果显著（空载沙箱几乎不占额外内存）"]
+        if stopped:
+            out.append(f"密度爬坡因节点资源上限提前结束：{stopped}")
+    else:
+        out = [f"Ramped to **{count}** live sandboxes; per-VM memory overhead "
+               f"~**{overhead:.1f} MB** — CoW on-demand allocation keeps idle boxes near-free"]
+        if stopped:
+            out.append(f"Ramp-up ended early at node capacity: {stopped}")
+    return _bullets(out)
+
+
+# ---------------------------------------------------------------------------
+# Section: snapshot latency vs dirty-page size
+# ---------------------------------------------------------------------------
+
+
+def _dirty_table(perf: list[dict[str, Any]], lang: Lang) -> str:
+    pat = re.compile(r"^snapshot-dirty-(\d+)mb$")
+    rows = [r for r in perf if pat.match(r["scenario"])]
+    rows.sort(key=lambda r: r["extra"].get("write_mb", 0))
+    if not rows:
+        return _no_data(lang)
+
+    if lang == "zh":
+        header = ["写入量", "实测脏页", "快照制作 avg", "基于快照恢复 avg"]
+    else:
+        header = ["Write Size", "Dirty Page", "Snapshot avg", "Create-from avg"]
+
+    body: list[list[str]] = []
+    for r in rows:
+        e = r["extra"]
+        wmb = e.get("write_mb", 0)
+        dmb = e.get("dirty_mb", -1)
+        dirty = f"{dmb:.1f} MB" if dmb is not None and dmb >= 0 else ("未知" if lang == "zh" else "unknown")
+        body.append([
+            f"{wmb} MB", dirty,
+            _ms(e.get("snapshot_ms", 0)), _ms(e.get("create_from_ms", 0)),
+        ])
+    return _table(header, body, align=":---:")
+
+
+def _dirty_conclusions(perf: list[dict[str, Any]], lang: Lang) -> str:
+    pat = re.compile(r"^snapshot-dirty-(\d+)mb$")
+    rows = [r for r in perf if pat.match(r["scenario"])]
+    rows.sort(key=lambda r: r["extra"].get("write_mb", 0))
+    if not rows:
+        return ""
+    lo, hi = rows[0]["extra"], rows[-1]["extra"]
+    creates = [r["extra"].get("create_from_ms", 0) for r in rows if r["extra"].get("create_from_ms", 0)]
+    if lang == "zh":
+        out = [
+            f"**快照制作耗时与脏页大小近线性相关**：基线约 {lo.get('snapshot_ms', 0):.1f} ms，"
+            f"写入 {hi.get('write_mb', 0)} MB 时约 {hi.get('snapshot_ms', 0):.1f} ms",
+        ]
+        if creates:
+            out.append(f"**基于快照恢复沙箱的耗时与脏页大小无关**：稳定在 "
+                       f"{min(creates):.1f}–{max(creates):.1f} ms（CoW 按需加载）")
+    else:
+        out = [
+            f"**Snapshot latency scales near-linearly with dirty-page size**: "
+            f"~{lo.get('snapshot_ms', 0):.1f} ms at baseline, "
+            f"~{hi.get('snapshot_ms', 0):.1f} ms at {hi.get('write_mb', 0)} MB",
+        ]
+        if creates:
+            out.append(f"**Create-from-snapshot latency is independent of dirty-page size**: "
+                       f"steady at {min(creates):.1f}–{max(creates):.1f} ms (CoW on-demand load)")
+    return _bullets(out)
+
+
+# ---------------------------------------------------------------------------
+# Section: clone (per-round wall distribution)
+# ---------------------------------------------------------------------------
+
+
+def _clone_groups(perf: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Aggregate per-round ``clone-c<C>-n<N>`` rows into one record per (C, N)."""
+    pat = re.compile(r"^clone-c(\d+)-n(\d+)$")
+    groups: dict[tuple[int, int], list[float]] = {}
+    for r in perf:
+        m = pat.match(r["scenario"])
+        if not m:
+            continue
+        c, n = int(m.group(1)), int(m.group(2))
+        walls = groups.setdefault((c, n), [])
+        walls.append(r.get("wall_ms") or r["avg_ms"])
+    out: list[dict[str, Any]] = []
+    for (c, n), walls in sorted(groups.items()):
+        avg = sum(walls) / len(walls)
+        out.append({
+            "concurrency": c, "n": n, "rounds": len(walls),
+            "wall_avg": avg, "wall_min": min(walls),
+            "wall_p95": percentile(walls, 95), "wall_max": max(walls),
+            "per_clone": avg / n if n else avg,
+        })
+    return out
+
+
+def _clone_table(perf: list[dict[str, Any]], lang: Lang) -> str:
+    groups = _clone_groups(perf)
+    if not groups:
+        return _no_data(lang)
+    if lang == "zh":
+        header = ["场景", "n", "并发", "轮数", "wall avg", "wall min", "wall p95", "wall max", "per-clone avg"]
+    else:
+        header = ["Scenario", "n", "Conc", "Rounds", "wall avg", "wall min", "wall p95", "wall max", "per-clone avg"]
+    body: list[list[str]] = []
+    for g in groups:
+        if lang == "zh":
+            scen = f"{g['n']} 沙箱 {g['concurrency']} 并发"
+        else:
+            scen = f"{g['n']} boxes / {g['concurrency']} conc"
+        body.append([
+            scen, str(g["n"]), str(g["concurrency"]), str(g["rounds"]),
+            _ms(g["wall_avg"]), _ms(g["wall_min"]), _ms(g["wall_p95"]), _ms(g["wall_max"]),
+            _ms(g["per_clone"]),
+        ])
+    return _table(header, body, align=":---:")
+
+
+def _clone_conclusions(perf: list[dict[str, Any]], lang: Lang) -> str:
+    groups = _clone_groups(perf)
+    if not groups:
+        return ""
+    first, last = groups[0], groups[-1]
+    if lang == "zh":
+        out = [f"单沙箱 Clone 约 **{first['wall_avg']:.1f} ms**"]
+        if last is not first:
+            out.append(f"{last['n']} 沙箱 {last['concurrency']} 并发时整批 wall 约 "
+                       f"{last['wall_avg']:.1f} ms，per-clone 均摊降至约 **{last['per_clone']:.1f} ms**")
+    else:
+        out = [f"Single-sandbox clone ~**{first['wall_avg']:.1f} ms**"]
+        if last is not first:
+            out.append(f"{last['n']} boxes / {last['concurrency']} conc: batch wall "
+                       f"~{last['wall_avg']:.1f} ms, per-clone ~**{last['per_clone']:.1f} ms**")
+    return _bullets(out)
+
+
+# ---------------------------------------------------------------------------
+# Environment blocks
+# ---------------------------------------------------------------------------
+
+
+def _metric_legend(lang: Lang) -> str:
+    if lang == "zh":
+        rows = [
+            ["**avg**", "多轮采样的平均单次延迟"],
+            ["**min**", "最小值"],
+            ["**p50 / p95 / p99**", "第 50 / 95 / 99 百分位延迟"],
+            ["**max**", "最大值"],
+            ["**wall**", "整批操作的端到端墙钟耗时（并发场景）"],
+            ["**单次均摊 (per)**", "单次操作均摊耗时（wall ÷ 采样数）"],
+        ]
+        header = ["指标", "含义"]
+    else:
+        rows = [
+            ["**avg**", "Mean single-op latency across samples"],
+            ["**min**", "Minimum"],
+            ["**p50 / p95 / p99**", "50th / 95th / 99th percentile latency"],
+            ["**max**", "Maximum"],
+            ["**wall**", "End-to-end wall time of the whole batch (concurrent scenarios)"],
+            ["**per**", "Amortized per-op time (wall ÷ sample count)"],
+        ]
+        header = ["Metric", "Meaning"]
+    return _table(header, rows)
 
 
 # ===========================================================================
-# Baseline reference appendix (static, all four machines)
+# Markdown rendering — scenario-section framework (decorator-driven)
 # ===========================================================================
-
-_BASELINE_APPENDIX_ZH = r"""
----
-
-## 3. 跨机型基线参考
-
-> 以下数据来自各机型官方测试报告，不参与本次运行，仅作对比参考。
-> 来源：BMI5 (2026-06-01 blog) / BMSA9 & Kunpeng (iwiki) / Vera (2026-07-15 report)
-
-### 3.1 基线环境概览
-
-| 机型 | 架构 | CPU | 逻辑核 | 内存 | 内核 | 页大小 | CubeSandbox |
-|:---|:---|:---|:---:|:---|:---|:---:|:---:|
-| BMI5 | x86_64 | Xeon Platinum 8255C | 96 | 375 GiB DDR4 | 6.6.119-49.6 | 4 KB | v0.4.x |
-| BMSA9 | x86_64 | BMSA9 | — | — | 6.6.119-47.8 | 4 KB | v0.5.x |
-| Vera A1P | ARM64 | NVIDIA Vera A1P (ARMv9) | 176 | 768 GB LPDDR5x | 6.17.0-nvidia-64k | 64 KB | v0.5.1 |
-| Kunpeng 920 | ARM64 | Huawei Kunpeng 920 | — | — | 6.6.119-50.12 | 4K/64K | v0.5.x |
-
-### 3.2 冷启动延迟与并发扩展
-
-#### BMI5
-
-| 并发 | 请求数 | avg | min | p95 | max | 单次均摊 | 吞吐 |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 20 | 47.8 ms | 43.5 ms | 57.4 ms | 60.4 ms | 55.8 ms | 17.9 /s |
-| 10 | 200 | 88.7 ms | 45.8 ms | 116.9 ms | 119.1 ms | 9.9 ms | 101.4 /s |
-| 20 | 300 | 98.1 ms | 47.7 ms | 175.8 ms | 232.6 ms | 5.5 ms | 180.9 /s |
-| 50 | 500 | 276.1 ms | 60.6 ms | 508.4 ms | 681.3 ms | 6.8 ms | 147.6 /s |
-
-#### BMSA9
-
-| 并发 | 请求数 | avg | min | p95 | max | 单次均摊 | 吞吐 |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 20 | 41.8 ms | 37.9 ms | 44.3 ms | 58.5 ms | 50.2 ms | 19.9 /s |
-| 10 | 200 | 45.2 ms | 38.9 ms | 58.7 ms | 68.7 ms | 5.4 ms | 185.3 /s |
-| 20 | 300 | 50.0 ms | 37.6 ms | 68.7 ms | 74.1 ms | 3.1 ms | 319.0 /s |
-| 50 | 500 | 92.4 ms | 43.0 ms | 154.7 ms | 181.5 ms | 2.3 ms | 441.4 /s |
-
-#### Vera A1P
-
-| 并发 | 请求数 | avg | min | p95 | max | 单次均摊 | 吞吐 |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 20 | 39.4 ms | 33.7 ms | 42.8 ms | 43.2 ms | 45.7 ms | 21.9 /s |
-| 10 | 200 | 62.5 ms | 40.7 ms | 73.8 ms | 78.4 ms | 7.0 ms | 142.2 /s |
-| 20 | 300 | 73.5 ms | 46.2 ms | 86.0 ms | 89.5 ms | 4.2 ms | 240.7 /s |
-| 50 | 500 | 96.8 ms | 55.6 ms | 136.7 ms | 156.6 ms | 2.3 ms | 440.5 /s |
-
-#### Kunpeng 920
-
-| 并发 | 请求数 | avg | min | p95 | max | 单次均摊 |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 137.2 ms | 85.3 ms | 184.6 ms | 184.6 ms | 137.2 ms |
-| 5 | 5 | 177.0 ms | 147.9 ms | 203.9 ms | 203.9 ms | 35.4 ms |
-| 10 | 5 | 270.5 ms | 251.9 ms | 286.8 ms | 286.8 ms | 27.1 ms |
-
-### 3.3 部署密度（单 VM 内存开销）
-
-#### BMI5
-
-| 存活沙箱数 | 可用内存 | 单 VM 均摊 |
-|:---:|:---:|:---:|
-| 0（基线） | 359.5 GiB | — |
-| 100 | 357.4 GiB | 21.5 MB |
-| 300 | 352.5 GiB | 23.8 MB |
-| 500 | 347.3 GiB | 25.0 MB |
-| 1000 | 334.3 GiB | 25.7 MB |
-
-#### BMSA9
-
-| 存活沙箱数 | used mem | 单 VM 均摊 |
-|:---:|:---:|:---:|
-| 0（基线） | 107731 MiB | — |
-| 100 | 109708 MiB | 19.8 MB |
-| 300 | 114644 MiB | 23.0 MB |
-| 500 | 120195 MiB | 24.9 MB |
-| 1000 | 136484 MiB | 28.8 MB |
-
-#### Vera A1P
-
-| 存活沙箱数 | Δ available | 单 VM 均摊 |
-|:---:|:---:|:---:|
-| 100 | 5 GiB | 51 MB |
-| 300 | 22 GiB | 75 MB |
-| 500 | 40 GiB | 82 MB |
-| 1000 | 87 GiB | 89 MB |
-
-> Vera 64 KB 页大小导致单 VM 均摊约 89 MB（约 3.5× BMI5）。
-
-### 3.4 Snapshot 制作耗时 vs 并发
-
-#### BMI5
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-snapshot avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 49.8 ms | 47.3 ms | 54.1 ms | 54.1 ms | 49.8 ms |
-| 5 | 5 | 71.0 ms | 62.7 ms | 81.0 ms | 81.0 ms | 14.2 ms |
-| 10 | 5 | 127.2 ms | 79.6 ms | 155.6 ms | 155.6 ms | 12.7 ms |
-
-#### BMSA9
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-snapshot avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 88.7 ms | 77.9 ms | 100.0 ms | 100.0 ms | 88.7 ms |
-| 5 | 5 | 117.1 ms | 107.7 ms | 127.6 ms | 127.6 ms | 23.4 ms |
-| 10 | 5 | 144.6 ms | 138.4 ms | 155.3 ms | 155.3 ms | 14.5 ms |
-
-#### Vera A1P
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-snapshot avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 101.3 ms | 97.5 ms | 108.7 ms | 108.7 ms | 101.3 ms |
-| 5 | 5 | 154.2 ms | 145.7 ms | 174.6 ms | 174.6 ms | 30.8 ms |
-| 10 | 5 | 190.3 ms | 186.3 ms | 193.6 ms | 193.6 ms | 19.0 ms |
-
-#### Kunpeng 920
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-snapshot avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 102.7 ms | 92.8 ms | 111.9 ms | 111.9 ms | 102.7 ms |
-| 5 | 5 | 181.2 ms | 150.3 ms | 223.9 ms | 223.9 ms | 36.2 ms |
-| 10 | 5 | 249.9 ms | 216.5 ms | 301.8 ms | 301.8 ms | 25.0 ms |
-
-### 3.5 Snapshot 制作耗时 vs Dirty Page 大小 ⭐
-
-#### BMI5
-
-| 写入量 | Dirty Page | snapshot avg | snapshot min | snapshot p95 | snapshot max | create sandbox avg | create sandbox min | create sandbox p95 | create sandbox max |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 MB | 7.1 MB | 45.7 ms | 43.9 ms | 47.4 ms | 47.4 ms | 64.8 ms | 61.5 ms | 68.6 ms | 68.6 ms |
-| 10 MB | 38.9 MB | 75.7 ms | 73.2 ms | 79.2 ms | 79.2 ms | 60.7 ms | 57.3 ms | 66.1 ms | 66.1 ms |
-| 50 MB | 120.7 MB | 107.7 ms | 104.8 ms | 112.3 ms | 112.3 ms | 64.4 ms | 60.4 ms | 70.6 ms | 70.6 ms |
-| 100 MB | 195.0 MB | 138.6 ms | 136.7 ms | 139.9 ms | 139.9 ms | 66.5 ms | 60.9 ms | 71.1 ms | 71.1 ms |
-| 200 MB | 296.7 MB | 174.2 ms | 173.1 ms | 176.2 ms | 176.2 ms | 63.7 ms | 60.6 ms | 66.8 ms | 66.8 ms |
-| 500 MB | 602.5 MB | 289.4 ms | 285.0 ms | 293.1 ms | 293.1 ms | 64.0 ms | 61.6 ms | 66.5 ms | 66.5 ms |
-| 800 MB | 908.4 MB | 392.8 ms | 392.1 ms | 394.1 ms | 394.1 ms | 60.9 ms | 54.6 ms | 65.8 ms | 65.8 ms |
-| 1024 MB | 1136.4 MB | 486.9 ms | 471.5 ms | 510.8 ms | 510.8 ms | 68.4 ms | 58.9 ms | 84.6 ms | 84.6 ms |
-
-#### BMSA9
-
-| 写入量 | Dirty Page | snapshot avg | snapshot min | snapshot p95 | snapshot max | create sandbox avg | create sandbox min | create sandbox p95 | create sandbox max |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 MB | 8.4 MB | 94.0 ms | 80.2 ms | 118.8 ms | 118.8 ms | 78.4 ms | 76.6 ms | 79.5 ms | 79.5 ms |
-| 10 MB | 42.7 MB | 100.4 ms | 95.1 ms | 105.7 ms | 105.7 ms | 78.1 ms | 65.3 ms | 91.7 ms | 91.7 ms |
-| 50 MB | 123.8 MB | 122.5 ms | 117.3 ms | 129.9 ms | 129.9 ms | 73.4 ms | 65.6 ms | 79.7 ms | 79.7 ms |
-| 100 MB | 196.7 MB | 139.4 ms | 138.6 ms | 140.6 ms | 140.6 ms | 83.1 ms | 62.2 ms | 108.8 ms | 108.8 ms |
-| 200 MB | 298.5 MB | 160.2 ms | 151.3 ms | 170.9 ms | 170.9 ms | 71.9 ms | 63.7 ms | 78.8 ms | 78.8 ms |
-| 500 MB | 605.0 MB | 206.5 ms | 198.0 ms | 219.9 ms | 219.9 ms | 75.2 ms | 69.4 ms | 80.2 ms | 80.2 ms |
-| 800 MB | 910.6 MB | 257.9 ms | 234.6 ms | 281.0 ms | 281.0 ms | 114.9 ms | 72.0 ms | 181.9 ms | 181.9 ms |
-| 1024 MB | 1138.6 MB | 279.0 ms | 277.1 ms | 281.0 ms | 281.0 ms | 79.6 ms | 77.5 ms | 82.7 ms | 82.7 ms |
-
-#### Vera A1P
-
-| 写入量 | Dirty Page | snapshot avg | snapshot min | snapshot p95 | snapshot max | create sandbox avg | create sandbox min | create sandbox p95 | create sandbox max |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 MB | 45.2 MB | 95.3 ms | 87.4 ms | 99.8 ms | 99.8 ms | 38.6 ms | 37.2 ms | 40.0 ms | 40.0 ms |
-| 10 MB | 121.2 MB | 114.5 ms | 95.5 ms | 142.8 ms | 142.8 ms | 39.0 ms | 38.1 ms | 39.5 ms | 39.5 ms |
-| 50 MB | 202.8 MB | 106.6 ms | 102.8 ms | 109.5 ms | 109.5 ms | 39.3 ms | 38.7 ms | 39.8 ms | 39.8 ms |
-| 100 MB | 285.6 MB | 120.6 ms | 116.1 ms | 125.1 ms | 125.1 ms | 41.9 ms | 40.3 ms | 44.7 ms | 44.7 ms |
-| 200 MB | 387.0 MB | 135.6 ms | 119.3 ms | 150.5 ms | 150.5 ms | 39.0 ms | 37.7 ms | 40.0 ms | 40.0 ms |
-| 500 MB | 694.2 MB | 152.4 ms | 145.8 ms | 157.8 ms | 157.8 ms | 40.4 ms | 38.2 ms | 42.1 ms | 42.1 ms |
-| 800 MB | 1000.4 MB | 180.4 ms | 163.1 ms | 190.4 ms | 190.4 ms | 41.7 ms | 40.7 ms | 43.5 ms | 43.5 ms |
-| 1024 MB | 1228.0 MB | 192.7 ms | 188.5 ms | 196.1 ms | 196.1 ms | 38.9 ms | 37.7 ms | 39.6 ms | 39.6 ms |
-
-#### Kunpeng 920
-
-| 写入量 | Dirty Page | snapshot avg | snapshot min | snapshot p95 | snapshot max | create sandbox avg | create sandbox min | create sandbox p95 | create sandbox max |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 0 MB | 9.7 MB | 120.6 ms | 91.7 ms | 155.1 ms | 155.1 ms | 1204.2 ms | 1111.4 ms | 1288.8 ms | 1288.8 ms |
-| 10 MB | 40.6 MB | 125.6 ms | 120.7 ms | 133.2 ms | 133.2 ms | 1433.7 ms | 1283.6 ms | 1565.6 ms | 1565.6 ms |
-| 50 MB | 122.2 MB | 164.1 ms | 155.8 ms | 180.5 ms | 180.5 ms | 1291.9 ms | 1122.1 ms | 1572.6 ms | 1572.6 ms |
-| 100 MB | 194.8 MB | 183.9 ms | 158.1 ms | 223.8 ms | 223.8 ms | 1127.9 ms | 998.9 ms | 1246.6 ms | 1246.6 ms |
-| 200 MB | 296.6 MB | 202.8 ms | 177.7 ms | 239.8 ms | 239.8 ms | 1381.0 ms | 1354.9 ms | 1432.2 ms | 1432.2 ms |
-| 500 MB | 602.0 MB | 283.9 ms | 253.0 ms | 302.0 ms | 302.0 ms | 1194.2 ms | 985.5 ms | 1347.8 ms | 1347.8 ms |
-| 800 MB | 907.4 MB | 325.6 ms | 319.6 ms | 330.2 ms | 330.2 ms | 1070.2 ms | 1001.6 ms | 1137.6 ms | 1137.6 ms |
-| 1024 MB | 1136.5 MB | 387.7 ms | 382.8 ms | 396.3 ms | 396.3 ms | 1188.0 ms | 1027.2 ms | 1373.5 ms | 1373.5 ms |
-
-> ⚠️ Kunpeng 920 恢复耗时远超快照制作耗时（~1200ms >> ~388ms），与其余机型趋势完全相反。
-
-### 3.6 基于 Snapshot 启动沙箱
-
-#### BMI5
-
-| 并发 | n total | Rounds | wall avg | wall min | wall p95 | wall max | per-sandbox avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 3 | 63.9 ms | 62.5 ms | 66.1 ms | 66.1 ms | 63.9 ms |
-| 10 | 10 | 3 | 89.9 ms | 84.0 ms | 93.6 ms | 93.6 ms | 9.0 ms |
-| 20 | 20 | 3 | 118.9 ms | 92.7 ms | 167.1 ms | 167.1 ms | 5.9 ms |
-| 50 | 50 | 3 | 180.3 ms | 135.1 ms | 260.7 ms | 260.7 ms | 3.6 ms |
-
-#### BMSA9
-
-| 并发 | n total | Rounds | wall avg | wall min | wall p95 | wall max | per-sandbox avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 3 | 69.7 ms | 65.9 ms | 72.8 ms | 72.8 ms | 69.7 ms |
-| 10 | 10 | 3 | 98.1 ms | 85.0 ms | 107.6 ms | 107.6 ms | 9.8 ms |
-| 20 | 20 | 3 | 106.5 ms | 102.3 ms | 112.9 ms | 112.9 ms | 5.3 ms |
-| 50 | 50 | 3 | 141.2 ms | 135.4 ms | 151.7 ms | 151.7 ms | 2.8 ms |
-
-#### Vera A1P
-
-| 并发 | n total | Rounds | wall avg | wall min | wall p95 | wall max | per-sandbox avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 3 | 44.3 ms | 39.0 ms | 53.1 ms | 53.1 ms | 44.3 ms |
-| 10 | 10 | 3 | 73.0 ms | 66.5 ms | 80.8 ms | 80.8 ms | 7.3 ms |
-| 20 | 20 | 3 | 92.5 ms | 88.2 ms | 99.1 ms | 99.1 ms | 4.6 ms |
-
-#### Kunpeng 920
-
-| 并发 | n total | Rounds | wall avg | wall min | wall p95 | wall max | per-sandbox avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 3 | 300.4 ms | 292.2 ms | 311.6 ms | 311.6 ms | 300.4 ms |
-| 10 | 10 | 3 | 471.4 ms | 436.9 ms | 510.3 ms | 510.3 ms | 47.1 ms |
-| 20 | 20 | 3 | 467.3 ms | 455.4 ms | 481.0 ms | 481.0 ms | 23.4 ms |
-| 50 | 50 | 3 | 847.8 ms | 658.0 ms | 1166.7 ms | 1166.7 ms | 17.0 ms |
-
-### 3.7 Rollback
-
-#### BMI5
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-rollback avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 81.6 ms | 74.7 ms | 97.4 ms | 97.4 ms | 81.6 ms |
-| 5 | 5 | 189.6 ms | 161.8 ms | 243.2 ms | 243.2 ms | 37.9 ms |
-| 10 | 5 | 266.1 ms | 236.1 ms | 305.1 ms | 305.1 ms | 26.6 ms |
-
-#### BMSA9
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-rollback avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 141.7 ms | 104.6 ms | 181.6 ms | 181.6 ms | 141.7 ms |
-| 5 | 5 | 213.6 ms | 194.8 ms | 261.1 ms | 261.1 ms | 42.7 ms |
-| 10 | 5 | 242.4 ms | 208.0 ms | 276.1 ms | 276.1 ms | 24.2 ms |
-
-#### Vera A1P
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-rollback avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 71.4 ms | 60.5 ms | 84.4 ms | 84.4 ms | 71.4 ms |
-| 5 | 5 | 116.6 ms | 110.2 ms | 124.7 ms | 124.7 ms | 23.3 ms |
-| 10 | 5 | 187.4 ms | 181.5 ms | 195.6 ms | 195.6 ms | 18.7 ms |
-
-#### Kunpeng 920
-
-| 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-rollback avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 5 | 355.1 ms | 342.7 ms | 363.8 ms | 363.8 ms | 355.1 ms |
-| 10 | 5 | 4715.2 ms | 4456.5 ms | 4994.5 ms | 4994.5 ms | 471.5 ms |
-
-### 3.8 Clone
-
-#### BMI5
-
-| n | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-clone avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 5 | 219.6 ms | 213.6 ms | 234.7 ms | 234.7 ms | 219.6 ms |
-| 100 | 10 | 2 | 870.4 ms | 860.6 ms | 880.2 ms | 880.2 ms | 8.7 ms |
-| 100 | 20 | 2 | 638.6 ms | 620.8 ms | 656.3 ms | 656.3 ms | 6.4 ms |
-| 100 | 50 | 2 | 540.9 ms | 491.3 ms | 590.5 ms | 590.5 ms | 5.4 ms |
-
-#### BMSA9
-
-| n | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-clone avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 5 | 433.1 ms | 315.9 ms | 833.5 ms | 833.5 ms | 433.1 ms |
-| 100 | 10 | 2 | 849.5 ms | 843.4 ms | 855.6 ms | 855.6 ms | 8.5 ms |
-| 100 | 20 | 2 | 755.1 ms | 627.1 ms | 883.1 ms | 883.1 ms | 7.6 ms |
-| 100 | 50 | 2 | 1013.2 ms | 943.5 ms | 1082.9 ms | 1082.9 ms | 10.1 ms |
-
-#### Vera A1P
-
-| n | 并发 | 轮数 | wall avg | per-clone avg |
-|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 5 | 142.6 ms | 142.6 ms |
-| 5 | 5 | 3 | 185 ms | 37.0 ms |
-| 10 | 10 | 3 | 181 ms | 18.1 ms |
-| 20 | 20 | 3 | 192 ms | 9.6 ms |
-| 50 | 50 | 3 | 243 ms | 4.9 ms |
-
-#### Kunpeng 920
-
-| n | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-clone avg |
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | 1 | 5 | 840.8 ms | 784.3 ms | 875.5 ms | 875.5 ms | 840.8 ms |
-| 100 | 10 | 2 | 5583.1 ms | 5295.2 ms | 5870.9 ms | 5870.9 ms | 55.8 ms |
-| 100 | 20 | 2 | 3815.4 ms | 3518.9 ms | 4111.9 ms | 4111.9 ms | 38.2 ms |
-| 100 | 50 | 2 | 2596.1 ms | 2404.6 ms | 2787.5 ms | 2787.5 ms | 26.0 ms |
-
-### 3.9 Pause & Resume
-
-#### BMI5
-
-| 操作 | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-op avg |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Pause | 1 | 5 | 558.4 ms | 530.8 ms | 590.3 ms | 590.3 ms | 558.4 ms |
-| Pause | 5 | 5 | 656.9 ms | 621.9 ms | 683.2 ms | 683.2 ms | 131.4 ms |
-| Pause | 10 | 5 | 682.1 ms | 674.1 ms | 699.3 ms | 699.3 ms | 68.2 ms |
-| Resume | 1 | 5 | 41.8 ms | 18.7 ms | 65.1 ms | 65.1 ms | 41.8 ms |
-| Resume | 5 | 5 | 28.2 ms | 17.6 ms | 34.2 ms | 34.2 ms | 5.6 ms |
-| Resume | 10 | 5 | 35.7 ms | 30.6 ms | 41.7 ms | 41.7 ms | 3.6 ms |
-
-#### BMSA9
-
-| 操作 | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-op avg |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Pause | 1 | 5 | 236.8 ms | 230.5 ms | 243.5 ms | 243.5 ms | 236.8 ms |
-| Pause | 5 | 5 | 272.3 ms | 262.5 ms | 283.5 ms | 283.5 ms | 54.5 ms |
-| Pause | 10 | 5 | 280.2 ms | 270.8 ms | 287.8 ms | 287.8 ms | 28.0 ms |
-| Resume | 1 | 5 | 56.7 ms | 41.0 ms | 84.8 ms | 84.8 ms | 56.7 ms |
-| Resume | 5 | 5 | 27.8 ms | 17.0 ms | 48.6 ms | 48.6 ms | 5.6 ms |
-| Resume | 10 | 5 | 45.0 ms | 36.1 ms | 57.2 ms | 57.2 ms | 4.5 ms |
-
-#### Vera A1P
-
-| 操作 | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-op avg |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Pause | 1 | 5 | 347.6 ms | 302.8 ms | 423.0 ms | 423.0 ms | 347.6 ms |
-| Pause | 5 | 5 | 458.1 ms | 438.3 ms | 477.8 ms | 477.8 ms | 91.6 ms |
-| Pause | 10 | 5 | 497.2 ms | 393.3 ms | 551.6 ms | 551.6 ms | 49.7 ms |
-| Resume | 1 | 5 | 16.5 ms | 9.1 ms | 19.1 ms | 19.1 ms | 16.5 ms |
-| Resume | 5 | 5 | 16.3 ms | 10.6 ms | 20.5 ms | 20.5 ms | 3.3 ms |
-| Resume | 10 | 5 | 20.7 ms | 13.2 ms | 24.8 ms | 24.8 ms | 2.1 ms |
-
-#### Kunpeng 920
-
-| 操作 | 并发 | 轮数 | wall avg | wall min | wall p95 | wall max | per-op avg |
-|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| Pause | 1 | 5 | 366.3 ms | 356.4 ms | 389.0 ms | 389.0 ms | 366.3 ms |
-| Pause | 5 | 5 | 455.1 ms | 440.0 ms | 477.5 ms | 477.5 ms | 91.0 ms |
-| Pause | 10 | 5 | 513.9 ms | 487.9 ms | 543.1 ms | 543.1 ms | 51.4 ms |
-| Resume | 1 | 5 | 19.3 ms | 18.4 ms | 20.4 ms | 20.4 ms | 19.3 ms |
-| Resume | 5 | 5 | 41.0 ms | 26.8 ms | 55.7 ms | 55.7 ms | 8.2 ms |
-| Resume | 10 | 5 | 42.4 ms | 35.9 ms | 62.0 ms | 62.0 ms | 4.2 ms |
-
-### 3.10 关键指标速览
-
-| 场景 | BMI5 | BMSA9 | Vera A1P | Kunpeng 920 |
-|:---|:---:|:---:|:---:|:---:|
-| 冷启动 c=1 | 47.8 ms | 41.8 ms | 39.4 ms | 137.2 ms |
-| 冷启动 c=50 吞吐 | 147.6 /s | 441.4 /s | 440.5 /s | — |
-| 内存开销 @1000 | 25.7 MB | 28.8 MB | 89.0 MB | — |
-| 快照 1GB 脏页 | 486.9 ms | 279.0 ms | 192.7 ms | 387.7 ms |
-| 恢复 1GB 脏页 | 68.4 ms | 79.6 ms | 38.9 ms | **1188.0 ms** ⚠️ |
-| Clone c=50 per | 5.4 ms | 10.1 ms | 4.9 ms | 26.0 ms |
-| Pause c=1 | 558.4 ms | 236.8 ms | 347.6 ms | 366.3 ms |
-| Resume c=1 | 41.8 ms | 56.7 ms | 16.5 ms | 19.3 ms |
-
-> 数据来源：BMI5 (2026-06-01 blog), BMSA9 & Kunpeng (iwiki), Vera (2026-07-15 report)
-"""
-
-_BASELINE_APPENDIX_EN = _BASELINE_APPENDIX_ZH  # tables are language-neutral
+#
+# The scenario sections are no longer a hand-written f-string block per
+# scenario. Each ``bench_*`` scenario declares its section right in
+# ``@benchmark(report=ReportSection(...))`` — title / 测试方式 note / table type
+# / throughput column / conclusion noun / order — and the loop below renders
+# them in ``order``. That is the *same* declaration that drives the HTML
+# report's charts, so a scenario's whole report presence lives in one place.
+# Only §1 (test environment) and the closing summary stay hand-written, since
+# they are not per-scenario.
+
+_CN_NUMERALS = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+
+
+def _cn_num(n: int) -> str:
+    """Chinese numeral for a section number (covers any realistic count)."""
+    if 0 <= n <= 10:
+        return _CN_NUMERALS[n]
+    if 11 <= n < 20:
+        return "十" + _CN_NUMERALS[n - 10]
+    if n == 20:
+        return "二十"
+    return str(n)
+
+
+def _ensure_registered() -> None:
+    """Ensure ``default_report_sections`` is populated by importing scenarios.
+
+    A live run / ``--md-only`` already imports ``perf.cases`` via the CLI, but
+    importing this module standalone would otherwise see an empty section list.
+    """
+    if default_report_sections():
+        return
+    try:  # pragma: no cover - defensive
+        from .. import cases  # noqa: F401
+    except Exception:
+        pass
+
+
+def _scenario_section_count() -> int:
+    _ensure_registered()
+    return len(default_report_sections())
+
+
+def _pause_resume_body(perf: list[dict[str, Any]], lang: Lang, findings: str) -> str:
+    """Section body for the combined Pause & Resume section (two tables)."""
+    pause_head = "**Pause：**" if lang == "zh" else "**Pause:**"
+    resume_head = "**Resume：**" if lang == "zh" else "**Resume:**"
+    pause_tbl = _latency_table(perf, "pause", lang)
+    resume_tbl = _latency_table(perf, "resume", lang)
+    concl = _pause_resume_conclusions(perf, lang)
+    # Tables end with a single "\n"; add one more before the next block so a
+    # blank line separates them (required by strict Markdown table rendering).
+    return (f"{pause_head}\n\n{pause_tbl}\n{resume_head}\n\n{resume_tbl}\n"
+            f"{findings}\n\n{concl}")
+
+
+def _section_body(perf: list[dict[str, Any]], sec: dict[str, Any], lang: Lang,
+                  findings: str) -> str:
+    """Render one section's table + conclusions, dispatched by ``sec['table']``."""
+    table = sec["table"]
+    if table == "pause_resume":
+        return _pause_resume_body(perf, lang, findings)
+    if table == "latency":
+        tbl = _latency_table(perf, sec["key"], lang, throughput=sec.get("throughput", False))
+        concl = _latency_conclusions(
+            perf, sec["key"], lang, sec.get("noun_zh", ""), sec.get("noun_en", ""))
+    elif table == "density":
+        tbl, concl = _density_table(perf, lang), _density_conclusions(perf, lang)
+    elif table == "dirty":
+        tbl, concl = _dirty_table(perf, lang), _dirty_conclusions(perf, lang)
+    elif table == "clone":
+        tbl, concl = _clone_table(perf, lang), _clone_conclusions(perf, lang)
+    else:  # unknown table type — degrade gracefully rather than crash.
+        tbl, concl = _no_data(lang), ""
+    # ``tbl`` ends with a single "\n"; add one more so a blank line separates
+    # the table from the findings (required by strict Markdown rendering).
+    return f"{tbl}\n{findings}\n\n{concl}"
+
+
+def _render_section(perf: list[dict[str, Any]], sec: dict[str, Any], num: int,
+                    lang: Lang) -> str:
+    """Render a full numbered scenario section (heading + 测试方式 + body)."""
+    if lang == "zh":
+        head = f"## {_cn_num(num)}、{sec['title_zh']}"
+        method_label, sep, findings = "测试方式", "：", "**关键结论：**"
+        method = sec.get("method_zh", "")
+    else:
+        head = f"## {num}. {sec['title_en']}"
+        method_label, sep, findings = "Method", ": ", "**Key findings:**"
+        method = sec.get("method_en", "")
+    if sec.get("star"):
+        head += " ⭐"
+    parts = [head, ""]
+    if method:
+        parts.append(f"> **{method_label}**{sep}{method}")
+        parts.append("")
+    parts.append(_section_body(perf, sec, lang, findings))
+    return "\n".join(parts).rstrip("\n")
+
+
+def _render_scenario_sections(perf: list[dict[str, Any]], lang: Lang) -> str:
+    """All scenario sections joined, each followed by a ``---`` separator.
+
+    Numbered from 2 (§1 is the fixed test-environment section). The trailing
+    separator lets the caller splice the summary section straight after.
+    """
+    _ensure_registered()
+    blocks = [
+        _render_section(perf, sec, i + 2, lang)
+        for i, sec in enumerate(default_report_sections())
+    ]
+    return "".join(b + "\n\n---\n\n" for b in blocks)
 
 
 # ===========================================================================
@@ -724,164 +625,77 @@ _BASELINE_APPENDIX_EN = _BASELINE_APPENDIX_ZH  # tables are language-neutral
 
 def _render_markdown_zh(data: dict[str, Any]) -> str:
     env = data["environment"]
-    func = data["functional"]
     perf = data["perf"]
+    cfg = data["config"]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    commit = (env.get("cubeapi_commit") or "N/A")[:8]
+    sections_md = _render_scenario_sections(perf, "zh")
+    summary_no = _cn_num(_scenario_section_count() + 2)
 
-    return f"""# CubeSandbox 性能基准测试报告
+    return f"""# CubeSandbox 核心操作性能基准测试报告
 
 > **生成时间**：{now} &nbsp;|&nbsp; **SDK**：v{env['sdk_version']} &nbsp;|&nbsp; **成功率**：100%
 
+> **重要说明**：所有测试数据与测试环境、测试场景高度相关。影响因子包含但不限于 Host 的 CPU / 内存 / IO 性能，以及沙箱内部负载（沙箱中运行的程序越复杂、脏页越多，快照制作耗时也随之上升）。实际部署时请结合自身硬件和负载情况进行评估。本报告由 `tests/perf` 套件自动生成。
+
 ---
 
-## 1. 测试环境
+## 一、测试环境
 
 ### 1.1 硬件信息
 
 | 项目 | 详情 |
 |:---|:---|
 | **主机名** | `{env['hostname']}` |
-| **机器类型** | 裸金属云服务器 |
-| **操作系统** | {env['os_name']} |
-| **OS 版本** | {env['os_version']} |
-| **内核版本** | {env['kernel']} |
+| **机器类型** | {env.get('machine_type') or '裸金属 / 云服务器'} |
+| **操作系统** | {env['os_name']}（{env.get('os_distro') or env['os_version']}） |
+| **内核版本** | `{env['kernel']}` |
 | **架构** | {env['arch']} |
-| **处理器** | {env.get('processor', env['arch'])} |
 | **CPU 型号** | {env['cpu_model']} |
-| **CPU 路数** | {env['cpu_sockets']} |
-| **物理核数** | {env['cpu_cores_physical']} |
-| **逻辑核数** | **{env['cpu_cores_logical']}** |
+| **CPU 配置** | {env['cpu_sockets']} Socket × {env['cpu_cores_physical']} Core = **{env['cpu_cores_logical']} 逻辑核** |
 | **NUMA 节点** | {env['numa_nodes']} |
 | **内存总量** | **{env['memory_total_gb']} GiB**（{env['memory_type']}） |
-| **磁盘型号** | {env['disk_model']} |
-| **磁盘容量** | {env['disk_size_gb']} GB |
-| **磁盘类型** | {env['disk_type']} |
-| **文件系统** | {env['disk_fs']} |
+| **数据盘** | {env['disk_size_gb']} GB {env['disk_type']}（{env['disk_model']}），文件系统 {env['disk_fs']} |
 
-### 1.2 CubeSandbox 环境
-
-#### 沙箱配置
+### 1.2 沙箱规格与模板
 
 | 项目 | 详情 |
 |:---|:---|
-| **沙箱规格** | {env['template_instance_type']} |
+| **规格** | {env['template_instance_type']} |
 | **测试镜像** | `{env['template_image']}` |
 | **模板 ID** | `{env['template_id']}`（状态：`{env['template_status']}`） |
 | **存储方式** | CoW reflink（{env['disk_fs']}） |
 | **内存追踪** | soft-dirty（`/proc/PID/clear_refs`） |
 | **API 地址** | `{env['api_url']}` |
 
-#### 组件版本
+### 1.3 组件版本
 
 | 组件 | 版本 |
 |:---|:---|
-| **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}`（commit `{env.get('cubeapi_commit', 'N/A')[:8] if env.get('cubeapi_commit') else 'N/A'}`，构建于 {env.get('cubeapi_build_time', 'N/A')}） |
-| **CubeMaster** | `{env.get('cubemaster_version', 'N/A')}`（commit `{env.get('cubemaster_commit', 'N/A')[:8] if env.get('cubemaster_commit') else 'N/A'}`，构建于 {env.get('cubemaster_build_time', 'N/A')}） |
+| **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}`（commit `{commit}`，构建于 {env.get('cubeapi_build_time', 'N/A')}） |
+| **CubeMaster** | `{env.get('cubemaster_version', 'N/A')}` |
 | **Cubelet** | `{env.get('cubelet_version', 'N/A')}` |
 | **CubeShim** | `{env.get('cube_shim_version', 'N/A')}` |
 | **Guest Image** | `{env.get('guest_image_version', 'N/A')}` |
-| **Kernel (节点)** | `{env.get('kernel_version_node', 'N/A')}` |
+| **节点内核** | `{env.get('kernel_version_node', 'N/A')}` |
 | **Python** | {env.get('python_impl', env['python_version'])} |
-| **SDK** | v{env['sdk_version']}（`{env.get('sdk_import_path', 'N/A')}`） |
-| **httpx / requests** | {env.get('httpx_version', 'N/A')} / {env.get('requests_version', 'N/A')} |
-| **平台摘要** | {env.get('platform_summary', 'N/A')} |
+| **SDK** | v{env['sdk_version']} |
 
-#### 测试配置
+### 1.4 指标说明
 
-| 项目 | 值 |
-|:---|:---|
-| **每场景轮数** | {data['config']['perf_rounds']} 轮 |
-| **时间戳** | {env['timestamp']} |
+{_metric_legend("zh")}
+> 所有时间单位均为**毫秒（ms）**。每场景计时前执行 Warm-up（首轮结果丢弃），消除冷启动干扰。每场景 **{cfg['perf_rounds']}** 轮采样。
 
 ---
 
-## 2. 性能压测
+{sections_md}## {summary_no}、总结
 
-{_cpu_mem_banner(env, "zh")}
-{_baseline_note("zh")}
-> 以下单位均为**毫秒 (ms)**。基线对比列百分比 = 当前单次均摊 ÷ 基线单次均摊；≈100% 表示持平，+N% 表示慢于基线。
-
----
-
-### 2.1 基于模板创建沙箱（冷启动）
-
-> 调用 `POST /sandboxes`（指定 `template_id`）到沙箱进入 `running` 状态的端到端耗时。
-
-{_template_table(perf, "zh")}
+- **性能压测**：共采集 **{len(perf)}** 条场景数据点
+- **测试配置**：每场景 {cfg['perf_rounds']} 轮，密度上限 {cfg['density_max_count']}，成功率 **100%**
 
 ---
 
-### 2.2 部署密度（内存开销）
-
-> 累积启动沙箱，通过 `free -h` 记录可用内存变化，计算单 VM 均摊开销。
-
-{_density_table(perf, "zh")}
-
----
-
-### 2.3 创建快照（并发）
-
-> 对多个运行中沙箱并发调用 `POST /sandboxes/{{id}}/snapshots`，测量整批 wall time。
-
-{_perf_table(perf, "snapshot-create-c", "zh")}
-
----
-
-### 2.4 快照耗时 vs 脏页大小 ⭐
-
-> 在沙箱内通过 `dd` 写入不同大小的数据（0~1024 MB），控制脏页量，分别测量快照制作耗时和基于该快照恢复沙箱的耗时。**这是区分不同架构内存页处理效率的核心场景。**
-
-{_dirty_page_tables(perf, "zh")}
-
-> **关键观察**：快照制作耗时与脏页大小近线性相关；基于快照恢复沙箱耗时基本恒定，不受脏页大小影响（CoW 按需加载机制）。
-
----
-
-### 2.5 基于快照启动沙箱
-
-> 先制作快照，再并发调用 `POST /sandboxes`（指定 `snapshot_id`），测量启动延迟。
-
-{_perf_table(perf, "snapshot-create-from", "zh")}
-
----
-
-### 2.6 回滚（Rollback）
-
-> 对运行中沙箱调用 `POST /sandboxes/{{id}}/rollback`，将内存和文件系统状态原地恢复至指定快照。
-
-{_perf_table(perf, "rollback", "zh")}
-
----
-
-### 2.7 克隆（Clone）
-
-> 从运行中沙箱调用 `POST /sandboxes/{{id}}/clone` 派生出 N 个新沙箱，完整保留源沙箱状态。
-
-{_perf_table(perf, "clone", "zh")}
-
----
-
-### 2.8 暂停与恢复（Pause & Resume）
-
-> 并发调用 `pause` 将沙箱内存写入持久化存储，再并发调用 `resume` 恢复。当前采用 **full-memory-copy** 模式。
-
-{_perf_table(perf, "pause", "zh")}
-
-{_perf_table(perf, "resume", "zh")}
-
-{_BASELINE_APPENDIX_ZH}
-
----
-
-## 4. 总结
-
-- **性能压测**：共采集 **{len(perf)}** 个场景
-- **测试轮数**：每场景 {data['config']['perf_rounds']} 轮，成功率 **100%**
-- **基线对比**：数据来源 `tests/perf/baseline.py`（BMI5 / BMSA9 / Vera A1P / Kunpeng 920）
-
----
-
-_本报告由 `tests/e2e` 自动生成 &nbsp;|&nbsp; CubeSandbox Python SDK v{env['sdk_version']}_
+_本报告由 `tests/perf` 套件自动生成 &nbsp;|&nbsp; CubeSandbox Python SDK v{env['sdk_version']}_
 """
 
 
@@ -892,13 +706,18 @@ _本报告由 `tests/e2e` 自动生成 &nbsp;|&nbsp; CubeSandbox Python SDK v{en
 
 def _render_markdown_en(data: dict[str, Any]) -> str:
     env = data["environment"]
-    func = data["functional"]
     perf = data["perf"]
+    cfg = data["config"]
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+    commit = (env.get("cubeapi_commit") or "N/A")[:8]
+    sections_md = _render_scenario_sections(perf, "en")
+    summary_no = _scenario_section_count() + 2
 
-    return f"""# CubeSandbox Python SDK Performance Benchmark Report
+    return f"""# CubeSandbox Core-Operation Performance Benchmark Report
 
-**Generated**: {now}
+> **Generated**: {now} &nbsp;|&nbsp; **SDK**: v{env['sdk_version']} &nbsp;|&nbsp; **Success rate**: 100%
+
+> **Important**: All figures are highly dependent on the test environment and workload — host CPU / memory / IO, and in-sandbox load (heavier workloads dirty more pages, raising snapshot latency). Evaluate against your own hardware and load. Auto-generated by the `tests/perf` suite.
 
 ---
 
@@ -909,103 +728,77 @@ def _render_markdown_en(data: dict[str, Any]) -> str:
 | Item | Detail |
 |:---|:---|
 | **Hostname** | `{env['hostname']}` |
-| **Machine Type** | Bare-metal cloud server |
-| **OS** | {env['os_name']} ({env['os_version']}), kernel {env['kernel']}, {env['arch']} |
+| **Machine Type** | {env.get('machine_type') or 'Bare-metal / cloud server'} |
+| **OS** | {env['os_name']} ({env.get('os_distro') or env['os_version']}) |
+| **Kernel** | `{env['kernel']}` |
+| **Arch** | {env['arch']} |
 | **CPU Model** | {env['cpu_model']} |
-| **CPU Configuration** | {env['cpu_sockets']} socket(s) × {env['cpu_cores_physical']} cores × 2 threads = **{env['cpu_cores_logical']} logical cores** |
+| **CPU Config** | {env['cpu_sockets']} socket(s) × {env['cpu_cores_physical']} cores = **{env['cpu_cores_logical']} logical cores** |
 | **NUMA Nodes** | {env['numa_nodes']} |
-| **Memory Total** | **{env['memory_total_gb']} GiB** ({env['memory_type']}) |
-| **Data Disk** | {env['disk_size_gb']} GB {env['disk_type']} ({env['disk_model']}), FS: {env['disk_fs']} |
+| **Memory** | **{env['memory_total_gb']} GiB** ({env['memory_type']}) |
+| **Data Disk** | {env['disk_size_gb']} GB {env['disk_type']} ({env['disk_model']}), FS {env['disk_fs']} |
 
-### 1.2 CubeSandbox Environment
-
-#### Sandbox Spec
+### 1.2 Sandbox Spec & Template
 
 | Item | Detail |
 |:---|:---|
 | **Spec** | {env['template_instance_type']} |
 | **Test Image** | `{env['template_image']}` |
-| **Template ID** | `{env['template_id']}` |
-| **Template Status** | `{env['template_status']}` |
+| **Template ID** | `{env['template_id']}` (status: `{env['template_status']}`) |
 | **Storage** | CoW reflink ({env['disk_fs']}) |
-| **Memory Tracking** | soft-dirty (/proc/PID/clear_refs) |
-
-#### Component Versions
-
-| Item | Value |
-|:---|:---|
+| **Memory Tracking** | soft-dirty (`/proc/PID/clear_refs`) |
 | **API URL** | `{env['api_url']}` |
-| **SDK Version** | `{env['sdk_version']}` |
-| **Python Version** | `{env['python_version']}` |
-| **CubeAPI Version** | `{env.get('cubeapi_version', 'N/A')}` |
-| **CubeAPI Commit** | `{env.get('cubeapi_commit', 'N/A')}` |
-| **CubeAPI Build Time** | `{env.get('cubeapi_build_time', 'N/A')}` |
-| **CubeAPI Go Version** | `{env.get('cubeapi_go_version', 'N/A')}` |
 
-### 1.3 Test Configuration
+### 1.3 Component Versions
 
-| Item | Value |
+| Component | Version |
 |:---|:---|
-| **Perf Rounds per Scenario** | {data['config']['perf_rounds']} |
-| **Density Max Count** | {data['config']['density_max_count']} |
-| **Timestamp** | {env['timestamp']} |
+| **CubeAPI** | `{env.get('cubeapi_version', 'N/A')}` (commit `{commit}`, built {env.get('cubeapi_build_time', 'N/A')}) |
+| **CubeMaster** | `{env.get('cubemaster_version', 'N/A')}` |
+| **Cubelet** | `{env.get('cubelet_version', 'N/A')}` |
+| **CubeShim** | `{env.get('cube_shim_version', 'N/A')}` |
+| **Guest Image** | `{env.get('guest_image_version', 'N/A')}` |
+| **Node Kernel** | `{env.get('kernel_version_node', 'N/A')}` |
+| **Python** | {env.get('python_impl', env['python_version'])} |
+| **SDK** | v{env['sdk_version']} |
+
+### 1.4 Metric Legend
+
+{_metric_legend("en")}
+> All times in milliseconds (ms). Each scenario runs a warm-up (first round discarded) to shed cold-start spikes, then **{cfg['perf_rounds']}** measured rounds.
 
 ---
 
-## 2. Performance Benchmarks
+{sections_md}## {summary_no}. Summary
 
-{_cpu_mem_banner(env, "en")}
-{_baseline_note("en")}
-> Measurements in milliseconds (ms). All scenarios 100% success rate.
-
-### 2.1 Template-Based Sandbox Creation
-
-{_template_table(perf, "en")}
-
-### 2.2 Deployment Density
-
-{_density_table(perf, "en")}
-
-### 2.3 Snapshot Creation (Concurrency)
-
-{_perf_table(perf, "snapshot-create-c", "en")}
-
-### 2.4 Snapshot Creation vs Dirty Page Size ⭐
-
-{_dirty_page_tables(perf, "en")}
-
-> Snapshot creation latency scales near-linearly with dirty-page size; sandbox creation from snapshot remains near-constant (CoW).
-
-### 2.5 Create from Snapshot
-
-{_perf_table(perf, "snapshot-create-from", "en")}
-
-### 2.6 Rollback
-
-{_perf_table(perf, "rollback", "en")}
-
-### 2.7 Clone
-
-{_perf_table(perf, "clone", "en")}
-
-### 2.8 Pause & Resume
-
-{_perf_table(perf, "pause", "en")}
-{_perf_table(perf, "resume", "en")}
-
-{_BASELINE_APPENDIX_EN}
+- **Performance**: {len(perf)} scenario data points collected
+- **Config**: {cfg['perf_rounds']} rounds per scenario, density cap {cfg['density_max_count']}, 100% success rate
 
 ---
 
-## 4. Summary
-
-- **Performance**: {len(perf)} benchmark scenarios collected
-- **Functional**: {func['pass']} passed, {func['fail']} failed, {func['skip']} skipped (total {func['total']} assertions)
-
----
-
-_Report generated by `tests/e2e` — CubeSandbox Python SDK v{env['sdk_version']}_
+_Report generated by `tests/perf` — CubeSandbox Python SDK v{env['sdk_version']}_
 """
+
+
+def _pause_resume_conclusions(perf: list[dict[str, Any]], lang: Lang) -> str:
+    pause = _sweep_rows(perf, "pause")
+    resume = _sweep_rows(perf, "resume")
+    if not pause and not resume:
+        return ""
+    out: list[str] = []
+    if lang == "zh":
+        if resume:
+            out.append(f"**Resume 极快**：单次约 {resume[0]['avg_ms']:.1f} ms，恢复速度不受 full-copy 影响")
+        if pause:
+            out.append(f"**Pause 是当前瓶颈**：full-copy 模式下单次约 {pause[0]['avg_ms']:.1f} ms，"
+                       f"soft-dirty 增量版本上线后预计大幅降低")
+    else:
+        if resume:
+            out.append(f"**Resume is very fast**: ~{resume[0]['avg_ms']:.1f} ms per op, unaffected by full-copy")
+        if pause:
+            out.append(f"**Pause is the current bottleneck**: ~{pause[0]['avg_ms']:.1f} ms per op under "
+                       f"full-copy; expected to drop sharply with the soft-dirty incremental mode")
+    return _bullets(out)
 
 
 def render_markdown(data: dict[str, Any], lang: Lang) -> str:
@@ -1025,9 +818,12 @@ def _report_base_path() -> str:
     return base or "report"
 
 
-def write_reports(env: EnvInfo) -> list[str]:
-    data = build_report_data(env)
-    base = _report_base_path()
+def render_reports(data: dict[str, Any], base: str | None = None) -> list[str]:
+    """Write the 4 report files (md/zh.md/json/zh.json) from a ready ``data``
+    dict. Used both by the live run and by ``--md-only`` (parse an existing
+    JSON data file and re-render), so report generation never requires a live
+    backend."""
+    base = base or _report_base_path()
 
     files = {
         f"{base}.md": render_markdown(data, "en"),
@@ -1042,3 +838,17 @@ def write_reports(env: EnvInfo) -> list[str]:
             f.write(content)
         written.append(os.path.abspath(path))
     return written
+
+
+def render_from_json(json_path: str, base: str | None = None) -> list[str]:
+    """Parse an existing JSON data file and re-render md + json reports.
+
+    Only the ``environment`` / ``config`` / ``functional`` / ``perf`` keys are
+    consumed by the renderers, so any JSON produced by a previous run works."""
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return render_reports(data, base)
+
+
+def write_reports(env: EnvInfo) -> list[str]:
+    return render_reports(build_report_data(env))

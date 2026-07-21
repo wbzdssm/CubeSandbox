@@ -8,9 +8,9 @@ Layered configuration (highest → lowest precedence)::
 
 The TOML layer is intentionally scoped to the "minimum viable" set that
 covers ~90% of tweaks people actually make when generating a run-specific
-report: title / subtitle, environment & Cube field lists, baseline filter
-mode, and the env-card column count. Anything more elaborate should still
-be done via a code change so the report stays predictable.
+report: title / subtitle, environment & Cube field lists, and the env-card
+column count. Anything more elaborate should still be done via a code change
+so the report stays predictable.
 
 Search order for the TOML file when ``CUBE_REPORT_CONFIG`` is unset:
 
@@ -178,66 +178,6 @@ def parse_fields_from_spec(raw: Any, defaults: list[tuple[str, str]]) -> list[li
         return []
 
     return [p for p in out if p]
-
-
-def resolve_baseline_filter(
-    scenario_names: set[str], all_baselines: dict[str, Any]
-) -> tuple[list[str], dict[str, Any]]:
-    """Return ``(baseline_keys, active_baselines)`` after applying the mode.
-
-    Modes (``[baselines] mode = ...``):
-        - ``auto`` (default): keep only baselines whose scenario keys
-          intersect the current run — hides "Kunpeng 920" bars for an
-          x86-only report.
-        - ``all``: keep every baseline (legacy behaviour).
-        - ``none``: hide all baselines (single-machine debugging).
-        - ``list``: use ``include`` / ``exclude`` for explicit control.
-
-    Environment overrides (highest precedence):
-        - ``CUBE_REPORT_BASELINE_MODE``  → same values as the TOML key.
-        - ``CUBE_REPORT_BASELINE_INCLUDE`` / ``CUBE_REPORT_BASELINE_EXCLUDE``
-          → comma-separated lists.
-    """
-    mode = (os.environ.get("CUBE_REPORT_BASELINE_MODE")
-            or get_str("baselines.mode", "auto")).strip().lower()
-
-    include_env = os.environ.get("CUBE_REPORT_BASELINE_INCLUDE", "").strip()
-    include = ([s.strip() for s in include_env.split(",") if s.strip()]
-               if include_env else [str(x) for x in get_list("baselines.include")])
-    exclude_env = os.environ.get("CUBE_REPORT_BASELINE_EXCLUDE", "").strip()
-    exclude = ([s.strip() for s in exclude_env.split(",") if s.strip()]
-               if exclude_env else [str(x) for x in get_list("baselines.exclude")])
-
-    def _has_data(bl: Any) -> bool:
-        perf = (bl or {}).get("perf") if isinstance(bl, dict) else None
-        return isinstance(perf, dict) and bool(perf)
-
-    keys: list[str] = []
-    active: dict[str, Any] = {}
-
-    if mode == "none":
-        return keys, active
-
-    for key, bl in all_baselines.items():
-        if not _has_data(bl):
-            continue
-        if exclude and key in exclude:
-            continue
-        if mode == "list":
-            if include and key not in include:
-                continue
-            keys.append(key)
-            active[key] = bl
-        elif mode == "all":
-            keys.append(key)
-            active[key] = bl
-        else:  # auto (default)
-            perf_keys = set((bl or {}).get("perf", {}).keys())
-            if scenario_names & perf_keys:
-                keys.append(key)
-                active[key] = bl
-
-    return keys, active
 
 
 def resolve_env_columns(default: int = 2) -> int:

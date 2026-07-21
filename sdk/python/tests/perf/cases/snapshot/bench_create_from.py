@@ -6,13 +6,25 @@ from __future__ import annotations
 
 from cubesandbox import Config, Sandbox
 
-from ...framework.registry import ReportGroup, benchmark, parallel_sweep
+from ...framework.registry import ReportChart, ReportSection, benchmark, parallel_sweep
 from ...framework.runner import sandbox_pool, snapshot_pool
 
 
-@benchmark("snapshot-create-from",
-           aliases=["snapshot-cold-start", "cold-start", "coldstart", "restore"],
-           report=ReportGroup("基于快照启动沙箱"))
+@benchmark(
+    "snapshot-create-from",
+    aliases=["snapshot-cold-start", "cold-start", "coldstart", "restore"],
+    report=ReportSection(
+        table="latency",
+        order=6,
+        title_zh="基于快照启动沙箱",
+        title_en="Create Sandbox from Snapshot",
+        method_zh="先制作快照，再并发调用 `POST /sandboxes`（指定 `snapshot_id`），测量启动延迟。",
+        method_en="create a snapshot, then concurrently `POST /sandboxes` (with `snapshot_id`); measure start latency.",
+        noun_zh="启动",
+        noun_en="start",
+        charts=(ReportChart("基于快照启动沙箱"),),
+    ),
+)
 @parallel_sweep("snapshot-create-from", header=" [Perf] Create from Snapshot")
 def bench_snapshot_create_from(cfg: Config, concurrency: int, n: int):
     """Benchmark: create sandbox from a snapshot (single & concurrent).

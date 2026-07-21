@@ -42,12 +42,3 @@ extra = []  # e.g. ["region:地域", "git_commit:代码版本"]
 # (release + template + all component versions).
 fields = []
 extra = ["release_git_commit:Release Commit", "kernel_version_node:节点内核"]
-
-[baselines]
-# `auto`  — keep baselines whose scenario keys intersect this run (default).
-# `all`   — keep every published baseline (legacy behaviour).
-# `none`  — hide baselines entirely.
-# `list`  — use the `include`/`exclude` allowlists below for explicit control.
-mode = "auto"
-include = []  # e.g. ["BMI5 (x86_64)", "BMSA9 (x86_64)"]
-exclude = []  # e.g. ["Kunpeng 920 (ARM64)"]

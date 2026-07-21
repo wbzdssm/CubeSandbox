@@ -10,6 +10,7 @@ Usage:
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback           # only selected scenarios
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only ivshmem                      # default-off scenario, no extra env needed
     python3 -m perf --list-scenarios                              # list scenario keys/aliases
+    python3 -m perf --md-only report.json                          # re-render md + json from existing data (no backend)
     python3 -m perf --html-only data/*.json                        # generate HTML from existing data files
     python3 -m perf --compare data/run1.json data/run2.json        # compare two runs (HTML)
 
@@ -41,7 +42,18 @@ from .framework.runner import PERF_RESULTS, reset
 
 from . import cases  # noqa: F401 — importing registers every @benchmark scenario
 from .framework import registry
-from .reporting.report_html import generate_html
+
+# NOTE: ``report_html`` is intentionally *not* imported at module level. The
+# default run path only produces Markdown + JSON reports, so the heavier HTML
+# report chain is imported lazily (see ``_generate_html``) and only when
+# ``--html`` / ``--html-only`` / ``--compare`` is requested.
+
+
+def _generate_html(*args, **kwargs) -> None:
+    """Lazily import and call the HTML report generator (opt-in only)."""
+    from .reporting.report_html import generate_html
+
+    generate_html(*args, **kwargs)
 
 
 def _data_file_path(base: str, suffix: str = "") -> str:
@@ -72,6 +84,23 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     """Run benchmarks (all by default, or the *selected* subset), write JSON
     data file, return the file path."""
     cfg = resolve_config()
+
+    # Write back the data-flow settings this run actually used (incl. an
+    # auto-discovered template id) so the 2nd/3rd run reuses them without any
+    # re-exporting — just `python3 -m perf`.
+    from . import _persist_dotenv
+
+    _persist_dotenv(
+        {
+            "CUBE_API_URL": cfg.api_url,
+            "CUBE_API_KEY": os.environ.get("CUBE_API_KEY")
+            or os.environ.get("E2B_API_KEY", ""),
+            "CUBE_TEMPLATE_ID": cfg.template_id or "",
+            "CUBE_PROXY_NODE_IP": cfg.proxy_node_ip or "",
+            "CUBE_PROXY_PORT_HTTP": str(cfg.proxy_port),
+            "CUBE_SANDBOX_DOMAIN": cfg.sandbox_domain,
+        }
+    )
 
     print("=" * 60)
     print(" Python SDK Performance Benchmark Suite")
@@ -132,6 +161,7 @@ Examples:
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios all no-ivshmem
   python3 -m perf --list-scenarios
+  python3 -m perf --md-only report.json
   python3 -m perf --html-only report_20260717T120000Z.json
   python3 -m perf --compare run1.json run2.json
         """,
@@ -146,6 +176,12 @@ Examples:
         nargs="+",
         metavar="JSON_FILE",
         help="generate HTML report from existing JSON data files (no benchmarks run)",
+    )
+    parser.add_argument(
+        "--md-only",
+        metavar="JSON_FILE",
+        help="parse an existing JSON data file and re-render the Markdown + JSON "
+        "reports (no benchmarks run, no backend required)",
     )
     parser.add_argument(
         "--compare",
@@ -217,14 +253,23 @@ Examples:
 
     html_output = args.output or os.environ.get("CUBE_HTML_OUTPUT", "perf_report.html")
 
+    # --md-only mode: no benchmarks, just re-render md/json from existing data
+    if args.md_only:
+        base = os.path.splitext(os.environ.get("CUBE_OUTPUT_REPORT", "report"))[0]
+        written = report.render_from_json(args.md_only, base)
+        print(f"Re-rendered reports from {args.md_only}:")
+        for path in written:
+            print(f"   - {path}")
+        return
+
     # --html-only mode: no benchmarks, just generate HTML
     if args.html_only:
-        generate_html(args.html_only, output_path=html_output, title=args.title)
+        _generate_html(args.html_only, output_path=html_output, title=args.title)
         return
 
     # --compare mode: generate comparison HTML
     if args.compare:
-        generate_html(args.compare, output_path=html_output, title=args.title)
+        _generate_html(args.compare, output_path=html_output, title=args.title)
         return
 
     # Default mode: run benchmarks
@@ -240,7 +285,7 @@ Examples:
 
     # --html flag: also generate HTML
     if args.html:
-        generate_html([json_path], output_path=html_output, title=args.title)
+        _generate_html([json_path], output_path=html_output, title=args.title)
 
     sys.exit(0)
 

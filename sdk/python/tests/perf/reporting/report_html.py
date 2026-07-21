@@ -8,8 +8,8 @@ Each report can hold several environments side by side:
   averaged together (repeated runs of the same machine -> a stable line);
   files with different fingerprints become independent comparison series.
 - Every scenario renders one chart: each measured environment is a solid
-  line, each historical baseline is a dashed line. A summary table below
-  lists every (concurrency, environment) row with a "vs first env" badge.
+  line. A summary table below lists every (concurrency, environment) row
+  with a "vs first env" badge.
 - The environment section is a multi-column table (one column per env).
 
 A single input file degrades to a single series, matching the old behaviour.
@@ -24,18 +24,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .baseline import ALL_BASELINES
 from . import report_config
 
 # Solid colors for measured environments (RUN_SERIES).
 _RUN_COLORS = [
     "#667eea", "#e11d48", "#059669", "#d97706",
     "#7c3aed", "#0891b2", "#db2777", "#65a30d",
-]
-# Dashed, lighter colors for historical baselines.
-_BASELINE_COLORS = [
-    "#c4b5fd", "#86efac", "#fde68a", "#fca5a5",
-    "#93c5fd", "#d8b4fe", "#a5f3fc", "#fed7aa",
 ]
 
 # ---------------------------------------------------------------------------
@@ -64,6 +58,7 @@ _DEFAULT_ENV_FIELDS: list[tuple[str, str]] = [
     ("arch", "架构"),
     ("cpu_cores_logical", "CPU 核数"),
     ("memory_total_gb", "内存 (GiB)"),
+    ("disk_size_gb", "磁盘 (GB)"),
     ("gcc_version", "GCC 版本"),
     ("python_version", "Python 版本"),
     ("timestamp", "时间"),
@@ -308,7 +303,7 @@ footer {{ text-align: center; padding: 20px; color: #aaa; font-size: 12px; }}
 <body>
 <div class="header">
   <h1>{report_h1}</h1>
-  <div class="subtitle">生成时间: {generated_at} &nbsp;|&nbsp; 对比环境: {env_count} &nbsp;|&nbsp; 历史基线: {baseline_count} &nbsp;|&nbsp; 场景数: {scenario_count}</div>
+  <div class="subtitle">生成时间: {generated_at} &nbsp;|&nbsp; 对比环境: {env_count} &nbsp;|&nbsp; 场景数: {scenario_count}</div>
   {report_subtitle_html}
 </div>
 
@@ -343,25 +338,14 @@ footer {{ text-align: center; padding: 20px; color: #aaa; font-size: 12px; }}
 const RUN_SERIES = {run_series_json};
 const RUN_ENVS = {run_envs_json};
 const RUN_COLORS = {run_colors_json};
-const ALL_BASELINES = {all_baselines_json};
-const BASELINE_KEYS = {baseline_keys_json};
-const BASELINE_COLORS = {baseline_colors_json};
 
 // ---- Helpers ----
 function fmtMs(v) {{ return v === null || v === undefined || v === '' ? '-' : Number(v).toFixed(1); }}
 function runColor(i) {{ return RUN_COLORS[i % RUN_COLORS.length]; }}
-function baseColor(i) {{ return BASELINE_COLORS[i % BASELINE_COLORS.length]; }}
 // Current value for a measured series at a scenario (per-op, fallback avg).
 function runValueAt(series, scenario) {{
   const r = series.perf[scenario];
   return r ? (r.per_ms || r.avg_ms || null) : null;
-}}
-// Baseline value for a scenario (per / avg / wall_avg fallbacks).
-function baseValueAt(key, scenario) {{
-  const bl = ALL_BASELINES[key];
-  if (!bl || !bl.perf) return null;
-  const bb = bl.perf[scenario];
-  return bb ? (bb.per || bb.avg || bb.wall_avg || null) : null;
 }}
 function cmpBadge(cur, ref) {{
   if (!ref || !cur || cur <= 0) return '<span class="badge badge-na">-</span>';
@@ -463,9 +447,6 @@ function cmpBadge(cur, ref) {{
   RUN_ENVS.forEach((e, i) => {{
     leg.innerHTML += `<div class="legend-item"><div class="legend-swatch" style="background:${{runColor(i)}};"></div> ${{e.label}}</div>`;
   }});
-  BASELINE_KEYS.forEach((k, i) => {{
-    leg.innerHTML += `<div class="legend-item"><div class="legend-swatch dashed" style="border-color:${{baseColor(i)}};"></div> ${{k}}（基线）</div>`;
-  }});
 }})();
 
 // ---- Scenario groups ----
@@ -479,14 +460,10 @@ const METRICS = {metrics_json};
 (function() {{
   const container = document.getElementById('scenarios');
 
-  // Union of every scenario name across measured series and baselines.
+  // Union of every scenario name across measured series.
   const ALL_SCENARIOS = (function() {{
     const s = new Set();
     RUN_SERIES.forEach(sr => Object.keys(sr.perf).forEach(k => s.add(k)));
-    BASELINE_KEYS.forEach(k => {{
-      const bl = ALL_BASELINES[k];
-      if (bl && bl.perf) Object.keys(bl.perf).forEach(x => s.add(x));
-    }});
     return Array.from(s);
   }})();
 
@@ -508,10 +485,6 @@ const METRICS = {metrics_json};
       label: sr.label, color: runColor(i),
       data: xValues.map((xv, xi) => ({{ x: xi, y: runValueAt(sr, `${{prefix}}-${{xKey}}${{xv}}`) }})),
     }}));
-    const baseLines = BASELINE_KEYS.map((k, i) => ({{
-      label: k, color: baseColor(i),
-      data: xValues.map((xv, xi) => ({{ x: xi, y: baseValueAt(k, `${{prefix}}-${{xKey}}${{xv}}`) }})),
-    }})).filter(l => l.data.some(p => p.y !== null));
 
     // Scatter of raw samples only when a single environment is compared,
     // otherwise the point cloud from many machines is unreadable.
@@ -522,7 +495,7 @@ const METRICS = {metrics_json};
         if (r && r.raw_latencies) r.raw_latencies.forEach(lat => scatters.push({{ x: xi, y: lat }}));
       }});
     }}
-    return {{ runLines, baseLines, scatters }};
+    return {{ runLines, scatters }};
   }}
 
   // Round a value up to a "nice" axis maximum (1/2/5 * 10^n).
@@ -553,7 +526,7 @@ const METRICS = {metrics_json};
 
   // Self-contained inline SVG line chart — no external chart library, so it
   // renders offline / inside the IDE preview where a CDN is unreachable.
-  function renderChart(blockId, xLabels, runLines, baseLines, scatters) {{
+  function renderChart(blockId, xLabels, runLines, scatters) {{
     const W = 820, H = 320, padL = 52, padR = 16, padT = 14, padB = 38;
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const n = xLabels.length;
@@ -568,7 +541,6 @@ const METRICS = {metrics_json};
     let maxY = 0;
     const consider = v => {{ if (v !== null && v !== undefined && v > maxY) maxY = v; }};
     runLines.forEach(l => l.data.forEach(p => consider(p.y)));
-    baseLines.forEach(l => l.data.forEach(p => consider(p.y)));
     scatters.forEach(p => consider(p.y));
     const top = niceCeil(maxY);
 
@@ -596,25 +568,6 @@ const METRICS = {metrics_json};
     // Raw sample scatter (single-environment only).
     scatters.forEach(p => {{
       parts.push(`<circle cx="${{xAt(p.x)}}" cy="${{yAt(p.y)}}" r="2.5" fill="#667eea" fill-opacity="0.25"/>`);
-    }});
-
-    // Baselines: dashed polylines + dots.
-    baseLines.forEach(l => {{
-      lineSegments(l.data, true).forEach(seg => {{
-        if (seg.length > 1) {{
-          const pts = seg.map(pt => `${{xAt(pt.i)}},${{yAt(pt.y)}}`).join(' ');
-          parts.push(`<polyline points="${{pts}}" fill="none" stroke="${{l.color}}" stroke-width="1.5" stroke-dasharray="6 3"/>`);
-        }}
-      }});
-      l.data.forEach((p, i) => {{
-        if (p.y === null || p.y === undefined) return;
-        const tip = `${{l.label}}（基线） · ${{xLabels[i]}}: ${{formatY(p.y)}}`;
-        parts.push(
-          `<g><title>${{escXml(tip)}}</title>` +
-          `<circle cx="${{xAt(i)}}" cy="${{yAt(p.y)}}" r="2.5" fill="${{l.color}}"/>` +
-          `</g>`
-        );
-      }});
     }});
 
     // Measured environments: solid polylines + square markers.
@@ -732,10 +685,9 @@ const METRICS = {metrics_json};
     let xValues = discoverXValues(g.prefix, g.xKey);
     if (xValues.length === 0) xValues = g.fallback;
     const xLabels = xValues.map(v => g.xKey + '=' + v);
-    const {{ runLines, baseLines, scatters }} = collectLineData(g.prefix, g.xKey, xValues);
+    const {{ runLines, scatters }} = collectLineData(g.prefix, g.xKey, xValues);
 
-    const hasAnyData = runLines.some(l => l.data.some(p => p.y !== null))
-      || baseLines.length > 0;
+    const hasAnyData = runLines.some(l => l.data.some(p => p.y !== null));
 
     // Summary table: one row per (concurrency, environment). Columns are
     // driven by METRICS (env-var customizable). The special "vs" column
@@ -799,7 +751,7 @@ const METRICS = {metrics_json};
 
     // Chart before table.
     if (hasAnyData) {{
-      block.appendChild(renderChart(g.id, xLabels, runLines, baseLines, scatters));
+      block.appendChild(renderChart(g.id, xLabels, runLines, scatters));
     }}
     block.appendChild(tbl);
     container.appendChild(block);
@@ -979,13 +931,6 @@ def generate_html(
     for sr in run_series:
         scenario_names.update(sr["perf"].keys())
 
-    # Baseline filtering — mode is TOML- and env-var-configurable, default
-    # "auto" keeps only baselines whose scenario keys intersect this run.
-    # See report_config.resolve_baseline_filter for the full contract.
-    baseline_keys, active_baselines = report_config.resolve_baseline_filter(
-        scenario_names, ALL_BASELINES
-    )
-
     # Field lists — env-var overrides win, then TOML (`[env]` / `[cube]`
     # `fields`/`extra`), then the built-in defaults.
     env_fields = _resolve_fields(
@@ -1021,14 +966,10 @@ def generate_html(
         env_columns=env_columns,
         generated_at=generated_at,
         env_count=len(run_envs),
-        baseline_count=len(baseline_keys),
         scenario_count=len(scenario_names),
         run_series_json=json.dumps(run_series, ensure_ascii=False),
         run_envs_json=json.dumps(run_envs, ensure_ascii=False),
         run_colors_json=json.dumps(_RUN_COLORS, ensure_ascii=False),
-        all_baselines_json=json.dumps(active_baselines, ensure_ascii=False),
-        baseline_keys_json=json.dumps(baseline_keys, ensure_ascii=False),
-        baseline_colors_json=json.dumps(_BASELINE_COLORS, ensure_ascii=False),
         env_fields_json=json.dumps(env_fields, ensure_ascii=False),
         cube_fields_json=json.dumps(cube_fields, ensure_ascii=False),
         scenarios_json=json.dumps(scenarios, ensure_ascii=False),

@@ -9,11 +9,21 @@ import time
 from cubesandbox import Config
 
 from ...framework.config import CONCURRENCY_LEVELS, PERF_ROUNDS
-from ...framework.registry import benchmark
+from ...framework.registry import ReportSection, benchmark
 from ...framework.runner import PERF_RESULTS, PerfResult, PerfSample, sandbox
 
 
-@benchmark("clone")
+@benchmark(
+    "clone",
+    report=ReportSection(
+        table="clone",
+        order=8,
+        title_zh="克隆（Clone）",
+        title_en="Clone",
+        method_zh="调用 `POST /sandboxes/{id}/clone`，从一个运行中沙箱派生出 N 个新沙箱，完整保留源沙箱状态。表中 wall 为每轮整批耗时的多轮分布。",
+        method_en="`POST /sandboxes/{id}/clone` forks N new sandboxes from one running box, preserving full state. The wall columns are a distribution over rounds.",
+    ),
+)
 def bench_clone(cfg: Config) -> None:
     """Benchmark: Clone (sequential & concurrent fan-out).
 

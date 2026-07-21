@@ -11,7 +11,7 @@ import time
 from cubesandbox import Config, Sandbox
 
 from ...framework.config import DIRTY_SWEEP, PERF_ROUNDS, PERF_SETTLE
-from ...framework.registry import benchmark
+from ...framework.registry import ReportSection, benchmark
 from ...framework.runner import PERF_RESULTS, PerfResult, PerfSample
 
 
@@ -37,7 +37,20 @@ def _grep_snapshot_bytes(sandbox_id: str) -> int:
     return -1
 
 
-@benchmark("snapshot-dirty", aliases=["dirty"], opt_out_env="CUBE_SKIP_SNAPSHOT_DIRTY")
+@benchmark(
+    "snapshot-dirty",
+    aliases=["dirty"],
+    opt_out_env="CUBE_SKIP_SNAPSHOT_DIRTY",
+    report=ReportSection(
+        table="dirty",
+        order=5,
+        star=True,
+        title_zh="快照耗时 vs 脏页大小",
+        title_en="Snapshot Latency vs Dirty-Page Size",
+        method_zh="在沙箱内写入不同大小的数据（0~1024 MB）以控制脏页量，分别测量快照制作耗时和基于该快照恢复沙箱的耗时。**这是区分不同架构内存页处理效率的核心场景。** 「实测脏页」列取自 host 侧 `vmm.log`，off-host 运行时显示为「未知」。",
+        method_en='write varying amounts of data (0~1024 MB) inside the sandbox to control dirty-page volume, then measure snapshot latency and create-from-snapshot latency. The core scenario for comparing memory-page handling across architectures. "Dirty Page" is read from the host `vmm.log` (shows "unknown" when running off-host).',
+    ),
+)
 def bench_snapshot_dirty(cfg: Config) -> None:
     """Benchmark: snapshot latency vs dirty-page size (plus create-from restore).
 

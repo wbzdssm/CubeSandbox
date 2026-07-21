@@ -14,7 +14,6 @@
 - 覆盖沙箱全生命周期的关键操作：创建 / 快照 / 恢复 / 回滚 / 克隆 / 暂停恢复 / Volume / ivshmem。
 - 每个场景都做**并发扫描**，给出 avg/min/p50/p95/p99/max、wall time、单次均摊、吞吐量。
 - 报告出三份：机器读的 JSON、人读的 Markdown、能看图的 HTML。
-- 内置四台参考机型基线（BMI5 / BMSA9 / Vera A1P / Kunpeng 920），随便跑一次都能拿来横向比。
 - 多次跑、多台机器的 JSON 能合到同一张 HTML 里对比。
 - 组件版本参与环境指纹，所以**同一台机器上不同 cube 组件版本**也能横向对比——换个 CubeMaster /
   CubeAPI / … 版本会自动拆成独立序列（而非被平均掉），图例上直接标出差异版本，便于定位版本引入的性能回退。
@@ -65,7 +64,6 @@
            (带时间戳的原始数据)     (Markdown，中英双语)   (reporting/report_html)
                                                                 │
                                                     多文件按环境指纹分组/合并
-                                                    + reporting/baseline 基线虚线对比
                                                                 ▼
                                                         perf_report.html
 ```
@@ -100,10 +98,9 @@ perf/
 │   ├── snapshot/bench_create.py · bench_create_from.py · bench_dirty.py · bench_rollback.py
 │   └── volume/bench_volume.py（4 个 volume-* 场景）
 └── reporting/           # 报告体系（吃 JSON，出 MD/HTML）
-    ├── report.py        # Markdown + JSON 报告（中英双语）+ 基线对比列
-    ├── report_html.py   # 自包含交互式 HTML（多环境并排 + Chart.js + 基线虚线）
-    ├── report_config.py # HTML 报告的 TOML/env 可定制层
-    └── baseline.py      # 四台参考机型官方基线数据
+    ├── report.py        # Markdown + JSON 报告（中英双语）
+    ├── report_html.py   # 自包含交互式 HTML（多环境并排 + 折线图）
+    └── report_config.py # HTML 报告的 TOML/env 可定制层
 ```
 
 | 模块 | 职责 |
@@ -117,10 +114,9 @@ perf/
 | `cases/__init__.py` | 场景自动发现：`pkgutil.walk_packages` 收集所有 `bench_*` 模块，按点分路径**排序后**导入（== 运行/报告顺序） |
 | `cases/**/bench_*.py` | 13 个场景，按业务域分子包（clone / ivshmem / lifecycle / snapshot / volume）；每个文件用 `@benchmark` 或 `@sandbox_benchmark` 声明 |
 | `cases/ivshmem/probe.py` | ivshmem 共享内存 host 侧 mmap 探针（单字节 + 100B/1KB/100KB 块读写）；非 `bench_` 前缀，不被自动导入 |
-| `reporting/report.py` | Markdown + JSON 报告生成（中英双语），含基线对比列与跨机型基线参考附录 |
-| `reporting/report_html.py` | 自包含交互式 HTML 报告：多环境并排、Chart.js 折线图、基线虚线、按环境指纹分组合并 |
-| `reporting/report_config.py` | HTML 报告的 TOML/env 可定制层（标题、字段列表、基线过滤模式、列数） |
-| `reporting/baseline.py` | 四台参考机型（BMI5 / BMSA9 / Vera A1P / Kunpeng 920）官方基线数据 |
+| `reporting/report.py` | Markdown + JSON 报告生成（中英双语） |
+| `reporting/report_html.py` | 自包含交互式 HTML 报告：多环境并排、折线图、按环境指纹分组合并 |
+| `reporting/report_config.py` | HTML 报告的 TOML/env 可定制层（标题、字段列表、列数） |
 
 ---
 
@@ -398,10 +394,8 @@ def snapshot_create(sb, snaps):
 
 `write_reports()` 一次写四份：`report.md`（英）/ `report.zh.md`（中）/ `report.json` / `report.zh.json`。
 
-- 每张表都带**基线对比列**：`_cmp_str()` 用 `当前单次均摊 ÷ 基线单次均摊`，≈100% 表持平，+N% 表慢于基线。
 - 特化渲染：`_template_table`（带吞吐量列）、`_dirty_page_tables`（快照 + 恢复双子表）、
   `_density_table`（单 VM 内存均摊）。
-- 附带一份**静态跨机型基线参考附录**（四台机器全量数据，语言中立）。
 
 ### 7.3 HTML（`reporting/report_html.py`）
 
@@ -411,7 +405,7 @@ def snapshot_create(sb, snaps):
   独立对比序列。**组件版本进指纹**是刻意的——同一台机器换个组件版本会拆成独立序列而非被平均掉，
   否则版本引入的性能回退会被掩盖；`_disambiguate_labels()` 还会把各环境间**实际有差异**的版本字段
   追加到图例标签（如 `… · CubeMaster 0.5.1`），一眼看出每条线属于哪个 build。
-- 每个场景一张 Chart.js 折线图：实测环境实线、历史基线虚线；下方汇总表逐 (并发, 环境) 行带
+- 每个场景一张折线图：各实测环境一条实线；下方汇总表逐 (并发, 环境) 行带
   「vs 首个环境」徽标。
 - 单文件输入自动退化成单序列（兼容旧行为）。
 - `--compare` 就是喂两个及以上 JSON 的 HTML 模式。
@@ -421,11 +415,7 @@ def snapshot_create(sb, snaps):
 分层优先级：`CLI 参数 > 环境变量 > report.toml > 内置默认`。
 
 - TOML 文件搜索序：`./report.toml` → `perf/` → `tests/` → `sdk/python/`；`CUBE_REPORT_CONFIG` 可显式指定。
-- 可定制：标题 / 副标题、环境卡字段列表、env 卡列数、**基线过滤模式**。
-- **基线过滤模式** `[baselines] mode`：
-  - `auto`（默认）：只保留场景键与本次运行有交集的基线（x86-only 报告自动隐藏 Kunpeng 等）。
-  - `all` / `none` / `list`（配 `include` / `exclude`）。
-  - 对应 env：`CUBE_REPORT_BASELINE_MODE` / `_INCLUDE` / `_EXCLUDE`。
+- 可定制：标题 / 副标题、环境卡字段列表、env 卡列数。
 
 ---
 

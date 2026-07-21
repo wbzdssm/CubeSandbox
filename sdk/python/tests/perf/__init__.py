@@ -7,11 +7,11 @@ included within the `perf/` directory.  No external `e2e/` import needed.
 
 Run it via the CLI entry point (from the ``tests/`` directory)::
 
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
+    python3 -m perf                                   # local backend (default)
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf  # remote backend
 
 Modules:
     benchmarks  - 13 benchmark scenarios + run_all()
-    baseline    - official CubeSandbox perf baseline data (4 machines)
     report_html - self-contained HTML report with Chart.js line charts
     report      - Markdown + JSON report generation
     config      - configuration resolution & runtime tunables
@@ -32,6 +32,132 @@ if _SDK_ROOT not in sys.path:
     sys.path.insert(0, _SDK_ROOT)
 
 
+# Data-flow (connection) variables — the SDK ``Config`` knobs that decide which
+# backend the suite talks to. These are the only settings a first-time user must
+# provide; ``_ensure_dotenv`` scaffolds them and ``_persist_dotenv`` writes back
+# whatever a run actually used, so the 2nd/3rd invocation just needs
+# ``python3 -m perf`` (no re-exporting). Everything else stays in ``.env.example``.
+_DATAFLOW_ENV_KEYS = (
+    "CUBE_API_URL",
+    "CUBE_API_KEY",
+    "CUBE_TEMPLATE_ID",
+    "CUBE_PROXY_NODE_IP",
+    "CUBE_PROXY_PORT_HTTP",
+    "CUBE_SANDBOX_DOMAIN",
+)
+
+_DOTENV_HEADER = (
+    "# CubeSandbox perf suite — data-flow (connection) settings.\n"
+    "# Auto-generated on first run; the values a run actually uses are written\n"
+    "# back here, so later runs just need: python3 -m perf\n"
+    "# See .env.example for the full list of optional tunables/scenarios.\n"
+    "\n"
+)
+
+
+def _dotenv_candidates() -> "list[str]":
+    """Return the ``.env`` search locations (nearest first)."""
+    explicit = os.environ.get("CUBE_DOTENV")
+    if explicit:
+        return [explicit]
+    return [
+        os.path.join(os.getcwd(), ".env"),
+        os.path.join(_PKG_DIR, ".env"),
+        os.path.join(_TESTS_DIR, ".env"),
+        os.path.join(_SDK_ROOT, ".env"),
+    ]
+
+
+def _dotenv_path() -> str:
+    """The ``.env`` file to read/write: the first existing candidate, else the
+    default ``tests/perf/.env`` next to this package."""
+    explicit = os.environ.get("CUBE_DOTENV")
+    if explicit:
+        return explicit
+    for p in _dotenv_candidates():
+        if os.path.isfile(p):
+            return p
+    return os.path.join(_PKG_DIR, ".env")
+
+
+def _ensure_dotenv() -> None:
+    """Scaffold a minimal data-flow ``tests/perf/.env`` on first run.
+
+    When no ``.env`` exists in any search location (and ``CUBE_DOTENV`` is not
+    set), write a small file containing only the data-flow variables
+    (:data:`_DATAFLOW_ENV_KEYS`). Keys already set in the real environment are
+    written uncommented; the rest are left as commented placeholders so their
+    SDK defaults apply. Existing ``.env`` files are never touched, and any
+    failure is swallowed silently.
+    """
+    if os.environ.get("CUBE_DOTENV"):
+        return
+    if any(os.path.isfile(p) for p in _dotenv_candidates()):
+        return
+
+    out: list[str] = [_DOTENV_HEADER]
+    for key in _DATAFLOW_ENV_KEYS:
+        value = os.environ.get(key)
+        if value:
+            out.append(f"{key}={value}\n")
+        elif key == "CUBE_API_URL":
+            out.append(f"# {key}=   # default http://127.0.0.1:3000 (local); set for remote\n")
+        elif key == "CUBE_TEMPLATE_ID":
+            out.append(f"# {key}=   # leave empty to auto-discover a READY template\n")
+        else:
+            out.append(f"# {key}=\n")
+
+    target = os.path.join(_PKG_DIR, ".env")
+    try:
+        with open(target, "w", encoding="utf-8") as f:
+            f.writelines(out)
+    except OSError:
+        return
+    sys.stderr.write(
+        f"[perf] created {target} — local backend by default "
+        "(http://127.0.0.1:3000); set CUBE_API_URL for a remote one\n"
+    )
+
+
+def _persist_dotenv(values: "dict[str, str]") -> None:
+    """Write back the data-flow values a run actually used (the "2nd write").
+
+    Only non-empty :data:`_DATAFLOW_ENV_KEYS` are persisted. Matching lines in
+    the existing ``.env`` (commented or not) are replaced in place; missing keys
+    are appended. All other lines (comments, scenario knobs the user added) are
+    preserved verbatim. This lets the 2nd/3rd run reuse the values — including a
+    template id that was auto-discovered on the first run. Failures are silent.
+    """
+    values = {k: v for k, v in values.items() if k in _DATAFLOW_ENV_KEYS and v}
+    if not values:
+        return
+    path = _dotenv_path()
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        lines = [_DOTENV_HEADER]
+
+    pending = dict(values)
+    out: list[str] = []
+    for line in lines:
+        key = line.lstrip("# ").partition("=")[0].strip()
+        if key in pending:
+            out.append(f"{key}={pending.pop(key)}\n")
+        else:
+            out.append(line if line.endswith("\n") else line + "\n")
+    for key, value in pending.items():  # keys not yet present in the file
+        out.append(f"{key}={value}\n")
+
+    if out == lines:  # nothing changed — avoid a pointless rewrite
+        return
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.writelines(out)
+    except OSError:
+        return
+
+
 def _load_dotenv() -> None:
     """Populate os.environ from a ``.env`` file (zero-dependency).
 
@@ -47,16 +173,7 @@ def _load_dotenv() -> None:
       ``#`` comments are ignored; surrounding single/double quotes are stripped.
     - ``CUBE_DOTENV`` may point at an explicit file to load instead.
     """
-    explicit = os.environ.get("CUBE_DOTENV")
-    candidates = (
-        [explicit] if explicit else [
-            os.path.join(os.getcwd(), ".env"),
-            os.path.join(_PKG_DIR, ".env"),
-            os.path.join(_TESTS_DIR, ".env"),
-            os.path.join(_SDK_ROOT, ".env"),
-        ]
-    )
-    path = next((p for p in candidates if p and os.path.isfile(p)), None)
+    path = next((p for p in _dotenv_candidates() if p and os.path.isfile(p)), None)
     if not path:
         return
     try:
@@ -82,4 +199,5 @@ def _load_dotenv() -> None:
             os.environ[key] = value
 
 
+_ensure_dotenv()
 _load_dotenv()
