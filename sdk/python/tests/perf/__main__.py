@@ -88,19 +88,26 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     # Write back the data-flow settings this run actually used (incl. an
     # auto-discovered template id) so the 2nd/3rd run reuses them without any
     # re-exporting — just `python3 -m perf`.
-    from . import _persist_dotenv
+    from . import _persist_dotenv, _TUNABLE_ENV_KEYS
 
-    _persist_dotenv(
-        {
-            "CUBE_API_URL": cfg.api_url,
-            "CUBE_API_KEY": os.environ.get("CUBE_API_KEY")
-            or os.environ.get("E2B_API_KEY", ""),
-            "CUBE_TEMPLATE_ID": cfg.template_id or "",
-            "CUBE_PROXY_NODE_IP": cfg.proxy_node_ip or "",
-            "CUBE_PROXY_PORT_HTTP": str(cfg.proxy_port),
-            "CUBE_SANDBOX_DOMAIN": cfg.sandbox_domain,
-        }
+    persisted = {
+        "CUBE_API_URL": cfg.api_url,
+        "CUBE_API_KEY": os.environ.get("CUBE_API_KEY")
+        or os.environ.get("E2B_API_KEY", ""),
+        "CUBE_TEMPLATE_ID": cfg.template_id or "",
+        "CUBE_PROXY_NODE_IP": cfg.proxy_node_ip or "",
+        "CUBE_PROXY_PORT_HTTP": str(cfg.proxy_port),
+        "CUBE_SANDBOX_DOMAIN": cfg.sandbox_domain,
+    }
+    # Run tunables (concurrency ladders, rounds, density count, ...): only
+    # persist keys explicitly set for *this* run (real env var, e.g. exported
+    # to dodge a CubeMaster "no more resource" error, or already loaded from
+    # a previous .env write-back) — never bake in an untouched internal
+    # default. See framework/config.py for the actual defaults.
+    persisted.update(
+        (key, os.environ[key]) for key in _TUNABLE_ENV_KEYS if os.environ.get(key)
     )
+    _persist_dotenv(persisted)
 
     print("=" * 60)
     print(" Python SDK Performance Benchmark Suite")

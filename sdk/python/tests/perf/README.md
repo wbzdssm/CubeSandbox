@@ -82,12 +82,23 @@ for those keys; every other line (your comments, scenario toggles) is preserved.
 To tune scenarios/run params, copy the relevant lines from `.env.example` into
 your `.env`.
 
+**Run tunables are written back too**: if you export a run tunable (concurrency
+ladders, rounds, density count, warmup/settle, dirty sweep, cleanup — see
+`CUBE_*` vars under "Run parameters" in `.env.example`) for a run, it's written
+back the same way, so a value you dial down once (e.g. to dodge a CubeMaster
+"no more resource" error on a small node) sticks for later runs too — no need to
+re-export or hand-edit `.env`.
+
 ```bash
 # Local backend (defaults to http://127.0.0.1:3000): nothing to set, just run.
 python3 -m perf
 
 # Remote backend: set CUBE_API_URL (and CUBE_API_KEY); they get written back to .env.
 CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
+
+# Small node hitting "no more resource"? Trim the concurrency ladders once —
+# they're written back to .env, so later runs keep using the smaller ladder.
+CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m perf
 
 # To freeze scenario toggles, edit tests/perf/.env (see .env.example), e.g.:
 #   CUBE_PERF_SCENARIOS=snapshot rollback   # run only these two (== --only)

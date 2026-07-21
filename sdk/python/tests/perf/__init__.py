@@ -46,10 +46,28 @@ _DATAFLOW_ENV_KEYS = (
     "CUBE_SANDBOX_DOMAIN",
 )
 
+# Run tunables (concurrency ladders, rounds, density count, ...) — no secrets,
+# so they are safe to write back the same way. Whatever value a run actually
+# used (real env var, or already in .env) gets persisted, so once you dial the
+# concurrency ladder down to dodge a CubeMaster "no more resource" error on a
+# small node, later runs keep using the smaller ladder without re-exporting.
+_TUNABLE_ENV_KEYS = (
+    "CUBE_PERF_ROUNDS",
+    "CUBE_PERF_CONCURRENCY",
+    "CUBE_CREATE_CONCURRENCY",
+    "CUBE_PERF_WARMUP",
+    "CUBE_PERF_SETTLE",
+    "CUBE_DIRTY_SWEEP",
+    "CUBE_DENSITY_COUNT",
+    "CUBE_PERF_CLEANUP",
+    "CUBE_CLEANUP_CMD",
+)
+
 _DOTENV_HEADER = (
     "# CubeSandbox perf suite — data-flow (connection) settings.\n"
-    "# Auto-generated on first run; the values a run actually uses are written\n"
-    "# back here, so later runs just need: python3 -m perf\n"
+    "# Auto-generated on first run; the values a run actually uses (incl. any\n"
+    "# concurrency/rounds/density tunables you exported to dodge a resource\n"
+    "# error) are written back here, so later runs just need: python3 -m perf\n"
     "# See .env.example for the full list of optional tunables/scenarios.\n"
     "\n"
 )
@@ -120,15 +138,18 @@ def _ensure_dotenv() -> None:
 
 
 def _persist_dotenv(values: "dict[str, str]") -> None:
-    """Write back the data-flow values a run actually used (the "2nd write").
+    """Write back the data-flow/tunable values a run actually used.
 
-    Only non-empty :data:`_DATAFLOW_ENV_KEYS` are persisted. Matching lines in
-    the existing ``.env`` (commented or not) are replaced in place; missing keys
-    are appended. All other lines (comments, scenario knobs the user added) are
-    preserved verbatim. This lets the 2nd/3rd run reuse the values — including a
-    template id that was auto-discovered on the first run. Failures are silent.
+    Only non-empty keys from :data:`_DATAFLOW_ENV_KEYS` or
+    :data:`_TUNABLE_ENV_KEYS` are persisted. Matching lines in the existing
+    ``.env`` (commented or not) are replaced in place; missing keys are
+    appended. All other lines (comments, scenario knobs the user added) are
+    preserved verbatim. This lets the 2nd/3rd run reuse the values — including
+    a template id that was auto-discovered, or a concurrency ladder trimmed
+    down to dodge a CubeMaster "no more resource" error. Failures are silent.
     """
-    values = {k: v for k, v in values.items() if k in _DATAFLOW_ENV_KEYS and v}
+    allowed = _DATAFLOW_ENV_KEYS + _TUNABLE_ENV_KEYS
+    values = {k: v for k, v in values.items() if k in allowed and v}
     if not values:
         return
     path = _dotenv_path()

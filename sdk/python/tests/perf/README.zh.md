@@ -74,12 +74,21 @@ python3 -m perf --list-scenarios
 只会就地更新这几项，其余行（注释、你手动加的场景开关）原样保留。要调场景/运行参数，
 参照 `.env.example` 手动加进 `.env` 即可。
 
+**运行参数也会被写回**：如果本次运行 export 了某个运行参数（并发梯度、轮数、密度测试
+数量、预热/静默、脏页档位、清理开关等，见 `.env.example` 里「运行参数」一节的 `CUBE_*`
+变量），同样会被写回 `.env`。也就是说，遇到 CubeMaster `130597 no more resource` 把并发
+梯度调小跑通一次后，这个更小的梯度会自动固化下来，之后无需再手动 export 或改 `.env`。
+
 ```bash
 # 打本地后端（默认 http://127.0.0.1:3000）：无需指定任何变量，直接跑
 python3 -m perf
 
 # 打远端后端：只需额外指定 CUBE_API_URL（及鉴权 CUBE_API_KEY），会被写回 .env
 CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
+
+# 小节点跑到 "no more resource"？调小一次并发梯度即可 —— 会写回 .env，
+# 之后的运行会一直沿用这个更小的梯度，无需重复 export
+CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m perf
 
 # 想固化场景开关时，编辑 tests/perf/.env（参照 .env.example），例如：
 #   CUBE_PERF_SCENARIOS=snapshot rollback   # 只跑这两个（等价 --only）
