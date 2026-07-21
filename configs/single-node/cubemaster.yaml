@@ -100,9 +100,12 @@ scheduler:
       - "mem"
       - "template_locality"
       - "realtime_create_num"
+<<<<<<< HEAD
 
 # Volume plugin (COS binary reference). Credentials: CubeMaster/plugin/volume-cos.conf
 volume_plugins:
   - name: cos
     type: binary
     binary_path: /usr/local/services/cubetoolbox/CubeMaster/plugin/cube-volume-cos
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

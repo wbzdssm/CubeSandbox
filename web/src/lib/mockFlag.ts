@@ -20,8 +20,12 @@ if (typeof window !== 'undefined') {
 
 export function isMockEnabled(): boolean {
   try {
+<<<<<<< HEAD
     if (import.meta.env.VITE_USE_MOCK === '1' || import.meta.env.VITE_USE_MOCK === 'true')
       return true;
+=======
+    if (import.meta.env.VITE_USE_MOCK === '1' || import.meta.env.VITE_USE_MOCK === 'true') return true;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   } catch {
     /* ignore */
   }

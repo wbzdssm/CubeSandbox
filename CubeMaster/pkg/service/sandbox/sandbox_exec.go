@@ -39,10 +39,13 @@ func Exec(ctx context.Context, req *types.ExecRequest) (rsp *types.Res) {
 		rsp.Ret.RetMsg = "should provide sandbox id and container id"
 		return
 	}
+<<<<<<< HEAD
 	if ret := normalizeSandboxIDInReq(ctx, &req.SandboxID); ret != nil {
 		rsp.Ret = ret
 		return
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	if len(req.Args) == 0 {
 		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)

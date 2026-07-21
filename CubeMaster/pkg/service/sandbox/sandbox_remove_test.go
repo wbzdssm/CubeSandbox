@@ -9,7 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/cubebox/v1"
 	cubeleterrorcode "github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/errorcode/v1"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/ret"
 	basetypes "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
@@ -28,6 +31,7 @@ func TestDestroySandboxMissingSandboxReturnsNotFound(t *testing.T) {
 	})
 	patches := gomonkey.NewPatches()
 	defer patches.Reset()
+<<<<<<< HEAD
 	patches.ApplyFunc(config.GetConfig, func() *config.Config {
 		return &config.Config{Common: &config.CommonConf{}}
 	})
@@ -35,6 +39,8 @@ func TestDestroySandboxMissingSandboxReturnsNotFound(t *testing.T) {
 	patches.ApplyFunc(ResolveSandboxID, func(_ context.Context, input string) (string, error) {
 		return input, nil
 	})
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	patches.ApplyFunc(localcache.GetSandboxCache, func(string) *localcache.SandboxCache {
 		return nil
 	})

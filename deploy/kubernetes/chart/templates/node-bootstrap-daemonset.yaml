@@ -1,8 +1,15 @@
 {{- if .Values.cubeNode.enabled }}
+<<<<<<< HEAD
 # Node prep DaemonSet (wait-pvm-host + node-init + write node-prep-ready).
 # PVM host install is on cube-node-pvm. Low-churn: bumping nodeInit recreates
 # THIS pod only, not the Big Pod. Artifact install stays on cube-node-installer.
 apiVersion: {{ include "cube.nodeDaemonSetAPIVersion" . }}
+=======
+# Node prep DaemonSet (pvm + node-init + write node-prep-ready).
+# Low-churn workload: bumping nodeInit/pvmHostBootstrap recreates THIS pod only,
+# not the Big Pod. Artifact install stays on cube-node-installer (narrow mounts).
+apiVersion: apps/v1
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 kind: DaemonSet
 metadata:
   name: {{ include "cube.nodeBootstrapName" . }}
@@ -14,7 +21,10 @@ spec:
     type: {{ .Values.cubeNodeBootstrap.updateStrategy.type | default "RollingUpdate" }}
     {{- if .Values.cubeNodeBootstrap.updateStrategy.rollingUpdate }}
     rollingUpdate:
+<<<<<<< HEAD
       rollingUpdateType: {{ .Values.cubeNodeBootstrap.updateStrategy.rollingUpdate.rollingUpdateType | default "Standard" }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       maxUnavailable: {{ .Values.cubeNodeBootstrap.updateStrategy.rollingUpdate.maxUnavailable | default 1 }}
       {{- with .Values.cubeNodeBootstrap.updateStrategy.rollingUpdate.maxSurge }}
       maxSurge: {{ . }}
@@ -36,7 +46,11 @@ spec:
     spec:
       serviceAccountName: {{ include "cube.nodeServiceAccountName" . }}
       automountServiceAccountToken: true
+<<<<<<< HEAD
       # nsenter --target 1 for node-init (same privilege model as former Big Pod inits).
+=======
+      # nsenter --target 1 for pvm/node-init (same privilege model as former Big Pod inits).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       hostPID: true
       dnsPolicy: ClusterFirst
       terminationGracePeriodSeconds: {{ .Values.cubeNodeBootstrap.terminationGracePeriodSeconds }}
@@ -46,6 +60,7 @@ spec:
       {{- end }}
       {{- include "cube.computePlacement" . | nindent 6 }}
       initContainers:
+<<<<<<< HEAD
         - name: invalidate-stale-node-prep
           image: {{ include "cube.cubeImage" (dict "image" .Values.images.nodeInit "context" $) | quote }}
           imagePullPolicy: {{ .Values.images.nodeInit.pullPolicy }}
@@ -74,6 +89,12 @@ spec:
           image: {{ include "cube.cubeImage" (dict "image" .Values.images.nodeInit "context" $) | quote }}
           imagePullPolicy: {{ .Values.images.nodeInit.pullPolicy }}
           command: ["/usr/bin/tini", "-s", "--", "/scripts/wait-pvm-host.sh"]
+=======
+        {{- if .Values.bootstrap.pvmHostKernel.enabled }}
+        - name: pvm-host-bootstrap
+          image: {{ include "cube.cubeImage" (dict "image" .Values.images.pvmHostBootstrap "context" $) | quote }}
+          imagePullPolicy: {{ .Values.images.pvmHostBootstrap.pullPolicy }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           securityContext:
             privileged: {{ .Values.security.privileged }}
           env:
@@ -82,10 +103,18 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
+<<<<<<< HEAD
+=======
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             - name: HOST_ROOT
               value: /host
             - name: STATE_DIR
               value: {{ .Values.hostPaths.bootstrapState | quote }}
+<<<<<<< HEAD
             - name: PVM_FEATURE_ENABLED
               value: {{ ternary "1" "0" .Values.bootstrap.pvmHostKernel.enabled | quote }}
             - name: CUBE_PVM_ENABLE
@@ -100,6 +129,37 @@ spec:
               value: {{ .Values.cubeNodeBootstrap.pvmWaitTimeoutSeconds | default "900" | quote }}
           volumeMounts:
             {{- include "cube.bootstrapHostVolumeMounts" . | nindent 12 }}
+=======
+            - name: PVM_ENABLED
+              value: "1"
+            - name: DESIRED_KERNEL_PATTERN
+              value: {{ .Values.bootstrap.pvmHostKernel.desiredKernelPattern | quote }}
+            - name: PVM_KERNEL_BOOT_ARGS
+              value: {{ .Values.bootstrap.pvmHostKernel.bootArgs | quote }}
+            - name: PVM_KERNEL_RPM_PATH
+              value: {{ .Values.bootstrap.pvmHostKernel.package.rpmPath | quote }}
+            - name: PVM_KERNEL_DEB_PATH
+              value: {{ .Values.bootstrap.pvmHostKernel.package.debPath | quote }}
+            - name: PVM_KERNEL_RPM_URL
+              value: {{ .Values.bootstrap.pvmHostKernel.package.rpmUrl | quote }}
+            - name: PVM_KERNEL_DEB_URL
+              value: {{ .Values.bootstrap.pvmHostKernel.package.debUrl | quote }}
+            - name: PVM_KERNEL_PACKAGE_SOURCE
+              value: {{ .Values.bootstrap.pvmHostKernel.package.source | quote }}
+            - name: REBOOT_ENABLED
+              value: {{ .Values.bootstrap.pvmHostKernel.reboot.enabled | quote }}
+            - name: REBOOT_COORDINATED
+              value: {{ .Values.bootstrap.pvmHostKernel.reboot.coordinated | quote }}
+            - name: LEASE_NAME
+              value: {{ .Values.bootstrap.pvmHostKernel.reboot.leaseName | quote }}
+            - name: LEASE_TTL_SECONDS
+              value: {{ .Values.bootstrap.pvmHostKernel.reboot.leaseTTLSeconds | quote }}
+            - name: REBOOT_MAX_COUNT
+              value: {{ .Values.bootstrap.pvmHostKernel.reboot.maxCount | quote }}
+          volumeMounts:
+            {{- include "cube.bootstrapHostVolumeMounts" . | nindent 12 }}
+        {{- end }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         {{- if .Values.bootstrap.nodeInit.enabled }}
         - name: cube-node-init
           image: {{ include "cube.cubeImage" (dict "image" .Values.images.nodeInit "context" $) | quote }}
@@ -175,6 +235,7 @@ spec:
           image: {{ include "cube.cubeImage" (dict "image" .Values.images.waitNodePrep "context" $) | quote }}
           imagePullPolicy: {{ .Values.images.waitNodePrep.pullPolicy }}
           command: ["/usr/bin/tini", "-s", "--", "/scripts/write-node-prep-ready.sh"]
+<<<<<<< HEAD
           securityContext:
             seccompProfile:
               type: RuntimeDefault
@@ -182,6 +243,8 @@ spec:
             capabilities:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           env:
             {{- include "cube.timezoneEnv" . | nindent 12 }}
             - name: STATE_DIR

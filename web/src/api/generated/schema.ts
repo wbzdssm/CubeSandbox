@@ -149,6 +149,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+<<<<<<< HEAD
     "/templates/aliases/{alias}": {
         parameters: {
             query?: never;
@@ -165,6 +166,8 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     "/templates/compat": {
         parameters: {
             query?: never;
@@ -321,8 +324,13 @@ export interface components {
         ListedSandbox: {
             alias?: string | null;
             clientID: string;
+<<<<<<< HEAD
             /** K8s-style millicores string, e.g. "2000m" (= 2 vCPU), "128m" (= 0.128 vCPU). */
             cpuCount: string;
+=======
+            /** Format: int32 */
+            cpuCount: number;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             /** Format: int32 */
             diskSizeMB?: number | null;
             /** Format: date-time */
@@ -433,8 +441,13 @@ export interface components {
         SandboxDetail: {
             alias?: string | null;
             clientID: string;
+<<<<<<< HEAD
             /** K8s-style millicores string, e.g. "2000m" (= 2 vCPU), "128m" (= 0.128 vCPU). */
             cpuCount: string;
+=======
+            /** Format: int32 */
+            cpuCount: number;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             /** Format: int32 */
             diskSizeMB?: number | null;
             domain?: string | null;
@@ -476,10 +489,13 @@ export interface components {
             name: string;
             path: string;
         };
+<<<<<<< HEAD
         TemplateAliasLookupResponse: {
             public: boolean;
             templateID: string;
         };
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         TemplateCompatAdoptResponseView: {
             /** Format: int32 */
             updated: number;
@@ -508,6 +524,7 @@ export interface components {
         };
         /** @description Detailed template response (GET /templates/:id). */
         TemplateDetail: {
+<<<<<<< HEAD
             /**
              * @description E2B template aliases. CubeSandbox has no namespace model, so this
              *     mirrors the stable alias when one is configured.
@@ -524,6 +541,17 @@ export interface components {
             /** @description Network type used when the template was created, e.g. "tap". */
             networkType?: string | null;
             public: boolean;
+=======
+            /** @description Whether public internet access is allowed for sandboxes from this template. */
+            allowInternetAccess?: boolean | null;
+            createRequest?: unknown;
+            /** @description Latest create/rebuild job id for the template. */
+            jobID?: string | null;
+            instanceType?: string | null;
+            lastError?: string | null;
+            /** @description Network type used when the template was created, e.g. "tap". */
+            networkType?: string | null;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             replicas: unknown[];
             status: string;
             templateID: string;
@@ -542,6 +570,7 @@ export interface components {
         };
         /** @description Summary row returned by GET /templates. */
         TemplateSummary: {
+<<<<<<< HEAD
             /**
              * @description E2B template aliases. CubeSandbox has no namespace model, so this
              *     mirrors the stable alias when one is configured.
@@ -557,6 +586,17 @@ export interface components {
             status: string;
             templateID: string;
             version?: string | null;
+=======
+            createdAt?: string | null;
+            imageInfo?: string | null;
+            instanceType?: string | null;
+            lastError?: string | null;
+            status: string;
+            templateID: string;
+            version?: string | null;
+            /** @description Latest create/rebuild job id for the template. */
+            jobID?: string | null;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         };
         /** @description Full node x component version matrix. */
         VersionMatrixView: {
@@ -965,6 +1005,7 @@ export interface operations {
             };
         };
     };
+<<<<<<< HEAD
     get_template_by_alias: {
         parameters: {
             query?: never;
@@ -1015,6 +1056,8 @@ export interface operations {
             };
         };
     };
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     template_compat: {
         parameters: {
             query?: never;

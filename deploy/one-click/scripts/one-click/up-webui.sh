@@ -23,11 +23,17 @@ fi
 WEB_UI_IMAGE="${WEB_UI_IMAGE:-cube-sandbox-image.tencentcloudcr.com/opensource/openresty:1.21.4.1-6-alpine-fat}"
 WEB_UI_CONTAINER_NAME="${WEB_UI_CONTAINER_NAME:-cube-webui}"
 WEB_UI_HOST_PORT="${WEB_UI_HOST_PORT:-12088}"
+<<<<<<< HEAD
 WEB_UI_UPSTREAM="${WEB_UI_UPSTREAM:-http://host.docker.internal:3010}"
 # cube-proxy (host network, port 80) for same-origin /sandbox/ forwarding.
 SANDBOX_PROXY_UPSTREAM="${SANDBOX_PROXY_UPSTREAM:-http://host.docker.internal:80}"
 # CubeOps (admin/ops API, port 3010) for /opsapi/ and SDK path forwarding.
 CUBE_OPS_UPSTREAM="${CUBE_OPS_UPSTREAM:-http://host.docker.internal:3010}"
+=======
+WEB_UI_UPSTREAM="${WEB_UI_UPSTREAM:-http://host.docker.internal:3000}"
+# cube-proxy (host network, port 80) for same-origin /sandbox/ forwarding.
+SANDBOX_PROXY_UPSTREAM="${SANDBOX_PROXY_UPSTREAM:-http://host.docker.internal:80}"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 COMPOSE_DETACH="${ONE_CLICK_COMPOSE_DETACH:-1}"
 PREPARE_ONLY="${ONE_CLICK_PREPARE_ONLY:-0}"
 
@@ -72,7 +78,10 @@ wait_for_tcp_port() {
 WEB_UI_HOST_PORT_ESCAPED="$(escape_sed "${WEB_UI_HOST_PORT}" '#')"
 WEB_UI_UPSTREAM_ESCAPED="$(escape_sed "${WEB_UI_UPSTREAM}" '#')"
 SANDBOX_PROXY_UPSTREAM_ESCAPED="$(escape_sed "${SANDBOX_PROXY_UPSTREAM}" '#')"
+<<<<<<< HEAD
 CUBE_OPS_UPSTREAM_ESCAPED="$(escape_sed "${CUBE_OPS_UPSTREAM}" '#')"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 WEB_UI_IMAGE_ESCAPED="$(escape_sed "${WEB_UI_IMAGE}" '#')"
 WEB_UI_CONTAINER_NAME_ESCAPED="$(escape_sed "${WEB_UI_CONTAINER_NAME}" '#')"
 WEB_UI_DIST_DIR_ESCAPED="$(escape_sed "${WEB_UI_DIST_DIR}" '#')"
@@ -83,8 +92,12 @@ render_template_atomic \
   "${NGINX_CONF}" \
   -e "s#__WEB_UI_HOST_PORT__#${WEB_UI_HOST_PORT_ESCAPED}#g" \
   -e "s#__WEB_UI_UPSTREAM__#${WEB_UI_UPSTREAM_ESCAPED}#g" \
+<<<<<<< HEAD
   -e "s#__SANDBOX_PROXY_UPSTREAM__#${SANDBOX_PROXY_UPSTREAM_ESCAPED}#g" \
   -e "s#__CUBE_OPS_UPSTREAM__#${CUBE_OPS_UPSTREAM_ESCAPED}#g"
+=======
+  -e "s#__SANDBOX_PROXY_UPSTREAM__#${SANDBOX_PROXY_UPSTREAM_ESCAPED}#g"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 render_template_atomic \
   "${COMPOSE_TEMPLATE}" \
@@ -116,6 +129,7 @@ log "webui listening on ${WEB_UI_HOST_PORT}"
 
 wait_for_http "http://127.0.0.1:${WEB_UI_HOST_PORT}/" 30 1 \
   || die "webui index did not become ready"
+<<<<<<< HEAD
 # CubeMaster health — the core scheduler must be up before WebUI starts
 # accepting requests, since CubeOps proxies SDK calls to CubeMaster HTTP REST.
 cubemaster_addr="${CUBEMASTER_ADDR:-127.0.0.1:8089}"
@@ -135,3 +149,7 @@ cube_ops_bind="${CUBE_OPS_BIND:-0.0.0.0:3010}"
 cube_ops_port="${cube_ops_bind##*:}"
 wait_for_http "http://127.0.0.1:${cube_ops_port}/health" 30 1 \
   || die "cubeops health not ready"
+=======
+wait_for_http "http://127.0.0.1:${WEB_UI_HOST_PORT}/cubeapi/v1/health" 30 1 \
+  || die "webui could not reach cube-api through /cubeapi"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

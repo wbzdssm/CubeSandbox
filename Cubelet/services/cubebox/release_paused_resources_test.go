@@ -14,8 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/Cubelet/api/services/errorcode/v1"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/config"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	cubeboxstore "github.com/tencentcloud/CubeSandbox/Cubelet/pkg/store/cubebox"
 )
 
@@ -239,6 +242,7 @@ func TestResumeQuotaRejectionMessageFormat(t *testing.T) {
 	})
 	assert.Equal(t, "need 2000m + used 7000m > cpu quota 8000m", cpu)
 }
+<<<<<<< HEAD
 
 func TestAdmitResumeRejectsWhenResourceMetadataIsMissing(t *testing.T) {
 	_, err := config.Init("", true)
@@ -350,3 +354,5 @@ func TestResumeLockedRejectsWithoutSkipAdmissionUnderCapacityPressure(t *testing
 	assert.Equal(t, errorcode.ErrorCode_Conflict, result.ret.RetCode)
 	assert.Zero(t, task.resumeCalls, "task.Resume must not be called when admission rejects")
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

@@ -30,5 +30,10 @@ export const useAgentStore = create<AgentState>()((set) => ({
     set((s) => ({
       userAgents: s.userAgents.map((item) => (item.id === agent.id ? agent : item)),
     })),
+<<<<<<< HEAD
   removeAgent: (id) => set((s) => ({ userAgents: s.userAgents.filter((a) => a.id !== id) })),
+=======
+  removeAgent: (id) =>
+    set((s) => ({ userAgents: s.userAgents.filter((a) => a.id !== id) })),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }));

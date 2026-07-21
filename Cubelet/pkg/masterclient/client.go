@@ -26,14 +26,21 @@ type ResourceSnapshot struct {
 
 // ComponentVersion describes the version of a single component installed on
 // this node. Reported to CubeMaster on register and heartbeat. Source is one
+<<<<<<< HEAD
 // of "manifest" | "binary" | "file" | "component-json".
+=======
+// of "manifest" | "binary" | "file".
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 type ComponentVersion struct {
 	Component string `json:"component"`
 	Version   string `json:"version,omitempty"`
 	Commit    string `json:"commit,omitempty"`
 	BuildTime string `json:"build_time,omitempty"`
 	Source    string `json:"source,omitempty"`
+<<<<<<< HEAD
 	Variant   string `json:"variant,omitempty"` // kernel: bm|pvm
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type RegisterNodeRequest struct {
@@ -51,7 +58,10 @@ type RegisterNodeRequest struct {
 	CreateConcurrentNum int64              `json:"create_concurrent_num,omitempty"`
 	MaxMvmNum           int64              `json:"max_mvm_num,omitempty"`
 	Versions            []ComponentVersion `json:"versions,omitempty"`
+<<<<<<< HEAD
 	InventoryIncomplete bool               `json:"inventory_incomplete,omitempty"`
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type UpdateNodeStatusRequest struct {
@@ -65,8 +75,12 @@ type UpdateNodeStatusRequest struct {
 	DiskUsage  *DiskUsage          `json:"disk_usage,omitempty"`
 	MetricTime time.Time           `json:"metric_time,omitempty"`
 
+<<<<<<< HEAD
 	Versions            []ComponentVersion `json:"versions,omitempty"`
 	InventoryIncomplete bool               `json:"inventory_incomplete,omitempty"`
+=======
+	Versions []ComponentVersion `json:"versions,omitempty"`
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // AllocatedResources represents sandbox-quota resources already committed by

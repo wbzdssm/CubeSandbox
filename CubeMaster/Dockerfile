@@ -19,14 +19,20 @@ WORKDIR /src
 
 COPY CubeMaster/go.mod CubeMaster/go.sum ./
 COPY cubelog/go.mod cubelog/go.sum /cubelog/
+<<<<<<< HEAD
 COPY CubeDB/go.mod CubeDB/go.sum /CubeDB/
 COPY Cubelet/go.mod Cubelet/go.sum /Cubelet/
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 RUN go mod download
 
 COPY CubeMaster/ ./
 COPY cubelog/ /cubelog/
+<<<<<<< HEAD
 COPY CubeDB/ /CubeDB/
 COPY Cubelet/ /Cubelet/
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ENV CGO_ENABLED=0
 RUN set -eux; \

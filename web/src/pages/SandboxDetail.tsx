@@ -6,7 +6,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { sandboxApi } from '@/api/client';
+<<<<<<< HEAD
 import { ApiError } from '@/lib/api';
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import { Card, CardTitle, CardDescription, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,10 +28,13 @@ const LEVEL_CLASS: Record<string, string> = {
   error: 'text-cube-err/70',
 };
 
+<<<<<<< HEAD
 function isNotFoundError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 function formatLogTime(ts: string): string {
   const d = new Date(ts);
   if (Number.isNaN(d.getTime())) return ts;
@@ -43,6 +49,7 @@ export default function SandboxDetailPage() {
   const { t } = useTranslation('sandboxDetail');
 
   // ── Sandbox detail ──────────────────────────────────────────────────────
+<<<<<<< HEAD
   const detail = useQuery({
     queryKey: ['sandbox', sandboxID],
     queryFn: () => sandboxApi.get(sandboxID),
@@ -59,14 +66,27 @@ export default function SandboxDetailPage() {
       void qc.invalidateQueries({ queryKey: ['sandboxes'] });
     }
   }, [isUnavailable, qc]);
+=======
+  const { data, isLoading } = useQuery({
+    queryKey: ['sandbox', sandboxID],
+    queryFn: () => sandboxApi.get(sandboxID),
+    enabled: !!sandboxID,
+    refetchInterval: 5_000,
+  });
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   // ── Logs ────────────────────────────────────────────────────────────────
   const logs = useQuery({
     queryKey: ['sandbox-logs', sandboxID],
     queryFn: () => sandboxApi.logs(sandboxID),
+<<<<<<< HEAD
     enabled: !!sandboxID && !isUnavailable,
     retry: (failureCount, error) => !isNotFoundError(error) && failureCount < 1,
     refetchInterval: (query) => (isNotFoundError(query.state.error) ? false : 10_000),
+=======
+    enabled: !!sandboxID,
+    refetchInterval: 10_000,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   });
   const logRef = useRef<HTMLPreElement>(null);
   // Auto-scroll to bottom whenever new logs arrive
@@ -110,6 +130,7 @@ export default function SandboxDetailPage() {
     },
   });
 
+<<<<<<< HEAD
   const state = data?.state ?? (isLoading ? 'loading' : 'unknown');
   const tone =
     state === 'paused' || state === 'pausing' ? 'warn' : state === 'running' ? 'ok' : 'mute';
@@ -199,6 +220,12 @@ export default function SandboxDetailPage() {
     );
   }
 
+=======
+  const state = data?.state ?? 'running';
+  const tone = state === 'paused' || state === 'pausing' ? 'warn' : state === 'running' ? 'ok' : 'mute';
+  const entries = logs.data?.logs ?? [];
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return (
     <div className="animate-fade-in space-y-5">
       {/* ── Header ── */}
@@ -217,6 +244,7 @@ export default function SandboxDetailPage() {
             {data?.templateID ?? '—'} · {t('started', { time: formatRelative(data?.startedAt) })}
           </p>
         </div>
+<<<<<<< HEAD
         {data ? (
           <div className="flex gap-2">
             {state === 'paused' ? (
@@ -241,6 +269,25 @@ export default function SandboxDetailPage() {
           {t('refreshFailed')}
         </div>
       ) : null}
+=======
+        <div className="flex gap-2">
+          {state === 'paused' ? (
+            <Button variant="outline" onClick={() => resume.mutate()} disabled={resume.isPending}>
+              <Play size={14} /> {t('actions.resume')}
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => pause.mutate()} disabled={pause.isPending}>
+              <Pause size={14} /> {t('actions.pause')}
+            </Button>
+          )}
+          <Button variant="destructive" onClick={() => kill.mutate()} disabled={kill.isPending}>
+            <Trash2 size={14} /> {t('actions.kill')}
+          </Button>
+        </div>
+      </div>
+
+      <SandboxActionErrorBanner message={actionError} onDismiss={() => setActionError(null)} />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
       {/* ── Info cards ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -276,10 +323,13 @@ export default function SandboxDetailPage() {
             </li>
 
             <li className="flex justify-between">
+<<<<<<< HEAD
               <span className="text-muted-foreground">{t('fields.ends')}</span>
               <span>{formatDateTime(data?.endAt)}</span>
             </li>
             <li className="flex justify-between">
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               <span className="text-muted-foreground">{t('fields.state')}</span>
               <span>{state}</span>
             </li>
@@ -318,9 +368,13 @@ export default function SandboxDetailPage() {
               <CardDescription>
                 {t('logsDesc')}
                 {entries.length > 0 && (
+<<<<<<< HEAD
                   <span className="ml-2 text-muted-foreground">
                     ({entries.length} {t('logsEntries')})
                   </span>
+=======
+                  <span className="ml-2 text-muted-foreground">({entries.length} {t('logsEntries')})</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 )}
               </CardDescription>
             </div>
@@ -329,7 +383,11 @@ export default function SandboxDetailPage() {
               variant="ghost"
               title={t('logsRefresh')}
               onClick={() => logs.refetch()}
+<<<<<<< HEAD
               disabled={logs.isFetching || isNotFoundError(logs.error)}
+=======
+              disabled={logs.isFetching}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             >
               <RefreshCw size={14} className={cn(logs.isFetching && 'animate-spin')} />
             </Button>
@@ -341,10 +399,13 @@ export default function SandboxDetailPage() {
         >
           {logs.isLoading ? (
             <span className="text-muted-foreground">{t('logsLoading')}</span>
+<<<<<<< HEAD
           ) : logs.isError ? (
             <span className="text-muted-foreground">
               {isNotFoundError(logs.error) ? t('logsUnavailable') : t('logsError')}
             </span>
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           ) : entries.length === 0 ? (
             <span className="text-muted-foreground">{t('logsEmpty')}</span>
           ) : (
@@ -356,7 +417,13 @@ export default function SandboxDetailPage() {
                   <span className="shrink-0 text-muted-foreground/60">
                     {formatLogTime(entry.timestamp as unknown as string)}
                   </span>
+<<<<<<< HEAD
                   <span className={cn('shrink-0 w-10 uppercase font-semibold', cls)}>{lvl}</span>
+=======
+                  <span className={cn('shrink-0 w-10 uppercase font-semibold', cls)}>
+                    {lvl}
+                  </span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   <span className={cn('break-all', cls)}>{entry.message}</span>
                 </div>
               );
@@ -374,12 +441,17 @@ function formatDateTime(value?: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(undefined, {
+<<<<<<< HEAD
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+=======
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     hour12: false,
   }).format(date);
 }

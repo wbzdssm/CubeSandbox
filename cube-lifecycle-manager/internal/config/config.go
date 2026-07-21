@@ -42,8 +42,13 @@ type Config struct {
 	DefaultIdleTimeout time.Duration
 
 	// Loop intervals.
+<<<<<<< HEAD
 	StreamReadBlock   time.Duration // XREADGROUP BLOCK arg
 	LastActivePoll    time.Duration // GET /admin/last_active cadence
+=======
+	StreamReadBlock  time.Duration // XREADGROUP BLOCK arg
+	LastActivePoll   time.Duration // GET /admin/last_active cadence
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	IdleSweepInterval time.Duration // sweeper cadence
 	// BootstrapWarmup: after sidecar restart, wait this long before pausing
 	// any sandbox that was loaded via HGETALL bootstrap. Lets the

@@ -37,7 +37,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/scheduler/selctx"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/task"
+<<<<<<< HEAD
 	volrefcount "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/volume/refcount"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -308,9 +311,12 @@ func (c *createSandboxContext) dealSuccResult() {
 				c.masterRsp.ExtInfo[constants.CubeExtNumaKey] = string(v)
 			}
 		}
+<<<<<<< HEAD
 		// Apply any node-level volume ref-count transitions (0→1) reported by
 		// Cubelet so the volume DB knows how many nodes reference each volume.
 		volrefcount.ApplyFromExtInfo(c.ctx, c.cubeletRsp.GetExtInfo())
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		if config.GetConfig().CubeletConf.EnableExposedPort {
 			if c.cubeletRsp.GetPortMappings() != nil {
 				c.cubeletRspPorts = make(map[string]string)

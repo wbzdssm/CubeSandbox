@@ -138,7 +138,10 @@ func (s *service) resumePausedSandboxForDestroy(ctx context.Context, sb *cubebox
 		taskDeadline:      budget.resumeDeadline(now),
 		reconcileDeadline: budget.resumeDeadline(now),
 		persist:           false,
+<<<<<<< HEAD
 		skipAdmission:     true, // sandbox will be destroyed immediately after resume
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	})
 	durationMS := time.Since(now).Milliseconds()
 	if result.running {

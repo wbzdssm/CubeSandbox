@@ -415,6 +415,7 @@ func TestCollectCubeEgressDegradesWithoutMarker(t *testing.T) {
 		t.Errorf("cube-egress must NOT be reported when version marker is absent")
 	}
 }
+<<<<<<< HEAD
 
 func TestCollectAgentVersionFileWithoutManifest(t *testing.T) {
 	dir := t.TempDir()
@@ -602,3 +603,5 @@ func TestCollectKernelPrefersVmlinuxActiveOverArtifactSymlink(t *testing.T) {
 		t.Fatalf("vmlinux-active should win over artifact bm symlink, got %+v ok=%v", k, ok)
 	}
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

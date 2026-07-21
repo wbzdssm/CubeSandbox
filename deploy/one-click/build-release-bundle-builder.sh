@@ -59,7 +59,10 @@ rm -f \
   "${PREBUILT_DIR}/cubelet" \
   "${PREBUILT_DIR}/cubecli" \
   "${PREBUILT_DIR}/cube-api" \
+<<<<<<< HEAD
   "${PREBUILT_DIR}/cubeops" \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   "${PREBUILT_DIR}/network-agent" \
   "${PREBUILT_DIR}/cubevsmapdump" \
   "${PREBUILT_DIR}/cube-agent" \
@@ -83,9 +86,12 @@ echo "[one-click] building cube-api in builder" >&2
 (cd /workspace/CubeAPI && cargo build --release --locked)
 install -m 0755 /workspace/CubeAPI/target/release/cube-api "${PREBUILT_DIR}/cube-api"
 
+<<<<<<< HEAD
 echo "[one-click] building cubeops in builder" >&2
 (cd /workspace/CubeOps && go mod download && go build -ldflags "-s -w" -o "${PREBUILT_DIR}/cubeops" ./cmd/cubeops)
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 echo "[one-click] building network-agent in builder" >&2
 (cd /workspace/CubeNet && make -C cubevs gen && cd /workspace/network-agent && go build -ldflags "${NETAGENT_LDFLAGS}" -o "${PREBUILT_DIR}/network-agent" ./cmd/network-agent)
 
@@ -122,7 +128,10 @@ for artifact in \
   cubelet \
   cubecli \
   cube-api \
+<<<<<<< HEAD
   cubeops \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   network-agent \
   cubevsmapdump \
   cube-agent \
@@ -138,7 +147,10 @@ ONE_CLICK_CUBEMASTERCLI_BIN="${PREBUILT_DIR}/cubemastercli" \
 ONE_CLICK_CUBELET_BIN="${PREBUILT_DIR}/cubelet" \
 ONE_CLICK_CUBECLI_BIN="${PREBUILT_DIR}/cubecli" \
 ONE_CLICK_CUBE_API_BIN="${PREBUILT_DIR}/cube-api" \
+<<<<<<< HEAD
 ONE_CLICK_CUBE_OPS_BIN="${PREBUILT_DIR}/cubeops" \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ONE_CLICK_NETWORK_AGENT_BIN="${PREBUILT_DIR}/network-agent" \
 ONE_CLICK_CUBEVSMAPDUMP_BIN="${PREBUILT_DIR}/cubevsmapdump" \
 ONE_CLICK_CUBE_AGENT_BIN="${PREBUILT_DIR}/cube-agent" \

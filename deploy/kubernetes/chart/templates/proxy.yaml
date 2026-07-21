@@ -114,8 +114,13 @@ spec:
     name: {{ .Values.cubeProxy.tls.certManager.issuerRef.name | quote }}
 ---
 {{- end }}
+<<<<<<< HEAD
 apiVersion: {{ include "cube.cloneSetAPIVersion" . }}
 kind: CloneSet
+=======
+apiVersion: apps/v1
+kind: Deployment
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 metadata:
   name: {{ include "cube.proxyName" . }}
   labels:
@@ -123,7 +128,12 @@ metadata:
     app.kubernetes.io/component: cube-proxy
 spec:
   replicas: {{ .Values.cubeProxy.replicas }}
+<<<<<<< HEAD
   {{- include "cube.cloneSetUpdateStrategy" . | nindent 2 }}
+=======
+  strategy:
+    {{- toYaml .Values.cubeProxy.strategy | nindent 4 }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   selector:
     matchLabels:
       {{- include "cube.selectorLabels" . | nindent 6 }}

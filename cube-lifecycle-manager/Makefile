@@ -64,10 +64,13 @@ manifest:
 		done; \
 	done
 
+<<<<<<< HEAD
 .PHONY: fmt
 fmt:
 	$(Q)go fmt ./...
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 .PHONY: test
 test:
 	$(Q)go test ./...

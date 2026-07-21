@@ -35,4 +35,8 @@
     "resumeCapacityDetail": "节点内存不足, 无法恢复 (还需 {{need}}, 已用 {{used}}, 配额 {{quota}})",
     "resumeCapacityDetailCpu": "节点 CPU 不足, 无法恢复 (还需 {{need}}, 已用 {{used}}, 配额 {{quota}})"
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

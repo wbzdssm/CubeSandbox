@@ -1,6 +1,7 @@
 # Rust build artifacts (per-module)
 **/target/
 
+<<<<<<< HEAD
 # Go build artifacts
 CubeOps/bin/
 
@@ -8,6 +9,8 @@ CubeOps/bin/
 /go.work
 /go.work.sum
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 # IDE
 .idea/
 .vscode/
@@ -32,7 +35,10 @@ runtime/agent/src/version.rs
 # Python cache and compiled binaries in examples
 API/examples/__pycache__/
 API/examples/go/go
+<<<<<<< HEAD
 CubeAPI/examples/log.txt
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 # OpenAI Agents SDK examples (runtime artifacts)
 examples/openai-agents-example/__pycache__/
@@ -52,7 +58,10 @@ docs/webui-init.md
 docs/dev-log.md
 docs/image-1.png
 docs/image.png
+<<<<<<< HEAD
 docs/design/
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 # Keep the SDK compatibility E2E suite tracked while ignoring other test
 # directories and its generated local pytest cache.

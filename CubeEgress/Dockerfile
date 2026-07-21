@@ -4,9 +4,12 @@ ARG CUBE_VERSION=0.0.0-dev
 ARG CUBE_COMMIT=unknown
 ARG CUBE_BUILD_TIME=unknown
 
+<<<<<<< HEAD
 # Prepend toolbox shim dir without dropping PATH inherited from openresty base.
 ENV PATH="/usr/local/services/cubetoolbox/cube-shim/bin:${PATH}"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 RUN apt update && \
 	DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
 		bash \

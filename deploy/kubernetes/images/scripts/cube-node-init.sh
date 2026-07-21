@@ -5,8 +5,15 @@ log() { printf '[cube-node-init] %s\n' "$*"; }
 fail() { printf '[cube-node-init] ERROR: %s\n' "$*" >&2; exit 1; }
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname "$0")" && pwd)"
+<<<<<<< HEAD
 # shellcheck disable=SC1091
 . "${SCRIPT_DIR}/node-prep-lib.sh"
+=======
+if [ -f "${SCRIPT_DIR}/node-prep-lib.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${SCRIPT_DIR}/node-prep-lib.sh"
+fi
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 HOST_ROOT="${HOST_ROOT:-/host}"
 STATE_DIR="${STATE_DIR:-/var/lib/cube-node-bootstrap}"
@@ -31,7 +38,11 @@ CUBE_SANDBOX_NETWORK_CIDR_SKIP_CONFLICT_CHECK="${CUBE_SANDBOX_NETWORK_CIDR_SKIP_
 LOOPBACK_ENABLED="${LOOPBACK_ENABLED:-false}"
 LOOPBACK_IMAGE_PATH="${LOOPBACK_IMAGE_PATH:-/data/cubelet-xfs.img}"
 LOOPBACK_SIZE="${LOOPBACK_SIZE:-25G}"
+<<<<<<< HEAD
 # When bootstrap Pod restarts and fingerprint already matches, skip
+=======
+# REV3.2: when bootstrap Pod restarts and fingerprint already matches, skip
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 # (avoids blocking artifact-unrelated paths on Master/preflight). Default true
 # for bootstrap DS; set false to force a full re-run.
 SKIP_IF_NODE_PREP_READY="${SKIP_IF_NODE_PREP_READY:-true}"
@@ -41,10 +52,16 @@ export HOST_ROOT STATE_DIR NODE_INIT_ENABLED PVM_ENABLED
 
 host_path() { printf '%s%s' "$HOST_ROOT" "$1"; }
 
+<<<<<<< HEAD
 # Per-node effective-pvm (from wait-pvm-host) overrides Helm CUBE_PVM_ENABLE / PVM_ENABLED.
 apply_effective_pvm_env
 
 if [ "$SKIP_IF_NODE_PREP_READY" = "true" ] && node_prep_fingerprint_matches_file; then
+=======
+if [ "$SKIP_IF_NODE_PREP_READY" = "true" ] \
+  && command -v node_prep_fingerprint_matches_file >/dev/null 2>&1 \
+  && node_prep_fingerprint_matches_file; then
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   log "node-prep-ready fingerprint matches; skipping node-init"
   exit 0
 fi

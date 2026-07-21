@@ -124,6 +124,7 @@ class CubeSandboxAdapter(SandboxAdapter):
     def resume_or_connect(self, *, timeout: int = 60) -> "CubeSandboxAdapter":
         return type(self).connect(self.sandbox_id, self._e2e_config or SdkE2EConfig.from_env())
 
+<<<<<<< HEAD
     def get_host(self, port: int) -> str:
         return str(self._sandbox.get_host(port))
 
@@ -140,6 +141,8 @@ class CubeSandboxAdapter(SandboxAdapter):
                 return str(raw[key])
         return None
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     def kill(self) -> None:
         self._sandbox.kill()
 

@@ -50,12 +50,21 @@ export default {
         // contrast automatically. Pick the role name (ok/warn/err/info),
         // never the underlying color.
         cube: {
+<<<<<<< HEAD
           ok: 'hsl(var(--cube-ok) / <alpha-value>)',
           warn: 'hsl(var(--cube-warn) / <alpha-value>)',
           err: 'hsl(var(--cube-err) / <alpha-value>)',
           info: 'hsl(var(--cube-info) / <alpha-value>)',
           accent: 'hsl(var(--cube-accent) / <alpha-value>)',
           mute: 'hsl(var(--cube-mute) / <alpha-value>)',
+=======
+          ok:     'hsl(var(--cube-ok) / <alpha-value>)',
+          warn:   'hsl(var(--cube-warn) / <alpha-value>)',
+          err:    'hsl(var(--cube-err) / <alpha-value>)',
+          info:   'hsl(var(--cube-info) / <alpha-value>)',
+          accent: 'hsl(var(--cube-accent) / <alpha-value>)',
+          mute:   'hsl(var(--cube-mute) / <alpha-value>)',
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         },
       },
       borderRadius: {

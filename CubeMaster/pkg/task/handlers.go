@@ -30,7 +30,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/instancecache"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/localcache"
+<<<<<<< HEAD
 	volrefcount "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/volume/refcount"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -257,9 +260,12 @@ func (h *DestroySandboxTaskHandler) HandleTask(ctx context.Context, t *Task) err
 			log.G(ctx).Errorf("Destroy error:%+v", rsp)
 			return ret.Errorf(errorcode.MasterCode(rsp.GetRet().GetRetCode()), "%s", rsp.GetRet().GetRetMsg())
 		}
+<<<<<<< HEAD
 		// Apply any node-level volume ref-count transitions (1→0) reported by
 		// Cubelet so the volume DB releases the reference held by this node.
 		volrefcount.ApplyFromExtInfo(ctx, rsp.GetExtInfo())
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 
 	if t.InsType() == cubebox.InstanceType_cubebox.String() {

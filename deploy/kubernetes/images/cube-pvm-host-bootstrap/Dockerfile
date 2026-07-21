@@ -21,16 +21,24 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/node-prep-lib.sh /scripts/node-prep-lib.sh
+<<<<<<< HEAD
 COPY scripts/pvm-startup-gate-lib.sh /scripts/pvm-startup-gate-lib.sh
 COPY scripts/pvm-startup-gate-reconcile.sh /scripts/pvm-startup-gate-reconcile.sh
 COPY scripts/pvm-startup-gate-preflight.sh /scripts/pvm-startup-gate-preflight.sh
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 COPY scripts/pvm-host-bootstrap.sh /scripts/pvm-host-bootstrap.sh
 
 # Optional kernel packages. Put files under build context artifacts/ to build a fully self-contained image.
 COPY artifacts/ /artifacts/
 
+<<<<<<< HEAD
 RUN chmod +x /scripts/pvm-host-bootstrap.sh /scripts/pvm-startup-gate-reconcile.sh \
       /scripts/pvm-startup-gate-preflight.sh \
     && chmod 644 /scripts/node-prep-lib.sh /scripts/pvm-startup-gate-lib.sh
+=======
+RUN chmod +x /scripts/pvm-host-bootstrap.sh \
+    && chmod 644 /scripts/node-prep-lib.sh
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ENTRYPOINT ["/usr/bin/tini", "-s", "--", "/scripts/pvm-host-bootstrap.sh"]

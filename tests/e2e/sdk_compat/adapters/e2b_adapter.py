@@ -298,6 +298,7 @@ class E2BAdapter(SandboxAdapter):
             error=getattr(result, "error", None),
         )
 
+<<<<<<< HEAD
     def get_host(self, port: int) -> str:
         get_host = getattr(self._sandbox, "get_host", None)
         if callable(get_host):
@@ -318,6 +319,8 @@ class E2BAdapter(SandboxAdapter):
         token = first_present(raw, "traffic_access_token", "trafficAccessToken")
         return str(token) if token else None
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     def pause(self, *, timeout: int = 60) -> None:
         pause = getattr(self._sandbox, "pause", None)
         if not callable(pause):

@@ -28,8 +28,11 @@ def safe_kill(adapter: SandboxAdapter, config: SdkE2EConfig) -> list[str]:
 
         normalized_state = str(state).lower() if state is not None else None
         if normalized_state == "paused":
+<<<<<<< HEAD
             # TODO: use direct deletion once the backend supports deleting
             # paused sandboxes without resuming them first.
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             try:
                 kill_adapter = adapter.resume_or_connect(timeout=config.default_timeout)
             except Exception as exc:  # noqa: BLE001 - fallback delete handles this

@@ -62,9 +62,13 @@ export function MetricValue({
 }) {
   return (
     <span className={cn('inline-flex items-baseline gap-1 text-num', sizeMap[size], className)}>
+<<<<<<< HEAD
       <span
         className={emphasis === 'strong' ? 'font-semibold text-foreground' : 'text-foreground/90'}
       >
+=======
+      <span className={emphasis === 'strong' ? 'font-semibold text-foreground' : 'text-foreground/90'}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         {value}
       </span>
       {unit ? <span className="text-muted-foreground">{unit}</span> : null}

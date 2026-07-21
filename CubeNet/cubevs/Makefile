@@ -27,11 +27,14 @@ gen:
 	$(call msg,GENERATE BPF)
 	$(Q)go generate ./...
 
+<<<<<<< HEAD
 .PHONY: fmt
 fmt:
 	$(call msg,FORMAT)
 	$(Q)go fmt ./...
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 .PHONY: lint
 lint:
 	$(call msg,RUN LINTERS)

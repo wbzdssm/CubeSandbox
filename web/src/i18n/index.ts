@@ -17,6 +17,7 @@ i18n
     fallbackLng: 'en',
     supportedLngs: ['en', 'zh'],
     defaultNS: 'common',
+<<<<<<< HEAD
     ns: [
       'common',
       'nav',
@@ -39,6 +40,9 @@ i18n
       'agentHub',
       'auth',
     ],
+=======
+    ns: ['common', 'nav', 'topbar', 'command', 'overview', 'sandboxes', 'sandboxDetail', 'sandboxNew', 'templates', 'templateDetail', 'nodes', 'nodeDetail', 'network', 'keys', 'placeholder', 'settings', 'observability', 'store', 'agentHub', 'auth'],
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     interpolation: {
       escapeValue: false,
     },

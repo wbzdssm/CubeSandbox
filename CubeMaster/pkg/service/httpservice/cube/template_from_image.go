@@ -7,12 +7,18 @@ package cube
 import (
 	"errors"
 	"net/http"
+<<<<<<< HEAD
 	"os"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"path/filepath"
 	"strconv"
 	"strings"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
@@ -24,6 +30,7 @@ import (
 
 var redoTemplateFromImageFn = templatecenter.SubmitRedoTemplateFromImage
 
+<<<<<<< HEAD
 func createTemplateFromImageGinHandler(c *gin.Context) {
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 	common.WriteAPI(c, createTemplateFromImage(c.Request, rt))
@@ -39,42 +46,101 @@ func handleRedoTemplateAction(c *gin.Context) {
 	req := &types.RedoTemplateFromImageReq{}
 	if err := common.GetBodyReq(c.Request, req); err != nil {
 		common.WriteAPI(c, &types.CreateTemplateFromImageRes{
+=======
+func handleTemplateFromImageAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	switch r.Method {
+	case http.MethodPost:
+		return createTemplateFromImage(w, r, rt)
+	case http.MethodGet:
+		return getTemplateFromImage(w, r, rt)
+	default:
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+}
+
+func handleRedoTemplateAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	if r.Method != http.MethodPost {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+	_ = w
+	req := &types.RedoTemplateFromImageReq{}
+	if err := common.GetBodyReq(r, req); err != nil {
+		return &types.CreateTemplateFromImageRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterParamsError),
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
 	rt.RequestID = req.RequestID
 	ctx := log.WithLogger(c.Request.Context(), log.G(c.Request.Context()).WithFields(map[string]any{
+=======
+		}
+	}
+	rt.RequestID = req.RequestID
+	ctx := log.WithLogger(r.Context(), log.G(r.Context()).WithFields(map[string]any{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		"RequestId":  req.RequestID,
 		"Action":     "RedoTemplate",
 		"TemplateID": req.TemplateID,
 	}))
+<<<<<<< HEAD
 	job, err := redoTemplateFromImageFn(ctx, req, requestBaseURL(c.Request))
 	if err != nil {
 		common.WriteAPI(c, &types.CreateTemplateFromImageRes{
+=======
+	job, err := redoTemplateFromImageFn(ctx, req, requestBaseURL(r))
+	if err != nil {
+		return &types.CreateTemplateFromImageRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			RequestID: req.RequestID,
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterParamsError),
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
 	common.WriteAPI(c, &types.CreateTemplateFromImageRes{
+=======
+		}
+	}
+	rt.RetCode = int64(errorcode.ErrorCode_Success)
+	return &types.CreateTemplateFromImageRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		RequestID: req.RequestID,
 		Ret: &types.Ret{
 			RetCode: int(errorcode.ErrorCode_Success),
 			RetMsg:  "success",
 		},
 		Job: job,
+<<<<<<< HEAD
 	})
 }
 
 func createTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+=======
+	}
+}
+
+func createTemplateFromImage(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	req := &types.CreateTemplateFromImageReq{}
 	if err := common.GetBodyReq(r, req); err != nil {
 		return &types.CreateTemplateFromImageRes{
@@ -112,7 +178,12 @@ func createTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interfac
 	}
 }
 
+<<<<<<< HEAD
 func getTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+=======
+func getTemplateFromImage(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	jobID := strings.TrimSpace(r.URL.Query().Get("job_id"))
 	if jobID == "" {
 		return &types.CreateTemplateFromImageRes{
@@ -145,6 +216,7 @@ func getTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interface{}
 	}
 }
 
+<<<<<<< HEAD
 // openTemplateArtifactForDownload resolves, opens, and stats the template
 // rootfs artifact identified by the artifact_id/token query params and writes
 // the common response headers (Content-Type/Length, ETag, X-Cube-Artifact-Id).
@@ -156,10 +228,27 @@ func openTemplateArtifactForDownload(c *gin.Context) (name string, file *os.File
 	record, f, err := templatecenter.OpenRootfsArtifact(c.Request.Context(), artifactID, token)
 	if err != nil {
 		common.WriteAPI(c, &types.Res{
+=======
+func handleTemplateArtifactDownloadAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+	artifactID := strings.TrimSpace(r.URL.Query().Get("artifact_id"))
+	token := strings.TrimSpace(r.URL.Query().Get("token"))
+	record, file, err := templatecenter.OpenRootfsArtifact(r.Context(), artifactID, token)
+	if err != nil {
+		return &types.Res{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_NotFound),
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return "", nil, nil, false
 	}
@@ -167,10 +256,19 @@ func openTemplateArtifactForDownload(c *gin.Context) (name string, file *os.File
 	if err != nil {
 		f.Close()
 		common.WriteAPI(c, &types.Res{
+=======
+		}
+	}
+	defer file.Close()
+	stat, err := file.Stat()
+	if err != nil {
+		return &types.Res{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterInternalError),
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return "", nil, nil, false
 	}
@@ -207,29 +305,76 @@ func handleRootfsArtifactAction(c *gin.Context) {
 	artifactID := strings.TrimSpace(c.Query("artifact_id"))
 	if artifactID == "" {
 		common.WriteAPI(c, &types.CreateTemplateFromImageRes{
+=======
+		}
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
+	w.Header().Set("ETag", record.Ext4SHA256)
+	w.Header().Set("X-Cube-Artifact-Id", record.ArtifactID)
+	if r.Method == http.MethodHead {
+		rt.RetCode = int64(errorcode.ErrorCode_Success)
+		return nil
+	}
+	http.ServeContent(w, r, filepath.Base(record.Ext4Path), stat.ModTime(), file)
+	rt.RetCode = int64(errorcode.ErrorCode_Success)
+	return nil
+}
+
+func handleRootfsArtifactAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+	if r.Method != http.MethodGet {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+	artifactID := strings.TrimSpace(r.URL.Query().Get("artifact_id"))
+	if artifactID == "" {
+		return &types.CreateTemplateFromImageRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterParamsError),
 				RetMsg:  "artifact_id is required",
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
 	info, err := templatecenter.GetRootfsArtifactInfo(c.Request.Context(), artifactID)
+=======
+		}
+	}
+	info, err := templatecenter.GetRootfsArtifactInfo(r.Context(), artifactID)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if err != nil {
 		code := int(errorcode.ErrorCode_MasterInternalError)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			code = int(errorcode.ErrorCode_NotFound)
 		}
+<<<<<<< HEAD
 		common.WriteAPI(c, &types.CreateTemplateFromImageRes{
+=======
+		return &types.CreateTemplateFromImageRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: code,
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
 	common.WriteAPI(c, &types.CreateTemplateFromImageRes{
+=======
+		}
+	}
+	rt.RetCode = int64(errorcode.ErrorCode_Success)
+	return &types.CreateTemplateFromImageRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		Ret: &types.Ret{
 			RetCode: int(errorcode.ErrorCode_Success),
 			RetMsg:  "success",
@@ -239,7 +384,11 @@ func handleRootfsArtifactAction(c *gin.Context) {
 			ArtifactStatus: info.Status,
 			Artifact:       info,
 		},
+<<<<<<< HEAD
 	})
+=======
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func requestBaseURL(r *http.Request) string {

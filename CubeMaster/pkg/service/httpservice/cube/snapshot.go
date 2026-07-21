@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/go-sql-driver/mysql"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
@@ -128,6 +131,7 @@ type snapshotStorageResource struct {
 	LastUpdatedAt int64  `json:"last_updated_at,omitempty"`
 }
 
+<<<<<<< HEAD
 func createSnapshotGinHandler(c *gin.Context) {
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 	extendSnapshotWriteDeadline(c.Writer)
@@ -152,6 +156,44 @@ func handleSnapshotStorageAction(c *gin.Context) {
 	response := &snapshotStorageResponse{
 		Res: &types.Res{
 			RequestID: requestIDFromQuery(c.Request),
+=======
+func handleSnapshotAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	switch r.Method {
+	case http.MethodPost:
+		extendSnapshotWriteDeadline(w)
+		return createSnapshot(r, rt)
+	case http.MethodGet:
+		return getSnapshot(r, rt)
+	case http.MethodDelete:
+		extendSnapshotWriteDeadline(w)
+		return deleteSnapshot(r, rt)
+	default:
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+}
+
+func handleSnapshotStorageAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+	if r.Method != http.MethodGet {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+	refresh := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("refresh")), "true") ||
+		strings.TrimSpace(r.URL.Query().Get("refresh")) == "1"
+	data, err := listSnapshotStorageFn(r.Context(), refresh)
+	response := &snapshotStorageResponse{
+		Res: &types.Res{
+			RequestID: requestIDFromQuery(r),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret:       &types.Ret{RetCode: int(errorcode.ErrorCode_Success), RetMsg: "success"},
 		},
 		Data: make([]*snapshotStorageResource, 0, len(data)),
@@ -164,6 +206,7 @@ func handleSnapshotStorageAction(c *gin.Context) {
 	}
 	rt.RequestID = response.Res.RequestID
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
+<<<<<<< HEAD
 	common.WriteAPI(c, response)
 }
 
@@ -184,10 +227,39 @@ func handleSandboxRollbackAction(c *gin.Context) {
 	}
 	if requestID == "" || strings.TrimSpace(req.SandboxID) == "" || strings.TrimSpace(req.SnapshotID) == "" {
 		common.WriteAPI(c, &operationResponse{
+=======
+	return response
+}
+
+func handleSandboxRollbackAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	extendSnapshotWriteDeadline(w)
+	req := &snapshotRollbackRequest{}
+	if err := common.GetBodyReq(r, req); err != nil {
+		return &operationResponse{
+			Res: &types.Res{Ret: &types.Ret{RetCode: int(errorcode.ErrorCode_MasterParamsError), RetMsg: err.Error()}},
+		}
+	}
+	requestID := firstNonEmptyTrimmed(req.RequestID, req.LegacyRequestID)
+	pathSandboxID := sandboxIDFromRollbackPath(r.URL.Path)
+	if req.SandboxID == "" {
+		req.SandboxID = pathSandboxID
+	}
+	if pathSandboxID != "" && strings.TrimSpace(req.SandboxID) != pathSandboxID {
+		return &operationResponse{
+			Res: &types.Res{Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  "sandbox_id in path does not match request body",
+			}},
+		}
+	}
+	if requestID == "" || strings.TrimSpace(req.SandboxID) == "" || strings.TrimSpace(req.SnapshotID) == "" {
+		return &operationResponse{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Res: &types.Res{Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterParamsError),
 				RetMsg:  "request_id, sandbox_id and snapshot_id are required",
 			}},
+<<<<<<< HEAD
 		})
 		return
 	}
@@ -216,6 +288,11 @@ func handleSandboxRollbackAction(c *gin.Context) {
 		}
 	}
 	ctx, cancel := snapshotExecutionContext(c.Request.Context(), map[string]any{
+=======
+		}
+	}
+	ctx, cancel := snapshotExecutionContext(r.Context(), map[string]any{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		"RequestId":  requestID,
 		"Action":     "RollbackSnapshot",
 		"SnapshotID": req.SnapshotID,
@@ -226,23 +303,39 @@ func handleSandboxRollbackAction(c *gin.Context) {
 	if err != nil {
 		code := snapshotErrorCode(err)
 		rt.RetCode = int64(code)
+<<<<<<< HEAD
 		common.WriteAPI(c, &operationResponse{
+=======
+		return &operationResponse{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Res: &types.Res{
 				RequestID: requestID,
 				Ret:       &types.Ret{RetCode: code, RetMsg: err.Error()},
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
 	rt.RequestID = requestID
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
 	common.WriteAPI(c, &operationResponse{
+=======
+		}
+	}
+	rt.RequestID = requestID
+	rt.RetCode = int64(errorcode.ErrorCode_Success)
+	return &operationResponse{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		Res: &types.Res{
 			RequestID: requestID,
 			Ret:       &types.Ret{RetCode: int(errorcode.ErrorCode_Success), RetMsg: "success"},
 		},
 		Operation: operationResourceFromInfo(snapshotOperationInfoFromJob(info)),
+<<<<<<< HEAD
 	})
+=======
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func extendSnapshotWriteDeadline(w http.ResponseWriter) {
@@ -260,16 +353,34 @@ func snapshotExecutionContext(parent context.Context, fields map[string]any) (co
 	return context.WithTimeout(log.WithLogger(base, log.G(parent).WithFields(fields)), templatecenter.SnapshotOperationTimeout())
 }
 
+<<<<<<< HEAD
 func handleSnapshotOperationAction(c *gin.Context) {
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 	operationID := c.Param("operation_id")
 	requestID := requestIDFromQuery(c.Request)
 	if operationID == "" {
 		common.WriteAPI(c, &operationResponse{
+=======
+func handleSnapshotOperationAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+	if r.Method != http.MethodGet {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+	operationID := resourceIDFromPath(r.URL.Path, actionURI(OperationAction))
+	requestID := requestIDFromQuery(r)
+	if operationID == "" {
+		return &operationResponse{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Res: &types.Res{Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterParamsError),
 				RetMsg:  "operation_id is required",
 			}},
+<<<<<<< HEAD
 		})
 		return
 	}
@@ -288,6 +399,24 @@ func handleSnapshotOperationAction(c *gin.Context) {
 		Res:       &types.Res{RequestID: requestID, Ret: &types.Ret{RetCode: int(errorcode.ErrorCode_Success), RetMsg: "success"}},
 		Operation: operationResourceFromInfo(info),
 	})
+=======
+		}
+	}
+	info, err := getSnapshotOperationFn(r.Context(), operationID)
+	if err != nil {
+		code := snapshotErrorCode(err)
+		rt.RetCode = int64(code)
+		return &operationResponse{
+			Res: &types.Res{RequestID: requestID, Ret: &types.Ret{RetCode: code, RetMsg: err.Error()}},
+		}
+	}
+	rt.RequestID = requestID
+	rt.RetCode = int64(errorcode.ErrorCode_Success)
+	return &operationResponse{
+		Res:       &types.Res{RequestID: requestID, Ret: &types.Ret{RetCode: int(errorcode.ErrorCode_Success), RetMsg: "success"}},
+		Operation: operationResourceFromInfo(info),
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func createSnapshot(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
@@ -305,11 +434,14 @@ func createSnapshot(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
 			}},
 		}
 	}
+<<<<<<< HEAD
 	if resolved, ret := sandbox.NormalizeSandboxIDParam(r.Context(), req.SandboxID); ret != nil {
 		return &snapshotResponse{Res: &types.Res{Ret: ret}}
 	} else {
 		req.SandboxID = resolved
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	requestID := firstNonEmptyTrimmed(req.RequestID, req.LegacyRequestID)
 	if requestID == "" {
 		return &snapshotResponse{
@@ -374,7 +506,12 @@ func createSnapshot(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
 	}
 }
 
+<<<<<<< HEAD
 func getSnapshot(r *http.Request, rt *CubeLog.RequestTrace, snapshotID string) interface{} {
+=======
+func getSnapshot(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	snapshotID := resourceIDFromPath(r.URL.Path, actionURI(SnapshotAction))
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	requestID := requestIDFromQuery(r)
 	if snapshotID == "" {
 		infos, nextToken, err := listSnapshotsFn(r.Context(), &templatecenter.ListSnapshotsOptions{
@@ -446,7 +583,12 @@ func getSnapshot(r *http.Request, rt *CubeLog.RequestTrace, snapshotID string) i
 // kept around purely for human audit; programmatic clients have no reason
 // to poll.  The snapshot API is synchronous — CubeAPI waits for a
 // terminal state and does not expose a polling interface to callers.
+<<<<<<< HEAD
 func deleteSnapshot(r *http.Request, rt *CubeLog.RequestTrace, snapshotID string) interface{} {
+=======
+func deleteSnapshot(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	snapshotID := resourceIDFromPath(r.URL.Path, actionURI(SnapshotAction))
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if snapshotID == "" {
 		return &operationResponse{
 			Res: &types.Res{Ret: &types.Ret{
@@ -647,6 +789,29 @@ func snapshotStorageResourceFromStatus(info templatecenter.SnapshotStorageStatus
 	}
 }
 
+<<<<<<< HEAD
+=======
+func resourceIDFromPath(path, prefix string) string {
+	path = strings.TrimSpace(path)
+	if !strings.HasPrefix(path, prefix+"/") {
+		return ""
+	}
+	return strings.Trim(strings.TrimPrefix(path, prefix+"/"), "/")
+}
+
+func sandboxIDFromRollbackPath(path string) string {
+	path = strings.Trim(strings.TrimSpace(path), "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 4 {
+		return ""
+	}
+	if parts[0] != strings.Trim(CubeURI(), "/") || parts[1] != strings.Trim(SandboxAction, "/") || parts[3] != "rollback" {
+		return ""
+	}
+	return strings.TrimSpace(parts[2])
+}
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func requestIDFromQuery(r *http.Request) string {
 	if r == nil {
 		return ""

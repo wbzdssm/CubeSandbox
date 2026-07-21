@@ -189,11 +189,14 @@ type VolumeSource struct {
 	HostDirVolumeSources *HostDirVolumeSources    `json:"host_dir_volumes,omitempty"`
 
 	Image *imagev1.ImageVolumeSource `protobuf:"bytes,9,opt,name=image,proto3" json:"image,omitempty"`
+<<<<<<< HEAD
 
 	// PluginVolume delegates provisioning to a named external VolumePlugin
 	// (built-in, binary or RPC) on the Cubelet node.
 	// Field number 11 matches cubebox.proto VolumeSource.plugin_volume.
 	PluginVolume *PluginVolumeSource `json:"plugin_volume,omitempty"`
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type HostDirVolumeSources struct {
@@ -546,6 +549,7 @@ type ContainerOverrides struct {
 
 type CreateTemplateFromImageReq struct {
 	*Request
+<<<<<<< HEAD
 	SourceImageRef   string `json:"source_image_ref,omitempty" p:"source_image_ref" v:"required"`
 	RegistryUsername string `json:"registry_username,omitempty"`
 	RegistryPassword string `json:"registry_password,omitempty"`
@@ -555,6 +559,12 @@ type CreateTemplateFromImageReq struct {
 	// auto-generated template ID, surviving rebuilds that produce a new ID.
 	// Valid: ^[a-z0-9][a-z0-9-]{0,63}$ , must not start with tpl-/snap-.
 	Alias              string              `json:"alias,omitempty"`
+=======
+	SourceImageRef     string              `json:"source_image_ref,omitempty" p:"source_image_ref" v:"required"`
+	RegistryUsername   string              `json:"registry_username,omitempty"`
+	RegistryPassword   string              `json:"registry_password,omitempty"`
+	TemplateID         string              `json:"template_id,omitempty" p:"template_id"`
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	InstanceType       string              `json:"instance_type,omitempty"`
 	NetworkType        string              `json:"network_type,omitempty"`
 	CubeNetworkConfig  *CubeNetworkConfig  `json:"cube_network_config,omitempty"`
@@ -770,6 +780,7 @@ type InstanceTypeQuotaItem struct {
 	CPU     int64  `json:"cpu,omitempty"`
 	Memory  int64  `json:"memory,omitempty"`
 }
+<<<<<<< HEAD
 
 // PluginVolumeSource mirrors cubelet.services.volumeplugin.v1.PluginVolumeSource.
 // It selects an external VolumePlugin on the Cubelet node by driver name.
@@ -781,3 +792,5 @@ type PluginVolumeSource struct {
 	// Node Hook plugin.  At minimum contains "volume_id".
 	Options map[string]string `json:"options,omitempty"`
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

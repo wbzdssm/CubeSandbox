@@ -29,7 +29,12 @@ var (
 	createSandboxRegisterRuntimeRefWithReplicaFn    = templatecenter.RegisterSnapshotRuntimeRefForCreatedSandboxWithReplica
 )
 
+<<<<<<< HEAD
 func createSandbox(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+=======
+func createSandbox(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	rt.RetCode = -1
 	rsp := &types.Res{
 		Ret: &types.Ret{

@@ -22,7 +22,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/utils"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+<<<<<<< HEAD
 	volumeplugin "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/volume/plugin"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -42,6 +45,7 @@ type Config struct {
 	ReqTemplateConf  *ReqTemplateConf      `yaml:"req_template_conf"`
 	HookWhitelist    *HookWhitelist        `yaml:"hook_whitelist"`
 	CubeEgressConf   *CubeEgressConf       `yaml:"cube_egress_conf"`
+<<<<<<< HEAD
 
 	// VolumePlugins lists external Controller Hook Plugin configurations.
 	// Types: binary (fork CLI) or rpc (gRPC VolumeControllerService).
@@ -52,6 +56,8 @@ type Config struct {
 	//       type: rpc
 	//       socket_path: /run/cube-volume-cos-rpc.sock
 	VolumePlugins []volumeplugin.Config `yaml:"volume_plugins"`
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type CommonConf struct {

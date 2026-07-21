@@ -1019,7 +1019,10 @@ assert_safe_install_prefix "${INSTALL_PREFIX}"
 rm -rf \
   "${INSTALL_PREFIX}/network-agent" \
   "${INSTALL_PREFIX}/CubeAPI" \
+<<<<<<< HEAD
   "${INSTALL_PREFIX}/CubeOps" \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   "${INSTALL_PREFIX}/CubeMaster" \
   "${INSTALL_PREFIX}/Cubelet" \
   "${INSTALL_PREFIX}/cubeproxy" \
@@ -1054,12 +1057,15 @@ fi
 
 select_installed_kernel_vmlinux
 
+<<<<<<< HEAD
 prepare_volume_plugin_install \
   "${INSTALL_PREFIX}" \
   "${INSTALL_MODE}" \
   "${UPGRADE_BACKUP_DIR}" \
   "${DEPLOY_ROLE}"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 mkdir -p \
   "${INSTALL_PREFIX}/cube-vs/network" \
   "${INSTALL_PREFIX}/cube-snapshot" \
@@ -1067,13 +1073,20 @@ mkdir -p \
   /data/log/CubeShim \
   /data/log/CubeVmm \
   /data/cube-shim/disks \
+<<<<<<< HEAD
   /data/snapshot_pack/disks \
   /data/volume
+=======
+  /data/snapshot_pack/disks
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 if [[ "${DEPLOY_ROLE}" != "compute" ]]; then
   mkdir -p \
     /data/log/CubeAPI \
+<<<<<<< HEAD
     /data/log/CubeOps \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     /data/log/CubeMaster \
     /data/log/cube-proxy
 fi
@@ -1211,7 +1224,10 @@ fi
 
 if [[ "${DEPLOY_ROLE}" != "compute" ]]; then
   chmod +x "${INSTALL_PREFIX}/CubeAPI/bin/cube-api"
+<<<<<<< HEAD
   chmod +x "${INSTALL_PREFIX}/CubeOps/bin/cubeops"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   chmod +x "${INSTALL_PREFIX}/CubeMaster/bin/cubemaster" "${INSTALL_PREFIX}/CubeMaster/bin/cubemastercli"
 fi
 

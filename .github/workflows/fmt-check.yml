@@ -11,18 +11,25 @@ on:
       - 'CubeAPI/Makefile'
       - 'Cubelet/Makefile'
       - 'CubeMaster/Makefile'
+<<<<<<< HEAD
       - 'CubeNet/Makefile'
       - 'CubeNet/cubevs/Makefile'
       - 'CubeOps/Makefile'
       - 'CubeShim/Makefile'
       - 'cube-lifecycle-manager/Makefile'
+=======
+      - 'CubeShim/Makefile'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       - 'cubecow/Makefile'
       - 'cubelog/Makefile'
       - 'hypervisor/Makefile'
       - 'network-agent/Makefile'
+<<<<<<< HEAD
       - 'sdk/go/Makefile'
       - 'examples/cube-bench/Makefile'
       - 'web/**'
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       - '.github/workflows/fmt-check.yml'
   workflow_dispatch:
 
@@ -137,6 +144,7 @@ jobs:
             BUILDER_IMAGE="${{ steps.builder_image.outputs.image }}" \
             BUILDER_CMD='make fmt'
 
+<<<<<<< HEAD
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -152,6 +160,8 @@ jobs:
           npm ci
           npm run fmt
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       - name: Check for uncommitted formatting changes
         shell: bash
         run: |

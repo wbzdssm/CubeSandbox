@@ -19,9 +19,13 @@ function resolveAppVersion(): string {
   const fromEnv = process.env.CUBE_VERSION?.trim();
   if (fromEnv) return fromEnv.replace(/^v/, '');
   try {
+<<<<<<< HEAD
     const described = execSync('git describe --tags --abbrev=0', {
       stdio: ['ignore', 'pipe', 'ignore'],
     })
+=======
+    const described = execSync('git describe --tags --abbrev=0', { stdio: ['ignore', 'pipe', 'ignore'] })
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       .toString()
       .trim();
     if (described) return described.replace(/^v/, '');
@@ -44,6 +48,7 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+<<<<<<< HEAD
       // CubeOps (ops/admin endpoints) — rewrite /opsapi → /api
       '/opsapi': {
         target: 'http://127.0.0.1:3010',
@@ -57,6 +62,8 @@ export default defineConfig({
       '/snapshots': 'http://127.0.0.1:3000',
       '/health': 'http://127.0.0.1:3000',
       // Legacy /cubeapi proxy for backward compat during transition
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       '/cubeapi': 'http://127.0.0.1:3000',
     },
   },

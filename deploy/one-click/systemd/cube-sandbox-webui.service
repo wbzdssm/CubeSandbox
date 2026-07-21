@@ -1,8 +1,14 @@
 [Unit]
 Description=Cube Sandbox Web UI container
+<<<<<<< HEAD
 After=docker.service network-online.target cube-sandbox-cubemaster.service cube-sandbox-cubeops.service
 Requires=docker.service
 Wants=network-online.target cube-sandbox-cubemaster.service cube-sandbox-cubeops.service
+=======
+After=docker.service network-online.target cube-sandbox-cube-api.service
+Requires=docker.service
+Wants=network-online.target cube-sandbox-cube-api.service
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ConditionPathExists=/usr/local/services/cubetoolbox/.one-click.env
 PartOf=cube-sandbox-control.target
 

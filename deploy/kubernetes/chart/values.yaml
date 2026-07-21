@@ -16,7 +16,11 @@ global:
   # exactly as declared. Set to e.g. "my-registry.example.com/cubesandbox"
   # to mirror all images into a private registry without editing each entry
   # individually. Applies to the pvmHostBootstrap / nodeInit / node / master
+<<<<<<< HEAD
   # / api / ops / cubemastercli / proxy / lifecycleManager / cubeEgress /
+=======
+  # / api / cubemastercli / proxy / lifecycleManager / cubeEgress /
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   # cubeEgressNet / webui / cubelet / networkAgent / cubeShim / cubeKernel /
   # cubeGuest / waitNodePrep / pause entries but not to third-party images such as mysql /
   # redis / docker-in-docker / alpine/k8s.
@@ -85,11 +89,14 @@ images:
     tag: v0.5.1
     pullPolicy: Always
 
+<<<<<<< HEAD
   ops:
     repository: ccr.ccs.tencentyun.com/cubesandbox-chart/cube-ops
     tag: v0.5.1
     pullPolicy: Always
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   cubemastercli:
     repository: ccr.ccs.tencentyun.com/cubesandbox-chart/cubemastercli
     tag: v0.5.1
@@ -172,6 +179,10 @@ placement:
   # Control-plane components run only on dedicated control nodes.
   controlPlane:
     nodeSelector:
+<<<<<<< HEAD
+=======
+      cube.tencent.com/role: control
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       cube.tencent.com/cube-control: "true"
     tolerations:
       - key: cube.tencent.com/control
@@ -179,6 +190,7 @@ placement:
         value: "true"
         effect: NoSchedule
 
+<<<<<<< HEAD
   # Compute placement is used by cube-node / bootstrap / installer.
   # Do NOT require allow-pvm-bootstrap here — that label is only for placement.pvm
   # so non-PVM compute nodes never pull cube-pvm-host-bootstrap.
@@ -196,6 +208,12 @@ placement:
   # and do not pull the PVM bootstrap image (mixed-cluster safe).
   pvm:
     nodeSelector:
+=======
+  # Compute placement is used by cube-node.
+  compute:
+    nodeSelector:
+      cube.tencent.com/role: compute
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       cube.tencent.com/cube-node: "true"
       cube.tencent.com/allow-pvm-bootstrap: "true"
     affinity: {}
@@ -216,11 +234,14 @@ externalControlPlane:
 controlPlane:
   enabled: true
   namespaceScoped: true
+<<<<<<< HEAD
   # OpenKruise CloneSet is required for all stateless control-plane workloads.
   cloneSetUpdateStrategy:
     type: InPlaceIfPossible
     maxUnavailable: 1
     maxSurge: 0
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   master:
     enabled: true
@@ -325,8 +346,13 @@ cubemastercli:
   resources: {}
 
 webui:
+<<<<<<< HEAD
   # Dashboard nginx. Proxies /opsapi and WebUI SDK paths to CubeOps.
   # CubeAPI is a separate Service for external E2B SDK clients.
+=======
+  # One-click enables WebUI by default on host port 12088. In Kubernetes the
+  # chart delivers it as a Service on port 12088 and proxies /cubeapi to CubeAPI.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   enabled: true
   replicas: 1
   podAnnotations: {}
@@ -335,6 +361,7 @@ webui:
     port: 12088
     targetPort: 80
     annotations: {}
+<<<<<<< HEAD
   # Optional overrides (empty = chart-managed Service FQDNs).
   opsUpstream: ""
   proxyUpstream: ""
@@ -366,6 +393,10 @@ cubeOps:
       initialDelaySeconds: 30
       periodSeconds: 20
       failureThreshold: 6
+=======
+  # Empty upstream uses the chart-managed CubeAPI Service.
+  upstream: ""
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   resources: {}
 
 lifecycleManager:
@@ -510,6 +541,7 @@ cubeNode:
     autoDetectEthName: true
     # Leave empty to keep auto-detection. Set to pin Cubelet eth_name.
     ethName: ""
+<<<<<<< HEAD
     # Cubevs/sandbox CIDR patched into Cubelet config.toml (CUBE_SANDBOX_NETWORK_CIDR).
     # Default 172.16.0.0/18 keeps the historical /18 size while avoiding the common
     # cluster Service CIDR 192.168.0.0/16 (and typical host LAN 192.168.x). Prefer a
@@ -519,6 +551,10 @@ cubeNode:
     cidr: "172.16.0.0/18"
     # Skip host-network conflict checks (cube-node-init) and the Service CIDR
     # preflight Hook. Use only when you accept blackhole / routing risk.
+=======
+    # Leave empty to use packaged Cubelet config.toml CIDR. Set to patch cidr.
+    cidr: ""
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     cidrSkipConflictCheck: false
 
   dns:
@@ -613,7 +649,10 @@ cubeNodeInstaller:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
+<<<<<<< HEAD
       rollingUpdateType: Standard
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       maxUnavailable: 1
   terminationGracePeriodSeconds: 15
   resources:
@@ -623,17 +662,27 @@ cubeNodeInstaller:
     limits:
       memory: "512Mi"
 
+<<<<<<< HEAD
 # Node prep DaemonSet (wait-pvm-host + node-init + write node-prep-ready).
 # Low churn; bumping nodeInit recreates this DS only. hostPID=true and wide
 # host mounts — do NOT merge into cube-node-installer. PVM host install lives
 # on cube-node-pvm (placement.pvm).
+=======
+# Node prep DaemonSet (pvm + node-init + write node-prep-ready). Low churn;
+# bumping nodeInit/pvmHostBootstrap recreates this DS only. hostPID=true and
+# wide host mounts — do NOT merge into cube-node-installer.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 cubeNodeBootstrap:
   podAnnotations: {}
   # Bump only when intentionally invalidating all nodes' prep fingerprint
   # (forces wait-node-prep to re-block until bootstrap rewrites sentinel).
   prepGeneration: "1"
+<<<<<<< HEAD
   # How long wait-pvm-host polls pvm-host-ready on PVM-labeled nodes.
   pvmWaitTimeoutSeconds: "900"
+=======
+  waitTimeoutSeconds: "600"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   # Resources for Big Pod wait-node-prep sidecar.
   waitResources:
     requests:
@@ -644,6 +693,7 @@ cubeNodeBootstrap:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
+<<<<<<< HEAD
       rollingUpdateType: Standard
       maxUnavailable: 1
   terminationGracePeriodSeconds: 30
@@ -662,6 +712,8 @@ cubeNodePvm:
   updateStrategy:
     type: RollingUpdate
     rollingUpdate:
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       maxUnavailable: 1
   terminationGracePeriodSeconds: 30
   resources:
@@ -685,6 +737,14 @@ cubeProxy:
   domain: cube.app
   podAnnotations: {}
   replicas: 1
+<<<<<<< HEAD
+=======
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   # Optional hint for external clients / docs (not used for in-cluster DNS).
   advertiseIP: ""
   # When true, Helm patches cluster CoreDNS so *.cubeProxy.domain rewrites to
@@ -832,8 +892,12 @@ cubeEgress:
   network:
     enabled: true
     ingressInterface: cube-dev
+<<<<<<< HEAD
     # Must match cube-dev gateway (first usable IP of cubeNode.network.cidr).
     tproxyOnIP: 172.16.0.1
+=======
+    tproxyOnIP: 192.168.0.1
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     initialWaitSeconds: 300
     reapplyIntervalSeconds: 30
     probes:
@@ -909,6 +973,7 @@ bootstrap:
       leaseTTLSeconds: 900
       maxConcurrent: 1
       maxCount: 1
+<<<<<<< HEAD
     startupGate:
       enabled: true
       taintKey: cube.tencent.com/pvm-not-ready
@@ -922,6 +987,8 @@ bootstrap:
       requirePreflight: true
       preflightTimeoutSeconds: 900
       drainTimeoutSeconds: 300
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   nodeInit:
     enabled: true
@@ -960,8 +1027,13 @@ hostPaths:
   dataCubeShim: /data/cube-shim
   dataSnapshotPack: /data/snapshot_pack
   tmpCube: /tmp/cube
+<<<<<<< HEAD
   # pvm/node-init state + node-prep-ready / pvm-host-ready / effective-pvm
   # (shared by cube-node-pvm, bootstrap DS, and Big Pod wait-node-prep).
+=======
+  # pvm/node-init state + node-prep-ready sentinel (shared by bootstrap DS and
+  # Big Pod wait-node-prep).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   bootstrapState: /var/lib/cube-node-bootstrap
   # Host-persistent toolbox tree. Big Pod mounts this path whole at
   # /usr/local/services/cubetoolbox (stable volumeMount for InPlace). Installer

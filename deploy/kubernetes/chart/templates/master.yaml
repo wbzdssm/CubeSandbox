@@ -1,6 +1,11 @@
 {{- if and .Values.controlPlane.enabled .Values.controlPlane.master.enabled }}
+<<<<<<< HEAD
 apiVersion: {{ include "cube.cloneSetAPIVersion" . }}
 kind: CloneSet
+=======
+apiVersion: apps/v1
+kind: Deployment
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 metadata:
   name: {{ include "cube.masterName" . }}
   labels:
@@ -8,7 +13,10 @@ metadata:
     app.kubernetes.io/component: master
 spec:
   replicas: {{ .Values.controlPlane.master.replicas }}
+<<<<<<< HEAD
   {{- include "cube.cloneSetUpdateStrategy" . | nindent 2 }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   selector:
     matchLabels:
       {{- include "cube.selectorLabels" . | nindent 6 }}

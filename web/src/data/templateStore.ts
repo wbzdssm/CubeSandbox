@@ -62,10 +62,15 @@ export const STORE_TEMPLATES: StoreTemplate[] = [
     id: 'openclaw-lite',
     nameKey: 'items.openclaw-lite.name',
     descriptionKey: 'items.openclaw-lite.description',
+<<<<<<< HEAD
     image_cn:
       'cube-sandbox-image.tencentcloudcr.com/demo/lightweight-openclaw-deepseek-wecom:latest',
     image_intl:
       'cube-sandbox-image.tencentcloudcr.com/demo/lightweight-openclaw-deepseek-wecom:latest',
+=======
+    image_cn: 'cube-sandbox-image.tencentcloudcr.com/demo/lightweight-openclaw-deepseek-wecom:latest',
+    image_intl: 'cube-sandbox-image.tencentcloudcr.com/demo/lightweight-openclaw-deepseek-wecom:latest',
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     image: 'cube-sandbox-image.tencentcloudcr.com/demo/lightweight-openclaw-deepseek-wecom:latest',
     tags: ['agent', 'openclaw', 'lite', 'deepseek'],
     category: 'ai',

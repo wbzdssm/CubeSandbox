@@ -22,7 +22,11 @@ rules:
     resources: ["deployments", "daemonsets", "statefulsets"]
     verbs: ["get", "list"]
   - apiGroups: ["apps.kruise.io"]
+<<<<<<< HEAD
     resources: ["daemonsets", "clonesets"]
+=======
+    resources: ["daemonsets"]
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

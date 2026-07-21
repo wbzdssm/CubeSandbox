@@ -70,6 +70,7 @@ var Destroy = &cli.Command{
 			ids = append(ids, context.String("name"))
 		}
 		if context.Bool("force") {
+<<<<<<< HEAD
 			ctx, cancel := commands.AppContext(context)
 			defer cancel()
 			req := &cubebox.ListCubeSandboxRequest{}
@@ -85,6 +86,12 @@ var Destroy = &cli.Command{
 				if err = destroy(context, &cubebox.DestroyCubeSandboxRequest{
 					RequestID: uuid.New().String(),
 					SandboxID: resolved,
+=======
+			for _, id := range ids {
+				if err = destroy(context, &cubebox.DestroyCubeSandboxRequest{
+					RequestID: uuid.New().String(),
+					SandboxID: strings.TrimSpace(id),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 				}, client); err != nil {
 					return err
 				}
@@ -116,6 +123,7 @@ var Destroy = &cli.Command{
 			return nil
 		}
 
+<<<<<<< HEAD
 		for _, id := range ids {
 			resolved, err := resolveSandboxIDFromList(resp.Items, strings.TrimSpace(id))
 			if err != nil {
@@ -127,6 +135,26 @@ var Destroy = &cli.Command{
 				Annotations: tmpAnnation,
 			}, client); err != nil {
 				return err
+=======
+		for _, item := range resp.Items {
+			for _, id := range ids {
+				id := strings.TrimSpace(id)
+				if len(item.GetContainers()) == 0 {
+					log.Printf("Warning sandbox:%s has no container", item.GetId())
+					continue
+				}
+
+				if strings.HasPrefix(item.GetId(), id) || strings.HasPrefix(item.GetContainers()[0].GetId(), id) {
+					if err = destroy(context, &cubebox.DestroyCubeSandboxRequest{
+						RequestID:   uuid.New().String(),
+						SandboxID:   item.GetId(),
+						Annotations: tmpAnnation,
+					}, client); err == nil {
+						break
+					}
+
+				}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			}
 		}
 		return nil

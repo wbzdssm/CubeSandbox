@@ -3,6 +3,10 @@
 //
 
 use crate::cubemaster::CubeMasterClient;
+<<<<<<< HEAD
+=======
+use crate::db::AgentHubStore;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 use crate::logging::ArcLogger;
 use crate::services::AppServices;
 use governor::{DefaultKeyedRateLimiter, Quota, RateLimiter};
@@ -28,6 +32,12 @@ pub struct AppState {
 
     /// Server config snapshot.
     pub config: Arc<crate::config::ServerConfig>,
+<<<<<<< HEAD
+=======
+
+    /// Optional database-backed AgentHub instance store.
+    pub agenthub_store: Option<AgentHubStore>,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 impl AppState {
@@ -46,7 +56,25 @@ impl AppState {
             .expect("failed to build HTTP client");
 
         let cubemaster = CubeMasterClient::new(config.cubemaster_url.clone(), http_client.clone());
+<<<<<<< HEAD
         let services = AppServices::new(&config, cubemaster);
+=======
+        let services = AppServices::new(&config, cubemaster.clone());
+        let agenthub_store = match config
+            .database_url
+            .as_deref()
+            .filter(|v| !v.trim().is_empty())
+        {
+            Some(url) => match AgentHubStore::connect(url).await {
+                Ok(store) => Some(store),
+                Err(err) => {
+                    tracing::warn!(error = %err, "agenthub database disabled");
+                    None
+                }
+            },
+            None => None,
+        };
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
         Self {
             rate_limiter,
@@ -54,6 +82,10 @@ impl AppState {
             services,
             logger,
             config: Arc::new(config),
+<<<<<<< HEAD
+=======
+            agenthub_store,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         }
     }
 }

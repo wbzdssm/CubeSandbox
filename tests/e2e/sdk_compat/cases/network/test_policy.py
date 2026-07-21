@@ -4,10 +4,15 @@
 from __future__ import annotations
 
 import os
+<<<<<<< HEAD
 import time
 
 import pytest
 import requests
+=======
+
+import pytest
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 from framework.assertions import assert_command_ok
 from framework.capabilities import NETWORK_ALLOW_DENY, NETWORK_PUBLIC_ACCESS
@@ -18,6 +23,7 @@ ALTERNATE_TCP_TARGET_IP = os.environ.get(
     "SDK_E2E_ALTERNATE_TCP_TARGET_IP",
     "1.1.1.1",
 )
+<<<<<<< HEAD
 PUBLIC_ACCESS_PORT = int(os.environ.get("SDK_E2E_PUBLIC_ACCESS_PORT", "49983"))
 PUBLIC_ACCESS_PATH = os.environ.get("SDK_E2E_PUBLIC_ACCESS_PATH", "/health")
 PUBLIC_ACCESS_EXPECTED_STATUS = int(
@@ -30,6 +36,8 @@ TRAFFIC_ACCESS_TOKEN_HEADERS = (
     "e2b-traffic-access-token",
     "cube-traffic-access-token",
 )
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 pytestmark = [
     pytest.mark.e2e,
@@ -81,6 +89,7 @@ def _assert_tcp_blocked(result, target: str) -> None:
     )
 
 
+<<<<<<< HEAD
 def _public_url(sdk_sandbox) -> str:
     host = sdk_sandbox.get_host(PUBLIC_ACCESS_PORT).rstrip("/")
     path = PUBLIC_ACCESS_PATH if PUBLIC_ACCESS_PATH.startswith("/") else f"/{PUBLIC_ACCESS_PATH}"
@@ -148,6 +157,8 @@ def _assert_forbidden(response: requests.Response, scenario: str) -> None:
     )
 
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 @pytest.mark.requires_capability(NETWORK_ALLOW_DENY)
 @pytest.mark.sandbox_create_options(
     network={
@@ -252,6 +263,7 @@ def test_no_internet_still_allows_internal_commands(sdk_sandbox, sdk_e2e_config)
     )
     assert_command_ok(result)
     assert result.stdout == "isolated-execution-ok"
+<<<<<<< HEAD
 
 
 @pytest.mark.requires_capability(NETWORK_PUBLIC_ACCESS)
@@ -288,3 +300,5 @@ def test_restricted_public_access_requires_traffic_token(
             headers={header_name: token},
         )
         _assert_public_response(response)
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

@@ -43,6 +43,7 @@ func SetSandboxCache(sandboxID string, cache *SandboxCache) {
 	listCache.Store(sandboxID, cache)
 }
 
+<<<<<<< HEAD
 func ListKnownSandboxIDs() []string {
 	ids := make([]string, 0)
 	listCache.Range(func(key, _ any) bool {
@@ -54,6 +55,8 @@ func ListKnownSandboxIDs() []string {
 	return ids
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func (l *local) cleanSandboxCache(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

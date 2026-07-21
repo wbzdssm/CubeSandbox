@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +19,12 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
+=======
+	"github.com/stretchr/testify/assert"
+	cubeboxv1 "github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/cubebox/v1"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
@@ -60,7 +67,11 @@ func TestPreviewSandboxReturnsResolvedRequests(t *testing.T) {
 		}
 	}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := previewSandbox(req, rt)
+=======
+	resp := previewSandbox(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*sandboxPreviewResponse)
 	if !ok {
@@ -83,6 +94,7 @@ func TestPreviewSandboxReturnsResolvedRequests(t *testing.T) {
 
 func TestHandleSandboxPreviewRejectsGet(t *testing.T) {
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	ctx := CubeLog.WithRequestTrace(context.Background(), rt)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
@@ -91,5 +103,13 @@ func TestHandleSandboxPreviewRejectsGet(t *testing.T) {
 
 	var got types.Res
 	require.NoError(t, common.FastestJsoniter.Unmarshal(w.Body.Bytes(), &got))
+=======
+	resp := handleSandboxPreviewAction(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/cube/sandbox/preview", nil), rt)
+
+	got, ok := resp.(*types.Res)
+	if !ok {
+		t.Fatalf("unexpected response type %T", resp)
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	assert.Equal(t, int(errorcode.ErrorCode_MasterParamsError), got.Ret.RetCode)
 }

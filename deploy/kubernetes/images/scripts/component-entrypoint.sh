@@ -17,11 +17,15 @@ TOOLBOX_ROOT="${TOOLBOX_ROOT:-/usr/local/services/cubetoolbox}"
 CUBE_COMPONENT="${CUBE_COMPONENT:-}"
 CUBE_ROLE="${CUBE_ROLE:-install}"
 CUBE_PID_DIR="${CUBE_PID_DIR:-/run/cube-node}"
+<<<<<<< HEAD
 STATE_DIR="${STATE_DIR:-/var/lib/cube-node-bootstrap}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 log() { printf '[cube-component:%s:%s] %s\n' "${CUBE_COMPONENT:-?}" "${CUBE_ROLE}" "$*"; }
 fail() { printf '[cube-component:%s:%s] ERROR: %s\n' "${CUBE_COMPONENT:-?}" "${CUBE_ROLE}" "$*" >&2; exit 1; }
 
+<<<<<<< HEAD
 apply_effective_pvm_from_state() {
   local path="${STATE_DIR}/effective-pvm"
   local val
@@ -36,6 +40,8 @@ apply_effective_pvm_from_state() {
   esac
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 component_relpath() {
   case "$1" in
     cubelet) echo "Cubelet" ;;
@@ -72,6 +78,7 @@ wait_sentinel() {
   fail "timeout waiting for sentinel ${name} at ${path}"
 }
 
+<<<<<<< HEAD
 # Promote a staged tree into place without rm -rf of the live directory.
 # Rename-aside then rename-in leaves a brief ENOENT window; we keep a
 # ".staging-<component>" marker for the whole window so the collector marks
@@ -137,12 +144,32 @@ preserve_guest_kernel_selection() {
     t="$(kernel_symlink_target "${dir}/vmlinux")"
   fi
   printf '%s\n' "${t}"
+=======
+# Atomic directory replace: any concurrent reader sees either the full old
+# tree or the full new tree (no rm -rf gap). Requires src/dst on same FS.
+atomic_replace_dir() {
+  local src="$1"
+  local dst="$2"
+  local parent new
+  parent="$(dirname "${dst}")"
+  mkdir -p "${parent}"
+  new="${dst}.new.$$"
+  rm -rf "${new}"
+  cp -a "${src}" "${new}"
+  # Promote staged tree into place. Prefer mv -T (GNU); fall back to rm+mv.
+  if mv -T "${new}" "${dst}" 2>/dev/null; then
+    return 0
+  fi
+  rm -rf "${dst}"
+  mv "${new}" "${dst}"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 stage_component() {
   local rel="$1"
   local src="${IMAGE_ROOT}/${rel}"
   local dst="${TOOLBOX_ROOT}/${rel}"
+<<<<<<< HEAD
   local sentinel staging_marker preserved_kernel=""
   sentinel="$(component_sentinel "${CUBE_COMPONENT}")"
   staging_marker="${TOOLBOX_ROOT}/.staging-${CUBE_COMPONENT}"
@@ -161,6 +188,15 @@ stage_component() {
     [[ -n "${preserved_kernel}" ]] && log "preserved guest kernel selection: ${preserved_kernel}"
   fi
 
+=======
+  local sentinel
+  sentinel="$(component_sentinel "${CUBE_COMPONENT}")"
+
+  [[ -d "${src}" ]] || fail "image bypass missing: ${src}"
+  mkdir -p "${TOOLBOX_ROOT}"
+  # Clear previous sentinel so peers re-wait during refresh.
+  rm -f "${sentinel}"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   log "staging ${src} -> ${dst} (atomic replace)"
   atomic_replace_dir "${src}" "${dst}"
 
@@ -183,18 +219,27 @@ stage_component() {
       ln -sf "${dst}/bin/cube-runtime" /usr/local/bin/cube-runtime
       ;;
     cube-kernel)
+<<<<<<< HEAD
       [[ -e "${dst}/vmlinux-bm" || -e "${dst}/vmlinux-pvm" || -e "${dst}/vmlinux" ]] \
         || fail "missing guest kernel files under ${dst}"
       apply_effective_pvm_from_state
       select_guest_kernel "${preserved_kernel}"
+=======
+      # Prefer existing vmlinux symlink selection by cubelet run; ensure files exist.
+      [[ -e "${dst}/vmlinux-bm" || -e "${dst}/vmlinux-pvm" || -e "${dst}/vmlinux" ]] \
+        || fail "missing guest kernel files under ${dst}"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       ;;
     cube-guest)
       [[ -d "${dst}" ]] || fail "missing guest image dir ${dst}"
       ;;
   esac
 
+<<<<<<< HEAD
   ensure_component_version_json "${CUBE_COMPONENT}" "${dst}"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   # Digest: informational change marker (completeness is write-order: cp then sentinel).
   {
     printf 'component=%s\n' "${CUBE_COMPONENT}"
@@ -202,6 +247,7 @@ stage_component() {
     find "${dst}" -type f -printf '%P %s %T@\n' 2>/dev/null | sort | head -n 50 || true
   } > "${sentinel}.tmp"
   mv -f "${sentinel}.tmp" "${sentinel}"
+<<<<<<< HEAD
   rm -f "${staging_marker}"
   log "wrote sentinel ${sentinel}"
 }
@@ -249,6 +295,11 @@ ensure_component_version_json() {
   esac
 }
 
+=======
+  log "wrote sentinel ${sentinel}"
+}
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 run_install() {
   stage_component "$(component_relpath "${CUBE_COMPONENT}")"
   log "install complete; pausing"
@@ -271,6 +322,7 @@ detect_primary_interface() {
     }'
 }
 
+<<<<<<< HEAD
 # select_guest_kernel [preserved_target]
 # preserved_target is vmlinux-bm|vmlinux-pvm captured before whole-tree replace.
 select_guest_kernel() {
@@ -309,6 +361,19 @@ select_guest_kernel() {
   mkdir -p "${state_dir}"
   ln -sfn "${dir}/${target}" "${state_dir}/vmlinux-active"
   log "selected guest kernel: ${dir}/vmlinux -> ${target} (vmlinux-active updated)"
+=======
+select_guest_kernel() {
+  local dir="${TOOLBOX_ROOT}/cube-kernel-scf"
+  local target="vmlinux-bm"
+  case "${CUBE_PVM_ENABLE:-1}" in
+    1|true|TRUE|yes|YES) target="vmlinux-pvm" ;;
+    0|false|FALSE|no|NO) target="vmlinux-bm" ;;
+    *) fail "unsupported CUBE_PVM_ENABLE=${CUBE_PVM_ENABLE}" ;;
+  esac
+  [[ -f "${dir}/${target}" ]] || fail "missing guest kernel: ${dir}/${target}"
+  ln -sfn "${target}" "${dir}/vmlinux"
+  log "selected guest kernel: ${dir}/vmlinux -> ${target}"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 patch_common_yaml_list() {
@@ -470,8 +535,12 @@ run_cubelet() {
   [[ -n "${CUBE_SANDBOX_NODE_ID:-}${CUBE_SANDBOX_NODE_IP:-}" ]] || fail "CUBE_SANDBOX_NODE_ID or CUBE_SANDBOX_NODE_IP is required"
   [[ -n "${CUBE_SANDBOX_ENDPOINT_IP:-}" ]] || fail "CUBE_SANDBOX_ENDPOINT_IP is required"
 
+<<<<<<< HEAD
   apply_effective_pvm_from_state
   select_guest_kernel "$(preserve_guest_kernel_selection "${TOOLBOX_ROOT}/cube-kernel-scf")"
+=======
+  select_guest_kernel
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   local ep_esc
   ep_esc="$(sed_escape_replacement "${CUBE_MASTER_ENDPOINT}")"

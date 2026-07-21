@@ -6,7 +6,15 @@
   "versions": "版本",
   "network": "网络",
   "observability": "可观测性",
+<<<<<<< HEAD
   "settings": "设置",
   "store": "模板市场",
   "agentHub": "数字助手"
 }
+=======
+  "apiKeys": "API 密钥",
+  "settings": "设置",
+  "store": "模板市场",
+  "agentHub": "数字助手"
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

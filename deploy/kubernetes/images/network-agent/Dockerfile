@@ -4,7 +4,10 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV IMAGE_ROOT=/opt/cube-image
 ENV TOOLBOX_ROOT=/usr/local/services/cubetoolbox
 ENV CUBE_COMPONENT=network-agent
+<<<<<<< HEAD
 ENV PATH="/usr/local/services/cubetoolbox/cube-shim/bin:${PATH}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -23,10 +26,14 @@ RUN apt-get update \
 COPY package/network-agent ${IMAGE_ROOT}/network-agent
 COPY scripts/component-entrypoint.sh /usr/local/bin/component-entrypoint.sh
 
+<<<<<<< HEAD
 ARG CUBE_VERSION=unknown
 RUN printf '{"schema_version":1,"components":{"network-agent":{"version":"%s"}}}\n' \
       "${CUBE_VERSION}" > ${IMAGE_ROOT}/network-agent/version.json \
     && chmod +x \
+=======
+RUN chmod +x \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       ${IMAGE_ROOT}/network-agent/bin/network-agent \
       ${IMAGE_ROOT}/network-agent/bin/cubevsmapdump \
       /usr/local/bin/component-entrypoint.sh \

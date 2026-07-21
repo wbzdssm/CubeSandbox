@@ -6,10 +6,16 @@ Current compute-plane shape (per compute node):
 
 - **`cube-node` (Big Pod)**: OpenKruise Advanced DaemonSet (`InPlaceIfPossible`; hard dependency); `wait-node-prep` sidecar + `cubelet` / `network-agent` + optional egress + six frozen `cube-slot-*` pause placeholders; **no initContainers**; Pod network (`hostNetwork=false`).
 - **`cube-node-installer`**: DaemonSet that stages shim / kernel / guest into the host toolbox tree.
+<<<<<<< HEAD
 - **`cube-node-bootstrap`**: DaemonSet that runs `wait-pvm-host` + `cube-node-init`, then writes `node-prep-ready`.
 - **`cube-node-pvm`**: native `apps/v1` DaemonSet scheduled only via `placement.pvm` (`allow-pvm-bootstrap`); installs PVM host kernel and writes fingerprint `pvm-host-ready`. Non-PVM compute nodes never pull this image.
 
 Control-plane vs compute scheduling uses `placement.controlPlane` and `placement.compute`. PVM host install uses `placement.pvm`. MySQL schema migration is embedded in CubeMaster. Control-plane and runtime components use separate images.
+=======
+- **`cube-node-bootstrap`**: DaemonSet that runs PVM host-kernel prep and `cube-node-init`, then writes `node-prep-ready`.
+
+Control-plane vs compute scheduling uses `placement.controlPlane` and `placement.compute`. MySQL schema migration is embedded in CubeMaster. Control-plane and runtime components use separate images.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ## Directory
 
@@ -34,21 +40,35 @@ deploy/kubernetes/chart/
 
 ## Architecture
 
+<<<<<<< HEAD
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for component layering, the four compute DaemonSets, DNS/Proxy/Egress flows, and external control plane / compute-only mode.
+=======
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for component layering, the three compute DaemonSets, DNS/Proxy/Egress flows, and external control plane / compute-only mode.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ## Image responsibilities
 
 | Image | Role |
 |---|---|
+<<<<<<< HEAD
 | `cube-pvm-host-bootstrap` | **cube-node-pvm** init. Installs/configures PVM host kernel and may reboot the node. |
 | `cube-node-init` | Bootstrap DaemonSet: `wait-pvm-host` + `cube-node-init`. Loads KVM, prepares host paths, validates `/dev/kvm` and XFS. |
 | `cube-wait-node-prep` | Big Pod high-priority sidecar (poll `node-prep-ready`), bootstrap write-ready, and PVM hold container. |
+=======
+| `cube-pvm-host-bootstrap` | Bootstrap DaemonSet init. Installs/configures PVM host kernel and may reboot the node. |
+| `cube-node-init` | Bootstrap DaemonSet init. Loads KVM, prepares host paths, validates `/dev/kvm` and XFS. |
+| `cube-wait-node-prep` | Big Pod high-priority sidecar (poll `node-prep-ready`) and bootstrap write-ready container. |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `cube-shim` / `cube-kernel` / `cube-guest` | Installer DaemonSet containers; stage artifacts into `/usr/local/services/cubetoolbox`. |
 | `cubelet` / `network-agent` | Big Pod runtime containers (self-stage then run). |
 | `pause` | Big Pod `cube-slot-1`…`6` placeholders (InPlace-replace later). |
 | `cube-master` | Control-plane master; embedded schema migrations. |
+<<<<<<< HEAD
 | `cube-api` | External E2B-compatible HTTP API. |
 | `cube-ops` | Ops/admin backend (JWT) + WebUI SDK proxy to CubeMaster. |
+=======
+| `cube-api` | HTTP API. |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `cubemastercli` | Operational CLI for exec-based ops. |
 | `cube-proxy` | Data-plane proxy (control-plane placement when enabled). |
 | `cube-lifecycle-manager` | Sandbox auto-pause / auto-resume; discovered via Service DNS and Redis. |
@@ -59,6 +79,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for component layering, the f
 ## Node selection
 
 The chart separates placement into dedicated control-plane nodes and compute
+<<<<<<< HEAD
 nodes. Control-plane CloneSets, StatefulSets, and `cube-proxy` use
 `placement.controlPlane`; `cube-node` / installer / bootstrap use
 `placement.compute`. PVM host install (`cube-node-pvm`) uses `placement.pvm`
@@ -71,6 +92,18 @@ The chart refuses to render host-mutating compute components without
 `placement.compute.nodeSelector`. When `bootstrap.pvmHostKernel.enabled=true`,
 `placement.pvm.nodeSelector` must include `allow-pvm-bootstrap`, and that key
 must **not** appear under `placement.compute`.
+=======
+nodes. Control-plane Deployments, StatefulSets, and `cube-proxy` use
+`placement.controlPlane`; `cube-node` uses `placement.compute`. In-cluster
+`*.cube.app` is wired automatically when CubeProxy is enabled: the chart
+patches cluster CoreDNS so the domain rewrites to the CubeProxy Service.
+
+The chart refuses to render host-mutating compute components without
+`placement.compute.nodeSelector`. This prevents PVM bootstrap and Cube runtime
+setup from running on ordinary nodes. The default compute selector includes
+`cube.tencent.com/allow-pvm-bootstrap=true` because the default profile
+initializes the PVM host kernel and may reboot selected compute nodes.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 Default placement values:
 
@@ -96,6 +129,10 @@ storageClass:
 placement:
   controlPlane:
     nodeSelector:
+<<<<<<< HEAD
+=======
+      cube.tencent.com/role: control
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       cube.tencent.com/cube-control: "true"
     tolerations:
       - key: cube.tencent.com/control
@@ -105,6 +142,7 @@ placement:
 
   compute:
     nodeSelector:
+<<<<<<< HEAD
       cube.tencent.com/cube-node: "true"
     tolerations:
       - key: cube.tencent.com/compute
@@ -114,6 +152,9 @@ placement:
 
   pvm:
     nodeSelector:
+=======
+      cube.tencent.com/role: compute
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       cube.tencent.com/cube-node: "true"
       cube.tencent.com/allow-pvm-bootstrap: "true"
     tolerations:
@@ -126,6 +167,7 @@ placement:
 Recommended labels:
 
 ```bash
+<<<<<<< HEAD
 kubectl label node <control-node>   cube.tencent.com/cube-control=true   --overwrite
 
 kubectl taint node <control-node>   cube.tencent.com/control=true:NoSchedule   --overwrite
@@ -142,6 +184,18 @@ kubectl label node <pvm-compute-node>   cube.tencent.com/allow-pvm-bootstrap=tru
 ```
 
 The chart does not label nodes or apply role taints; prepare those before install. The PVM startup-gate taint is written by the preflight Hook when the node is not fingerprint-ready.
+=======
+kubectl label node <control-node>   cube.tencent.com/role=control   cube.tencent.com/cube-control=true   --overwrite
+
+kubectl taint node <control-node>   cube.tencent.com/control=true:NoSchedule   --overwrite
+
+kubectl label node <compute-node>   cube.tencent.com/role=compute   cube.tencent.com/cube-node=true   cube.tencent.com/allow-pvm-bootstrap=true   --overwrite
+
+kubectl taint node <compute-node>   cube.tencent.com/compute=true:NoSchedule   --overwrite
+```
+
+The chart does not label or taint nodes. The platform operator must prepare node labels and taints before installation.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 All chart-managed Cube containers and init containers receive `TZ` from
 `global.timezone`.
 
@@ -157,6 +211,7 @@ can set it to `false`.
 `cube-node` mirrors the one-click runtime layout:
 
 - runtime tools are available through `/usr/local/bin/containerd-shim-cube-rs`, `/usr/local/bin/cube-runtime`, `/usr/local/bin/cubecli`, and `/usr/local/bin/cubevsmapdump`;
+<<<<<<< HEAD
 - `cubeNode.network.autoDetectEthName=true` auto-detects the primary host NIC and patches Cubelet `eth_name`;
 - `cubeNode.network.cidr` patches Cubelet cubevs/sandbox CIDR (default `172.16.0.0/18`, chosen to avoid common cluster Service CIDR `192.168.0.0/16` while keeping a /18 pool). A Helm `pre-install`/`pre-upgrade` Hook fails fast when this range overlaps the cluster Service CIDR or existing ClusterIPs; set `cubeNode.network.cidrSkipConflictCheck=true` only if you accept that risk.
 
@@ -171,6 +226,22 @@ What actually decides the guest kernel on a node:
 To **turn off PVM on one node**: remove the `allow-pvm-bootstrap` label. Bootstrap then writes `effective-pvm=0` and the guest kernel switches to bm. Setting `pvmGuestKernel.enabled=false` alone does **not** override a node that already runs PVM.
 
 `bootstrap.pvmHostKernel.enabled` (default `true`) installs/configures the **host** PVM kernel on labeled nodes (`cube-node-pvm`) and may reboot. Boot args default to `nopti pti=off` (`kvm_pvm` does not support host KPTI). `cube-node-init` fail-fast checks match one-click (memory, glibc, cgroup v2 cpu, cubecow, KVM, XFS, PVM consistency): it fails if `kvm_pvm` is loaded but PVM is off for that node, or if PVM is on but the host has not booted a PVM kernel.
+=======
+- `cubeNode.pvmGuestKernel.enabled` defaults to `true` and controls the one-click `CUBE_PVM_ENABLE` behavior, selecting `cube-kernel-scf/vmlinux -> vmlinux-pvm` or `vmlinux-bm`;
+- `cubeNode.network.autoDetectEthName=true` auto-detects the primary host NIC and patches Cubelet `eth_name`;
+- `cubeNode.network.cidr` can patch Cubelet cubevs CIDR when the packaged default conflicts with the host network.
+
+`bootstrap.pvmHostKernel.enabled` also defaults to `true`, so the PVM host
+kernel bootstrap on `cube-node-bootstrap` can install/configure the host kernel and
+perform the configured coordinated reboot. The default
+`bootstrap.pvmHostKernel.bootArgs` is `nopti pti=off` because the current
+`kvm_pvm` module does not support host KPTI. `cube-node-init` performs the same
+fail-fast style checks as one-click for memory, glibc, cgroup v2 cpu
+controller, cubecow dependencies, KVM, XFS, and PVM consistency. It fails when
+a host has `kvm_pvm` loaded but `cubeNode.pvmGuestKernel.enabled=false`, or
+when `cubeNode.pvmGuestKernel.enabled=true` but the host has not booted a PVM
+kernel with `kvm_pvm` loaded.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ## Build and push images
 
@@ -293,7 +364,11 @@ The chart does not deliver a separate DB migration Job or image. CubeMaster owns
 ## cubemastercli operational CLI
 
 `cubemastercli.enabled=true` installs a chart-managed
+<<<<<<< HEAD
 `<release>-cubemastercli` CloneSet. The image contains the real
+=======
+`<release>-cubemastercli` Deployment. The image contains the real
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 `CubeMaster/bin/cubemastercli` binary only; it does not provide a wrapper or
 fake `ctl` command.
 
@@ -303,10 +378,17 @@ environment variables as flag defaults, commands should pass those values to
 the real binary:
 
 ```bash
+<<<<<<< HEAD
 kubectl exec -n cube-system cloneset/cube-cubemastercli -- cubemastercli --help
 kubectl exec -n cube-system cloneset/cube-cubemastercli -- \
   sh -lc 'cubemastercli --address "$CUBEMASTERCLI_ADDRESS" --port "$CUBEMASTERCLI_PORT" node list'
 kubectl exec -n cube-system cloneset/cube-cubemastercli -- \
+=======
+kubectl exec -n cube-system deploy/cube-cubemastercli -- cubemastercli --help
+kubectl exec -n cube-system deploy/cube-cubemastercli -- \
+  sh -lc 'cubemastercli --address "$CUBEMASTERCLI_ADDRESS" --port "$CUBEMASTERCLI_PORT" node list'
+kubectl exec -n cube-system deploy/cube-cubemastercli -- \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   sh -lc 'cubemastercli --address "$CUBEMASTERCLI_ADDRESS" --port "$CUBEMASTERCLI_PORT" template list'
 ```
 
@@ -316,7 +398,11 @@ carry this operational entry point.
 
 ## Cube Proxy Node
 
+<<<<<<< HEAD
 `cube-proxy` is a Cube data-plane component. It is enabled by default to match one-click behavior and is installed, upgraded, and uninstalled with the Cube release as a control-plane CloneSet.
+=======
+`cube-proxy` is a Cube data-plane component. It is enabled by default to match one-click behavior and is installed, upgraded, and uninstalled with the Cube release as a control-plane Deployment.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 The default TLS mode is `selfSigned`, matching the one-click mkcert-style test experience. Production environments should provide a real TLS certificate for CubeProxy. External clients reach `cubeProxy.domain` / `*.domain` through the chart Ingress (SSL passthrough; TLS still terminates in CubeProxy). The image reuses `CubeProxy/Dockerfile`; the chart does not override nginx with a Kubernetes-only configuration.
 
@@ -442,6 +528,7 @@ cubeNode:
       followNodeDns: true          # guests use node/cluster DNS
 ```
 
+<<<<<<< HEAD
 ## WebUI and CubeOps
 
 `webui.enabled=true` delivers the one-click WebUI by default and **requires** `cubeOps.enabled=true`:
@@ -453,6 +540,16 @@ cubeNode:
 
 CubeAPI serves external E2B-compatible SDK clients.
 
+=======
+## WebUI
+
+`webui.enabled=true` delivers the one-click WebUI by default:
+
+- `cube-webui` image packages one-click `webui/dist` static assets;
+- a chart-rendered nginx config proxies `/cubeapi/` to the CubeAPI Service;
+- the Service listens on port `12088`, matching one-click `WEB_UI_HOST_PORT`.
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 Expose the WebUI externally by changing `webui.service.type` or by adding your platform's ingress/load balancer configuration.
 
 ## Diagnostics
@@ -464,7 +561,11 @@ kubectl get configmap -n cube-system cube-diagnostics -o jsonpath='{.data.cube-d
 sh /tmp/cube-diag-k8s.sh cube-system cube
 ```
 
+<<<<<<< HEAD
 The script collects Pods, Advanced DaemonSets, CloneSets, StatefulSets, Services, Endpoints, Events, Helm values/manifests, Pod descriptions, and recent logs for Cube components into a timestamped directory.
+=======
+The script collects Pods, DaemonSets, Deployments, Services, Endpoints, Events, Helm values/manifests, Pod descriptions, and recent logs for Cube components into a timestamped directory.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ## CubeEgress
 
@@ -507,6 +608,7 @@ helm template cube ./deploy/kubernetes/chart -n cube-system > /tmp/cube-rendered
 ```bash
 kubectl get pods -n cube-system -o wide
 kubectl get ads -n cube-system cube-node
+<<<<<<< HEAD
 kubectl get daemonset -n cube-system cube-node-pvm
 kubectl get cloneset -n cube-system cube-proxy
 kubectl get sts -n cube-system cube-mysql cube-redis
@@ -517,6 +619,16 @@ kubectl logs -n cube-system -l app.kubernetes.io/component=cube-node -c cubelet 
 kubectl logs -n cube-system -l app.kubernetes.io/component=cube-node -c wait-node-prep --tail=50
 kubectl logs -n cube-system cloneset/cube-master -c cube-master --tail=100
 kubectl exec -n cube-system cloneset/cube-cubemastercli -- \
+=======
+kubectl get deploy -n cube-system cube-proxy
+kubectl get sts -n cube-system cube-mysql cube-redis
+kubectl logs -n cube-system -l app.kubernetes.io/component=cube-node-bootstrap -c pvm-host-bootstrap --tail=100
+kubectl logs -n cube-system -l app.kubernetes.io/component=cube-node-bootstrap -c cube-node-init --tail=100
+kubectl logs -n cube-system -l app.kubernetes.io/component=cube-node -c cubelet --tail=100
+kubectl logs -n cube-system -l app.kubernetes.io/component=cube-node -c wait-node-prep --tail=50
+kubectl logs -n cube-system deploy/cube-master -c cube-master --tail=100
+kubectl exec -n cube-system deploy/cube-cubemastercli -- \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   sh -lc 'cubemastercli --address "$CUBEMASTERCLI_ADDRESS" --port "$CUBEMASTERCLI_PORT" node list'
 helm test cube -n cube-system --timeout 20m
 ```
@@ -528,10 +640,16 @@ helm test cube -n cube-system --timeout 20m
 (`images.cubelet`, `images.networkAgent`, `images.waitNodePrep`, slot images, …)
 or slot service annotations keeps Pod UID/IP/netns. **First introducing
 `cube-slot-1`…`6` recreates Big Pods once** (adding containers is not InPlace).
+<<<<<<< HEAD
 Artifact images bump only `cube-node-installer`; node-init images bump
 `cube-node-bootstrap`; PVM host image bumps only `cube-node-pvm`. See
 `docs/UPGRADE.md`. Cluster must have OpenKruise installed (see
 `docs/QUICKSTART.md` §1.4).
+=======
+Artifact images bump only `cube-node-installer`; node-prep images bump only
+`cube-node-bootstrap`. See `docs/UPGRADE.md`. Cluster must have OpenKruise
+installed (see `docs/QUICKSTART.md` §1.4).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 Set `cubeNode.updateStrategy.type: OnDelete` for fully manual
 per-node upgrades.

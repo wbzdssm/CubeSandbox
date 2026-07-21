@@ -20,8 +20,12 @@ func TestPersistVersionsSkipsDuplicateConcurrentWrite(t *testing.T) {
 	secondWriteStarted := make(chan struct{}, 1)
 	var writeCount atomic.Int32
 
+<<<<<<< HEAD
 	writer := func(nodeID string, got []ComponentVersion, incomplete bool) error {
 		_ = incomplete
+=======
+	writer := func(nodeID string, got []ComponentVersion) error {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		switch writeCount.Add(1) {
 		case 1:
 			close(firstWriteStarted)
@@ -35,7 +39,11 @@ func TestPersistVersionsSkipsDuplicateConcurrentWrite(t *testing.T) {
 	done1 := make(chan struct{})
 	go func() {
 		defer close(done1)
+<<<<<<< HEAD
 		s.persistVersionsWithWriter(context.Background(), "node-1", versions, false, writer)
+=======
+		s.persistVersionsWithWriter(context.Background(), "node-1", versions, writer)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}()
 
 	<-firstWriteStarted
@@ -43,7 +51,11 @@ func TestPersistVersionsSkipsDuplicateConcurrentWrite(t *testing.T) {
 	done2 := make(chan struct{})
 	go func() {
 		defer close(done2)
+<<<<<<< HEAD
 		s.persistVersionsWithWriter(context.Background(), "node-1", versions, false, writer)
+=======
+		s.persistVersionsWithWriter(context.Background(), "node-1", versions, writer)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}()
 
 	select {
@@ -73,6 +85,7 @@ func TestPersistVersionsSkipsDuplicateConcurrentWrite(t *testing.T) {
 		t.Fatalf("versions = %#v, want %#v", snap.Versions, versions)
 	}
 }
+<<<<<<< HEAD
 
 func TestPersistVersionsIncompleteKeepsPriorComponents(t *testing.T) {
 	s := &service{nodes: make(map[string]*NodeSnapshot)}
@@ -115,3 +128,5 @@ func TestPersistVersionsIncompleteKeepsPriorComponents(t *testing.T) {
 		t.Fatalf("merged map=%v", by)
 	}
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

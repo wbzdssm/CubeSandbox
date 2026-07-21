@@ -1322,9 +1322,13 @@ backup_before_upgrade() {
     "VERSION.txt" \
     "release-manifest.json" \
     "CubeMaster/conf.yaml" \
+<<<<<<< HEAD
     "CubeMaster/plugin/volume-cos.conf" \
     "Cubelet/config/config.toml" \
     "Cubelet/plugin/volume-cos.conf" \
+=======
+    "Cubelet/config/config.toml" \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     "cube-shim/conf/config-cube.toml" \
     "network-agent/network-agent.yaml" \
     "cubeproxy/global.conf" \
@@ -1354,6 +1358,7 @@ backup_before_upgrade() {
   printf '%s\n' "${backup_dir}"
 }
 
+<<<<<<< HEAD
 # restore_volume_plugin_config_from_upgrade_backup: on upgrade, put operator-edited
 # volume-cos.conf back after the packaged CubeMaster/Cubelet trees are replaced.
 restore_volume_plugin_config_from_upgrade_backup() {
@@ -1424,6 +1429,8 @@ prepare_volume_plugin_install() {
   done
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 detect_pkg_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     printf 'apt'

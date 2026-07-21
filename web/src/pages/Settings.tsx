@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useRuntimeConfig } from '@/hooks/useRuntimeConfig';
 import {
+<<<<<<< HEAD
   Palette,
   Plug,
   Keyboard,
@@ -22,6 +23,11 @@ import {
   UserCog,
   LogOut,
   KeyRound,
+=======
+  Palette, Plug, Keyboard, Info,
+  Sun, Moon, Monitor, Check, ExternalLink,
+  Loader2, Wifi, WifiOff, UserCog, LogOut, KeyRound,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 } from 'lucide-react';
 import { useThemeStore, type ThemeMode } from '@/store/theme';
 import { clusterApi, authApi } from '@/api/client';
@@ -34,6 +40,7 @@ import { cn } from '@/lib/utils';
 
 const SECTIONS = [
   { key: 'appearance', icon: Palette },
+<<<<<<< HEAD
   { key: 'cluster', icon: Plug },
   { key: 'account', icon: UserCog },
   { key: 'shortcuts', icon: Keyboard },
@@ -41,6 +48,18 @@ const SECTIONS = [
 ] as const;
 
 function SettingsSidebar({ active, onChange }: { active: string; onChange: (k: string) => void }) {
+=======
+  { key: 'cluster',    icon: Plug },
+  { key: 'account',    icon: UserCog },
+  { key: 'shortcuts',  icon: Keyboard },
+  { key: 'about',      icon: Info },
+] as const;
+
+function SettingsSidebar({ active, onChange }: {
+  active: string;
+  onChange: (k: string) => void;
+}) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const { t } = useTranslation('settings');
   return (
     <nav className="w-44 shrink-0 space-y-0.5">
@@ -52,7 +71,11 @@ function SettingsSidebar({ active, onChange }: { active: string; onChange: (k: s
             'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
             active === key
               ? 'bg-primary/10 text-primary font-medium'
+<<<<<<< HEAD
               : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+=======
+              : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           )}
         >
           <Icon size={15} />
@@ -67,8 +90,13 @@ function SettingsSidebar({ active, onChange }: { active: string; onChange: (k: s
 
 const THEME_OPTIONS: { value: ThemeMode; icon: typeof Sun; labelKey: string }[] = [
   { value: 'system', icon: Monitor, labelKey: 'system' },
+<<<<<<< HEAD
   { value: 'light', icon: Sun, labelKey: 'light' },
   { value: 'dark', icon: Moon, labelKey: 'dark' },
+=======
+  { value: 'light',  icon: Sun,     labelKey: 'light' },
+  { value: 'dark',   icon: Moon,    labelKey: 'dark' },
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ];
 
 const LANGS = [
@@ -99,7 +127,11 @@ function AppearanceSection() {
                 'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all',
                 mode === value
                   ? 'border-primary/40 bg-primary/10 text-primary'
+<<<<<<< HEAD
                   : 'border-border/60 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground',
+=======
+                  : 'border-border/60 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               )}
             >
               <Icon size={14} />
@@ -121,7 +153,11 @@ function AppearanceSection() {
                 'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-all',
                 currentLang === code
                   ? 'border-primary/40 bg-primary/10 text-primary'
+<<<<<<< HEAD
                   : 'border-border/60 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground',
+=======
+                  : 'border-border/60 bg-card/40 text-muted-foreground hover:border-border hover:text-foreground'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               )}
             >
               {label}
@@ -139,11 +175,15 @@ function AppearanceSection() {
 function ClusterSection() {
   const { t } = useTranslation('settings');
   const [testing, setTesting] = useState(false);
+<<<<<<< HEAD
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     latency?: number;
     msg?: string;
   } | null>(null);
+=======
+  const [testResult, setTestResult] = useState<{ ok: boolean; latency?: number; msg?: string } | null>(null);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   const { data: cfg, isLoading } = useRuntimeConfig();
 
@@ -183,6 +223,7 @@ function ClusterSection() {
           </div>
 
           {testResult && (
+<<<<<<< HEAD
             <div
               className={cn(
                 'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm animate-fade-in',
@@ -200,6 +241,18 @@ function ClusterSection() {
                   <WifiOff size={13} /> {testResult.msg}
                 </>
               )}
+=======
+            <div className={cn(
+              'flex items-center gap-2 rounded-lg border px-3 py-2 text-sm animate-fade-in',
+              testResult.ok
+                ? 'border-cube-ok/20 bg-cube-ok/[0.06] text-cube-ok'
+                : 'border-cube-err/20 bg-cube-err/[0.06] text-cube-err'
+            )}>
+              {testResult.ok
+                ? <><Wifi size={13} /> {t('cluster.connected')} · {testResult.latency}ms</>
+                : <><WifiOff size={13} /> {testResult.msg}</>
+              }
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             </div>
           )}
         </div>
@@ -209,6 +262,7 @@ function ClusterSection() {
       <SettingRow label={t('cluster.runtime')} desc={t('cluster.runtimeDesc')}>
         {isLoading ? (
           <div className="space-y-2">
+<<<<<<< HEAD
             {[1, 2, 3, 4].map((i) => (
               <div key={i} className="h-4 w-48 animate-pulse rounded bg-muted/60" />
             ))}
@@ -239,6 +293,18 @@ function ClusterSection() {
                 },
               ] as Array<{ label: string; value: string; numeric: boolean }>
             ).map(({ label, value, numeric }) => (
+=======
+            {[1,2,3,4].map(i => <div key={i} className="h-4 w-48 animate-pulse rounded bg-muted/60" />)}
+          </div>
+        ) : (
+          <dl className="space-y-2 text-sm">
+            {([
+              { label: t('cluster.sandboxDomain'), value: cfg?.sandboxDomain ?? '—',  numeric: false },
+              { label: t('cluster.instanceType'),  value: cfg?.instanceType ?? '—',   numeric: false },
+              { label: t('cluster.rateLimit'),     value: `${cfg?.rateLimitPerSec ?? '—'} req/s`, numeric: true },
+              { label: t('cluster.auth'),          value: cfg?.authEnabled ? t('cluster.authOn') : t('cluster.authOff'), numeric: false },
+            ] as Array<{ label: string; value: string; numeric: boolean }>).map(({ label, value, numeric }) => (
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               <div key={label} className="flex items-center gap-3">
                 <span className="w-36 text-muted-foreground">{label}</span>
                 <span className={cn('text-foreground/90', numeric && 'text-num')}>{value}</span>
@@ -356,9 +422,13 @@ function AccountSection() {
             {submitting ? t('changePassword.submitting') : t('changePassword.submit')}
           </button>
           {msg && (
+<<<<<<< HEAD
             <p className={cn('text-sm', msg.ok ? 'text-cube-emerald' : 'text-rose-500')}>
               {msg.text}
             </p>
+=======
+            <p className={cn('text-sm', msg.ok ? 'text-cube-emerald' : 'text-rose-500')}>{msg.text}</p>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           )}
         </form>
       </SettingRow>
@@ -373,9 +443,15 @@ const MOD = isMac ? '⌘' : 'Ctrl';
 
 const SHORTCUTS: { action: string; keys: string[] }[] = [
   { action: 'shortcut.commandPalette', keys: [MOD, 'K'] },
+<<<<<<< HEAD
   { action: 'shortcut.escape', keys: ['Esc'] },
   { action: 'shortcut.refresh', keys: ['R'] },
   { action: 'shortcut.helpShortcuts', keys: ['?'] },
+=======
+  { action: 'shortcut.escape',         keys: ['Esc'] },
+  { action: 'shortcut.refresh',        keys: ['R'] },
+  { action: 'shortcut.helpShortcuts',  keys: ['?'] },
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ];
 
 function Kbd({ children }: { children: string }) {
@@ -426,6 +502,7 @@ function AboutSection() {
       <SectionHeader icon={Info} title={t('about.title')} desc={t('about.desc')} />
 
       <div className="rounded-xl border border-border/60 bg-card/40 divide-y divide-border/40">
+<<<<<<< HEAD
         {(
           [
             { label: t('about.version'), value: `v${version}`, mono: true },
@@ -437,6 +514,13 @@ function AboutSection() {
             { label: t('about.instanceType'), value: cfg?.instanceType ?? '—', mono: false },
           ] as Array<{ label: string; value: string; mono: boolean }>
         ).map(({ label, value, mono }) => (
+=======
+        {([
+          { label: t('about.version'),     value: `v${version}`,                                             mono: true  },
+          { label: t('about.cubeApi'),     value: cfg?.apiEndpoint ?? `${window.location.origin}/cubeapi/v1`, mono: true  },
+          { label: t('about.instanceType'),value: cfg?.instanceType ?? '—',                                   mono: false },
+        ] as Array<{ label: string; value: string; mono: boolean }>).map(({ label, value, mono }) => (
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           <div key={label} className="flex items-center justify-between px-5 py-3.5">
             <span className="text-sm text-muted-foreground">{label}</span>
             <span className={cn('text-sm text-foreground/90', mono && 'font-mono')}>{value}</span>
@@ -468,6 +552,7 @@ function AboutSection() {
 
 // ── Shared primitives ─────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 function SectionHeader({
   icon: Icon,
   title,
@@ -477,6 +562,9 @@ function SectionHeader({
   title: string;
   desc: string;
 }) {
+=======
+function SectionHeader({ icon: Icon, title, desc }: { icon: React.ElementType; title: string; desc: string }) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return (
     <div className="flex items-start gap-3 pb-2 border-b border-border/40">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted/40 border border-border/60">
@@ -490,6 +578,7 @@ function SectionHeader({
   );
 }
 
+<<<<<<< HEAD
 function SettingRow({
   label,
   desc,
@@ -499,6 +588,9 @@ function SettingRow({
   desc?: string;
   children: React.ReactNode;
 }) {
+=======
+function SettingRow({ label, desc, children }: { label: string; desc?: string; children: React.ReactNode }) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="sm:w-56 shrink-0">
@@ -514,10 +606,17 @@ function SettingRow({
 
 const SECTION_COMPONENTS: Record<string, React.ComponentType> = {
   appearance: AppearanceSection,
+<<<<<<< HEAD
   cluster: ClusterSection,
   account: AccountSection,
   shortcuts: ShortcutsSection,
   about: AboutSection,
+=======
+  cluster:    ClusterSection,
+  account:    AccountSection,
+  shortcuts:  ShortcutsSection,
+  about:      AboutSection,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 };
 
 export default function SettingsPage() {
@@ -525,7 +624,11 @@ export default function SettingsPage() {
   const location = useLocation();
   const defaultTab = new URLSearchParams(location.search).get('tab') ?? 'appearance';
   const [active, setActive] = useState<string>(
+<<<<<<< HEAD
     SECTIONS.some((s) => s.key === defaultTab) ? defaultTab : 'appearance',
+=======
+    SECTIONS.some(s => s.key === defaultTab) ? defaultTab : 'appearance'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   );
   const ActiveSection = SECTION_COMPONENTS[active] ?? AppearanceSection;
 

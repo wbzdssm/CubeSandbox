@@ -7,6 +7,7 @@
 {{- if not $computeSelector }}
 {{- fail "cube-node requires placement.compute.nodeSelector, otherwise host-mutating bootstrap may run on all nodes" }}
 {{- end }}
+<<<<<<< HEAD
 {{- $pvmSelector := ((.Values.placement).pvm).nodeSelector | default dict -}}
 {{- if .Values.bootstrap.pvmHostKernel.enabled }}
 {{- if not (hasKey $pvmSelector "cube.tencent.com/allow-pvm-bootstrap") }}
@@ -37,6 +38,10 @@
 {{- fail "startupGate.priorityClassCreate=false requires startupGate.priorityClassName to reference an existing PriorityClass" }}
 {{- end }}
 {{- end }}
+=======
+{{- if and .Values.bootstrap.pvmHostKernel.enabled (not (hasKey $computeSelector "cube.tencent.com/allow-pvm-bootstrap")) }}
+{{- fail "bootstrap.pvmHostKernel.enabled=true requires placement.compute.nodeSelector to include cube.tencent.com/allow-pvm-bootstrap=true" }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- end }}
 {{- if and (eq (.Values.cubeNode.nodeIDSource | default "specNodeName") "static") (not .Values.cubeNode.staticNodeID) }}
 {{- fail "cubeNode.nodeIDSource=static requires cubeNode.staticNodeID" }}
@@ -65,10 +70,13 @@
 {{- if hasKey .Values.cubeNode "useAdvancedDaemonSet" }}
 {{- fail "cubeNode.useAdvancedDaemonSet was removed; cube-node always uses OpenKruise Advanced DaemonSet (hard dependency). Remove cubeNode.useAdvancedDaemonSet from your values and install OpenKruise." }}
 {{- end }}
+<<<<<<< HEAD
 {{- $pvmRolling := (((.Values.cubeNodePvm).updateStrategy).rollingUpdate) | default dict -}}
 {{- if hasKey $pvmRolling "rollingUpdateType" }}
 {{- fail "cubeNodePvm.updateStrategy.rollingUpdate.rollingUpdateType was removed; cube-node-pvm is a native apps/v1 DaemonSet (not Advanced DaemonSet). Remove rollingUpdateType from your values." }}
 {{- end }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- $controlPlaneNeedsMysql := and .Values.controlPlane.enabled (or .Values.controlPlane.master.enabled .Values.controlPlane.api.enabled) -}}
 {{- if and $controlPlaneNeedsMysql (not (eq (include "cube.mysqlBuiltinEnabled" .) "true")) (not .Values.mysql.host) }}
 {{- fail "control plane requires mysql.host when mysql.enabled=false" }}
@@ -136,6 +144,7 @@
 {{- end }}
 {{- end }}
 {{- end }}
+<<<<<<< HEAD
 {{- if and .Values.webui.enabled .Values.controlPlane.enabled (ne (include "cube.opsEnabled" .) "true") }}
 {{- fail "webui.enabled=true requires cubeOps.enabled=true (WebUI proxies /opsapi and SDK paths to CubeOps)" }}
 {{- end }}
@@ -147,6 +156,8 @@
 {{- fail "cubeOps.enabled=true requires images.ops.repository" }}
 {{- end }}
 {{- end }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- if .Values.cubeEgress.enabled }}
 {{- if not (has .Values.cubeEgress.ca.mode (list "existingSecret" "selfSigned" "inline")) }}
 {{- fail "cubeEgress.ca.mode must be one of: existingSecret, selfSigned, inline" }}

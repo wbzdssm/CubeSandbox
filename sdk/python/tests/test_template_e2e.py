@@ -11,7 +11,11 @@ from __future__ import annotations
 import os
 import time
 import uuid
+<<<<<<< HEAD
 import requests
+=======
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import pytest
 
 from cubesandbox import Config, Template
@@ -127,6 +131,7 @@ def test_template_create_from_image_and_cleanup(pytestconfig: pytest.Config) -> 
                 Template.delete(created_template_id, config=config)
             except (ApiError, TemplateNotFoundError):
                 pass
+<<<<<<< HEAD
 
 
 def test_template_alias_create_get_and_delete(pytestconfig: pytest.Config) -> None:
@@ -369,3 +374,5 @@ def test_template_alias_rebuild_reassignment(pytestconfig: pytest.Config) -> Non
                 Template.delete(tid, config=config)
             except (ApiError, TemplateNotFoundError):
                 pass
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

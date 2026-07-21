@@ -42,10 +42,13 @@ func SetTimeout(ctx context.Context, req *types.SetTimeoutRequest) (rsp *types.S
 		rsp.Ret.RetMsg = "should provide sandboxID"
 		return
 	}
+<<<<<<< HEAD
 	if ret := normalizeSandboxIDInReq(ctx, &req.SandboxID); ret != nil {
 		rsp.Ret = ret
 		return
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if req.Timeout < -1 {
 		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)
 		rsp.Ret.RetMsg = "timeout must be >= -1 (use -1 for never timeout)"
@@ -90,10 +93,13 @@ func Refresh(ctx context.Context, req *types.RefreshSandboxRequest) (rsp *types.
 		rsp.Ret.RetMsg = "should provide sandboxID"
 		return
 	}
+<<<<<<< HEAD
 	if ret := normalizeSandboxIDInReq(ctx, &req.SandboxID); ret != nil {
 		rsp.Ret = ret
 		return
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if req.Duration <= 0 {
 		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)
 		rsp.Ret.RetMsg = "duration must be positive (seconds)"

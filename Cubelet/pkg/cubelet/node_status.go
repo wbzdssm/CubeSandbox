@@ -523,9 +523,13 @@ func (kl *Cubelet) buildRegisterRequest(node *cubeletnodemeta.Node) *masterclien
 	req.QuotaCPU = resolveHostQuotaCPUMilli(hostCfg, req.Allocatable.MilliCPU, req.Capacity.MilliCPU)
 	req.QuotaMemMB = resolveHostQuotaMemMB(hostCfg, req.Allocatable.MemoryMB, req.Capacity.MemoryMB)
 	req.MaxMvmNum = resolveHostMaxMvmNum(hostCfg, req.QuotaMemMB)
+<<<<<<< HEAD
 	versions, incomplete := kl.collectVersionReport()
 	req.Versions = versions
 	req.InventoryIncomplete = incomplete
+=======
+	req.Versions = kl.collectVersions()
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	return req
 }
 
@@ -537,6 +541,7 @@ func (kl *Cubelet) buildStatusRequest(node *cubeletnodemeta.Node) *masterclient.
 		HeartbeatTime:  kl.clock.Now(),
 	}
 	attachResourceReport(req, kl.clock.Now())
+<<<<<<< HEAD
 	versions, incomplete := kl.collectVersionReport()
 	req.Versions = versions
 	req.InventoryIncomplete = incomplete
@@ -553,16 +558,40 @@ func (kl *Cubelet) collectVersionReport() ([]masterclient.ComponentVersion, bool
 	}
 	out := make([]masterclient.ComponentVersion, 0, len(report.Versions))
 	for _, v := range report.Versions {
+=======
+	req.Versions = kl.collectVersions()
+	return req
+}
+
+// collectVersions gathers this node's component versions for reporting. It is
+// best-effort: a nil collector or empty result simply omits the field.
+func (kl *Cubelet) collectVersions() []masterclient.ComponentVersion {
+	if kl.versionCollector == nil {
+		return nil
+	}
+	collected := kl.versionCollector.Collect()
+	if len(collected) == 0 {
+		return nil
+	}
+	out := make([]masterclient.ComponentVersion, 0, len(collected))
+	for _, v := range collected {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		out = append(out, masterclient.ComponentVersion{
 			Component: v.Component,
 			Version:   v.Version,
 			Commit:    v.Commit,
 			BuildTime: v.BuildTime,
 			Source:    v.Source,
+<<<<<<< HEAD
 			Variant:   v.Variant,
 		})
 	}
 	return out, report.Incomplete
+=======
+		})
+	}
+	return out
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // attachResourceReport folds the allocated-resource and disk-usage views

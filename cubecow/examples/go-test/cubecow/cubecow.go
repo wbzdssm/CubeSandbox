@@ -23,6 +23,7 @@ import (
 
 // Error codes matching the C FFI definitions.
 const (
+<<<<<<< HEAD
 	ErrNotFound           = -1
 	ErrAlreadyExists      = -2
 	ErrResourceExhausted  = -3
@@ -33,6 +34,18 @@ const (
 	ErrNullPointer        = -12
 	ErrInvalidUtf8        = -13
 	ErrPanic              = -99
+=======
+	ErrNotFound          = -1
+	ErrAlreadyExists     = -2
+	ErrResourceExhausted = -3
+	ErrInvalidArg        = -4
+	ErrIoError           = -6
+	ErrConfigError       = -10
+	ErrPreconditionFailed = -11
+	ErrNullPointer       = -12
+	ErrInvalidUtf8       = -13
+	ErrPanic             = -99
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 // CubecowError represents an error returned by the cubecow engine.

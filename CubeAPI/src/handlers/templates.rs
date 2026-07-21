@@ -16,7 +16,10 @@ use crate::{
     error::{AppError, AppResult},
     models::{
         ApiError, CreateTemplateRequest, ListTemplatesQuery, RebuildTemplateRequest,
+<<<<<<< HEAD
         TemplateAliasLookupResponse, TemplateBuildJob, TemplateBuildStatus,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         TemplateCompatAdoptResponseView, TemplateCompatMatrixView, TemplateDetail, TemplateSummary,
     },
     state::AppState,
@@ -64,6 +67,7 @@ pub async fn get_template(
     Ok((StatusCode::OK, Json(detail)))
 }
 
+<<<<<<< HEAD
 // ─── GET /templates/aliases/:alias ───────────────────────────────────────────
 
 #[utoipa::path(
@@ -91,6 +95,8 @@ pub async fn get_template_by_alias(
     Ok((StatusCode::OK, Json(out)))
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 // ─── GET /templates/compat ────────────────────────────────────────────────────
 
 #[utoipa::path(
@@ -137,6 +143,7 @@ pub async fn adopt_template_compat_baseline(
 
 // ─── POST /templates ──────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 #[utoipa::path(
     post,
     path = "/templates",
@@ -147,6 +154,8 @@ pub async fn adopt_template_compat_baseline(
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn create_template(
     State(state): State<AppState>,
     Json(body): Json<CreateTemplateRequest>,
@@ -157,6 +166,7 @@ pub async fn create_template(
 
 // ─── POST /templates/:templateID (rebuild) ────────────────────────────────────
 
+<<<<<<< HEAD
 #[utoipa::path(
     post,
     path = "/templates/{templateID}",
@@ -170,6 +180,8 @@ pub async fn create_template(
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn rebuild_template(
     State(state): State<AppState>,
     Path(template_id): Path<String>,
@@ -185,6 +197,7 @@ pub async fn rebuild_template(
 
 // ─── PATCH /templates/:templateID ─────────────────────────────────────────────
 
+<<<<<<< HEAD
 #[utoipa::path(
     patch,
     path = "/templates/{templateID}",
@@ -195,6 +208,8 @@ pub async fn rebuild_template(
         (status = 501, description = "Not implemented; use POST /templates/{id} to rebuild", body = ApiError)
     )
 )]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn update_template(
     State(_): State<AppState>,
     Path(_template_id): Path<String>,
@@ -218,6 +233,7 @@ pub struct DeleteTemplateQuery {
     pub sync: Option<bool>,
 }
 
+<<<<<<< HEAD
 #[utoipa::path(
     delete,
     path = "/templates/{templateID}",
@@ -232,6 +248,8 @@ pub struct DeleteTemplateQuery {
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn delete_template(
     State(state): State<AppState>,
     Path(template_id): Path<String>,
@@ -249,17 +267,25 @@ pub async fn delete_template(
         if let Ok(value) = HeaderValue::from_str(&resp.operation_id) {
             headers.insert("x-operation-id", value);
         }
+<<<<<<< HEAD
         return Ok((StatusCode::NO_CONTENT, headers).into_response());
     }
     // Alias resolution happens at the CubeMaster layer (deleteTemplate
     // calls resolveTemplateIdentifierFn). CubeAPI no longer performs
     // AgentHub reverse-sync (removed when this branch was rebased onto
     // master, which includes the #984 refactoring).
+=======
+        reverse_sync_agenthub_template(&state, &template_id).await;
+        return Ok((StatusCode::NO_CONTENT, headers).into_response());
+    }
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     state
         .services
         .templates
         .delete_template(template_id.clone(), params.instance_type, params.sync)
         .await?;
+<<<<<<< HEAD
     Ok(StatusCode::NO_CONTENT.into_response())
 }
 
@@ -278,6 +304,46 @@ pub async fn delete_template(
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
+=======
+
+    reverse_sync_agenthub_template(&state, &template_id).await;
+
+    Ok(StatusCode::NO_CONTENT.into_response())
+}
+
+// reverse_sync_agenthub_template best-effort soft-deletes any AgentHub template
+// registration backed by the just-deleted infrastructure template/snapshot
+// (FIX-5b, L15/H5). It keeps the AgentHub registry from referencing a snapshot
+// that no longer exists. Failures are logged, never propagated, so they cannot
+// block the primary deletion.
+async fn reverse_sync_agenthub_template(state: &AppState, id: &str) {
+    let Some(store) = state.agenthub_store.as_ref() else {
+        return;
+    };
+    match store
+        .find_template_ids_by_template_or_source_snapshot(id)
+        .await
+    {
+        Ok(template_ids) => {
+            for template_id in template_ids {
+                if let Err(e) = store.soft_delete_template(&template_id).await {
+                    tracing::warn!(
+                        "reverse sync: failed to soft-delete AgentHub template {}: {}",
+                        template_id,
+                        e
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            tracing::warn!("reverse sync: query AgentHub templates failed: {}", e);
+        }
+    }
+}
+
+// ─── POST /templates/:templateID/builds/:buildID ──────────────────────────────
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn start_template_build(
     State(state): State<AppState>,
     Path((template_id, _build_id)): Path<(String, String)>,
@@ -299,6 +365,7 @@ pub struct BuildStatusQuery {
     pub logs_offset: i32,
 }
 
+<<<<<<< HEAD
 #[utoipa::path(
     get,
     path = "/templates/{templateID}/builds/{buildID}/status",
@@ -312,6 +379,8 @@ pub struct BuildStatusQuery {
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn get_template_build_status(
     State(state): State<AppState>,
     Path((template_id, build_id)): Path<(String, String)>,
@@ -340,6 +409,7 @@ fn default_log_limit() -> i32 {
     100
 }
 
+<<<<<<< HEAD
 #[utoipa::path(
     get,
     path = "/templates/{templateID}/builds/{buildID}/logs",
@@ -353,6 +423,8 @@ fn default_log_limit() -> i32 {
         (status = 500, description = "Unexpected backend error", body = ApiError)
     )
 )]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 pub async fn get_template_build_logs(
     State(state): State<AppState>,
     Path((_template_id, build_id)): Path<(String, String)>,

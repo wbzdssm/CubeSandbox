@@ -7,7 +7,11 @@ import { cn } from '@/lib/utils';
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn('panel p-5', className)} {...props} />
+<<<<<<< HEAD
   ),
+=======
+  )
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 );
 Card.displayName = 'Card';
 
@@ -16,6 +20,7 @@ export const CardHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDiv
 );
 
 export const CardTitle = ({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => (
+<<<<<<< HEAD
   <h3
     className={cn('text-sm font-semibold tracking-tight text-foreground/90', className)}
     {...props}
@@ -26,6 +31,12 @@ export const CardDescription = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>) => (
+=======
+  <h3 className={cn('text-sm font-semibold tracking-tight text-foreground/90', className)} {...props} />
+);
+
+export const CardDescription = ({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => (
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   <p className={cn('text-xs text-muted-foreground', className)} {...props} />
 );
 

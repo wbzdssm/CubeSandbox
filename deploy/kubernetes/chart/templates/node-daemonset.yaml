@@ -45,10 +45,34 @@ spec:
           image: {{ include "cube.cubeImage" (dict "image" .Values.images.waitNodePrep "context" $) | quote }}
           imagePullPolicy: {{ .Values.images.waitNodePrep.pullPolicy }}
           env:
+<<<<<<< HEAD
             - name: STATE_DIR
               value: {{ .Values.hostPaths.bootstrapState | quote }}
             - name: KRUISE_CONTAINER_PRIORITY
               value: "10"
+=======
+            {{- include "cube.timezoneEnv" . | nindent 12 }}
+            - name: STATE_DIR
+              value: {{ .Values.hostPaths.bootstrapState | quote }}
+            - name: PREP_GENERATION
+              value: {{ .Values.cubeNodeBootstrap.prepGeneration | quote }}
+            - name: PVM_ENABLED
+              value: {{ ternary "1" "0" .Values.bootstrap.pvmHostKernel.enabled | quote }}
+            - name: NODE_INIT_ENABLED
+              value: {{ ternary "1" "0" .Values.bootstrap.nodeInit.enabled | quote }}
+            - name: DESIRED_KERNEL_PATTERN
+              value: {{ .Values.bootstrap.pvmHostKernel.desiredKernelPattern | quote }}
+            - name: KERNEL_BOOT_ARGS
+              value: {{ .Values.bootstrap.pvmHostKernel.bootArgs | quote }}
+            - name: WAIT_TIMEOUT_SECONDS
+              value: {{ .Values.cubeNodeBootstrap.waitTimeoutSeconds | quote }}
+            - name: KRUISE_CONTAINER_PRIORITY
+              value: "10"
+            {{- if and (not .Values.bootstrap.pvmHostKernel.enabled) (not .Values.bootstrap.nodeInit.enabled) }}
+            - name: PREP_MODE
+              value: noop
+            {{- end }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           readinessProbe:
             exec:
               command: ["test", "-f", "/run/wait-node-prep.ready"]
@@ -179,6 +203,15 @@ spec:
         - name: cube-egress
           image: {{ include "cube.cubeImage" (dict "image" .Values.images.cubeEgress "context" $) | quote }}
           imagePullPolicy: {{ .Values.images.cubeEgress.pullPolicy }}
+<<<<<<< HEAD
+=======
+          command:
+            - /bin/bash
+            - -ec
+            - |
+              mkdir -p /data/log/cube-egress
+              exec /usr/local/openresty/nginx/sbin/start.sh
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           securityContext:
             privileged: {{ .Values.security.privileged }}
             capabilities:
@@ -240,6 +273,10 @@ spec:
               mountPath: /var/run/openresty
             - name: toolbox
               mountPath: /usr/local/services/cubetoolbox
+<<<<<<< HEAD
+=======
+              readOnly: true
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           {{- with .Values.cubeEgress.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -298,6 +335,10 @@ spec:
               readOnly: true
             - name: toolbox
               mountPath: /usr/local/services/cubetoolbox
+<<<<<<< HEAD
+=======
+              readOnly: true
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           {{- with .Values.cubeEgress.netResources }}
           resources:
             {{- toYaml . | nindent 12 }}

@@ -6,6 +6,10 @@ package cubebox
 
 import (
 	"fmt"
+<<<<<<< HEAD
+=======
+	"strings"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	"github.com/urfave/cli/v2"
 
@@ -42,11 +46,25 @@ var inspecMetaData = cli.Command{
 			return err
 		}
 		for _, id := range ids {
+<<<<<<< HEAD
 			resolved, err := resolveSandboxIDFromList(resp.Items, id)
 			if err != nil {
 				return err
 			}
 			boxIDs = append(boxIDs, resolved)
+=======
+			found := false
+			for _, item := range resp.Items {
+				if strings.HasPrefix(item.GetId(), id) {
+					boxIDs = append(boxIDs, item.GetId())
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("cubebox %s not found", id)
+			}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		}
 
 		for _, id := range boxIDs {

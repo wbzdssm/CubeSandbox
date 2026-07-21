@@ -33,12 +33,15 @@ func SandboxInfo(ctx context.Context, req *types.GetCubeSandboxReq) (rsp *types.
 		},
 	}
 	log.G(ctx).Infof("GetSandboxInfo:%+v", utils.InterfaceToString(req))
+<<<<<<< HEAD
 	if req.SandboxID != "" {
 		if ret := normalizeSandboxIDInReq(ctx, &req.SandboxID); ret != nil {
 			rsp.Ret = ret
 			return
 		}
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	defer func() {
 		if log.IsDebug() {
 			log.G(ctx).Debugf("GetSandboxInfo_rsp:%+v", utils.InterfaceToString(rsp))

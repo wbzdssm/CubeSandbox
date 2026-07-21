@@ -14,6 +14,7 @@ use crate::{
     },
     error::{AppError, AppResult},
     models::{
+<<<<<<< HEAD
         CreateTemplateRequest, RebuildTemplateRequest, TemplateAliasLookupResponse,
         TemplateBuildJob, TemplateBuildStatus, TemplateCompatMatrixView, TemplateCompatRowView,
         TemplateCompatSummaryView, TemplateDetail, TemplateNodeCompatView, TemplateSummary,
@@ -22,6 +23,14 @@ use crate::{
 
 const TEMPLATE_PUBLIC: bool = false;
 
+=======
+        CreateTemplateRequest, RebuildTemplateRequest, TemplateBuildJob, TemplateBuildStatus,
+        TemplateCompatMatrixView, TemplateCompatRowView, TemplateCompatSummaryView, TemplateDetail,
+        TemplateNodeCompatView, TemplateSummary,
+    },
+};
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 #[derive(Clone)]
 pub struct TemplateService {
     cubemaster: CubeMasterClient,
@@ -46,7 +55,20 @@ impl TemplateService {
         Ok(resp
             .data
             .into_iter()
+<<<<<<< HEAD
             .map(template_summary_from_cubemaster)
+=======
+            .map(|s| TemplateSummary {
+                template_id: s.template_id,
+                instance_type: non_empty(s.instance_type),
+                version: non_empty(s.version),
+                status: s.status,
+                last_error: non_empty(s.last_error),
+                created_at: non_empty(s.created_at),
+                image_info: non_empty(s.image_info),
+                job_id: non_empty(s.job_id),
+            })
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             .collect())
     }
 
@@ -86,17 +108,24 @@ impl TemplateService {
 
         Ok(TemplateDetail {
             template_id: string_or(resp.template_id, template_id),
+<<<<<<< HEAD
             public: TEMPLATE_PUBLIC,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             instance_type: non_empty(resp.instance_type),
             version: non_empty(resp.version),
             status: resp.status,
             last_error: non_empty(resp.last_error),
+<<<<<<< HEAD
             created_at: non_empty(resp.created_at),
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             replicas: resp.replicas,
             create_request: resp.create_request,
             network_type,
             allow_internet_access,
             job_id: non_empty(resp.job_id),
+<<<<<<< HEAD
             aliases: alias_values_from_display_name(&resp.display_name),
         })
     }
@@ -120,6 +149,8 @@ impl TemplateService {
         Ok(TemplateAliasLookupResponse {
             template_id: detail.template_id,
             public: TEMPLATE_PUBLIC,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         })
     }
 
@@ -134,7 +165,10 @@ impl TemplateService {
         let dns_servers = validate_dns_servers(body.dns.as_deref())?;
         let container_overrides = build_template_container_overrides(&body, dns_servers.as_deref());
         let cube_network_config = build_template_cube_network_config(&body)?;
+<<<<<<< HEAD
         let alias = template_alias_from_request(&body);
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
         let req = CreateTemplateFromImageReq {
             request_id: new_request_id(),
@@ -147,7 +181,10 @@ impl TemplateService {
             template_id: String::new(),
             source_image_ref: body.image.trim().to_string(),
             writable_layer_size: body.writable_layer_size,
+<<<<<<< HEAD
             alias,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             exposed_ports: body.exposed_ports,
             network_type: non_empty_option(body.network_type),
             registry_username: non_empty_option(body.registry_username),
@@ -278,7 +315,11 @@ impl TemplateService {
 }
 
 fn map_err(e: CubeMasterError) -> AppError {
+<<<<<<< HEAD
     if e.is_invalid_path_parameter() || e.is_params_error() {
+=======
+    if e.is_invalid_path_parameter() {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         AppError::BadRequest(e.to_string())
     } else if e.is_not_found() || e.is_endpoint_missing() {
         AppError::NotFound(e.to_string())
@@ -309,6 +350,7 @@ fn string_or(value: String, fallback: &str) -> String {
     }
 }
 
+<<<<<<< HEAD
 fn alias_values_from_display_name(display_name: &str) -> Vec<String> {
     let alias = display_name.trim();
     if alias.is_empty() {
@@ -391,6 +433,8 @@ fn is_valid_alias(alias: &str) -> bool {
     })
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 fn build_log_line(status: &str, progress: i32, message: &str) -> String {
     if message.is_empty() {
         format!("[{}] progress={}%", status, progress)
@@ -614,6 +658,7 @@ fn build_template_cube_network_config(
 mod tests {
     use super::*;
 
+<<<<<<< HEAD
     async fn spawn_server(app: axum::Router) -> String {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
             .await
@@ -630,6 +675,11 @@ mod tests {
             template_id: String::new(),
             name: None,
             alias: None,
+=======
+    fn sample_request() -> CreateTemplateRequest {
+        CreateTemplateRequest {
+            template_id: String::new(),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             instance_type: Some("cubebox".to_string()),
             image: "python:3.11-slim".to_string(),
             writable_layer_size: Some("1G".to_string()),
@@ -675,6 +725,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn alias_values_from_display_name_returns_e2b_arrays() {
         assert_eq!(
             alias_values_from_display_name(" stable-python "),
@@ -795,6 +846,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     fn build_template_cube_network_config_includes_egress_rules() {
         let body = sample_request();
         let cfg = build_template_cube_network_config(&body)
@@ -837,6 +890,7 @@ mod tests {
         let err = validate_dns_servers(Some(&["not-an-ip".to_string()])).unwrap_err();
         assert!(matches!(err, AppError::BadRequest(_)));
     }
+<<<<<<< HEAD
 
     #[tokio::test]
     async fn create_template_forwards_name_as_cubemaster_alias() {
@@ -974,4 +1028,6 @@ mod tests {
         assert_eq!(resp.template_id, "tpl-abc");
         assert!(!resp.public);
     }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }

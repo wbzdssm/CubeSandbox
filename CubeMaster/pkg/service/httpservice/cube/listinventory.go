@@ -5,7 +5,12 @@
 package cube
 
 import (
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
+=======
+	"net/http"
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/cubebox/v1"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
@@ -13,6 +18,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/utils"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/localcache"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
@@ -20,6 +26,13 @@ import (
 
 func handleListInventoryAction(c *gin.Context) {
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
+=======
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+	"github.com/tencentcloud/CubeSandbox/cubelog"
+)
+
+func handleListInventoryAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	rsp := &types.ListInventoryRes{
 		Ret: &types.Ret{
 			RetCode: int(errorcode.ErrorCode_Success),
@@ -30,11 +43,18 @@ func handleListInventoryAction(c *gin.Context) {
 		rt.RetCode = int64(rsp.Ret.RetCode)
 	}()
 	req := &types.ListInventoryReq{}
+<<<<<<< HEAD
 	if err := utils.DecodeHttpBody(c.Request.Body, req); err != nil {
 		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)
 		rsp.Ret.RetMsg = err.Error()
 		common.WriteAPI(c, rsp)
 		return
+=======
+	if err := utils.DecodeHttpBody(r.Body, req); err != nil {
+		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)
+		rsp.Ret.RetMsg = err.Error()
+		return rsp
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 
 	rt.RequestID = req.RequestID
@@ -43,7 +63,11 @@ func handleListInventoryAction(c *gin.Context) {
 		req.InstanceType = cubebox.InstanceType_cubebox.String()
 	}
 	rt.InstanceType = req.InstanceType
+<<<<<<< HEAD
 	ctx := log.WithLogger(c.Request.Context(), log.G(c.Request.Context()).WithFields(map[string]any{
+=======
+	ctx := log.WithLogger(r.Context(), log.G(r.Context()).WithFields(map[string]any{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		"RequestId":    req.RequestID,
 		"InstanceType": req.InstanceType,
 	}))
@@ -87,7 +111,11 @@ func handleListInventoryAction(c *gin.Context) {
 		rsp.Data = append(rsp.Data, v)
 	}
 	log.G(ctx).Infof("handleListInventoryAction success:%s", utils.InterfaceToString(rsp))
+<<<<<<< HEAD
 	common.WriteAPI(c, rsp)
+=======
+	return rsp
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func mergeInventory(all map[string]*types.InstanceTypeQuotaItem, in *types.InstanceTypeQuotaItem) {

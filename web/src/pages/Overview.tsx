@@ -15,6 +15,7 @@ export default function OverviewPage() {
   const { t } = useTranslation('overview');
   const { t: tCommon } = useTranslation('common');
 
+<<<<<<< HEAD
   const cluster = useQuery({
     queryKey: ['cluster'],
     queryFn: clusterApi.overview,
@@ -30,10 +31,16 @@ export default function OverviewPage() {
     queryFn: templateApi.list,
     refetchInterval: 30_000,
   });
+=======
+  const cluster = useQuery({ queryKey: ['cluster'], queryFn: clusterApi.overview, refetchInterval: 10_000 });
+  const sandboxes = useQuery({ queryKey: ['sandboxes'], queryFn: () => sandboxApi.list(), refetchInterval: 5_000 });
+  const templates = useQuery({ queryKey: ['templates'], queryFn: templateApi.list, refetchInterval: 30_000 });
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   const running = sandboxes.data?.length ?? 0;
   const totalCpuMilli = cluster.data?.totalCpuMilli ?? 0;
   const cpuUsedMilli = Math.max(totalCpuMilli - (cluster.data?.allocatableCpuMilli ?? 0), 0);
+<<<<<<< HEAD
   const cpuUsedPct =
     totalCpuMilli > 0 ? Math.round(Math.min((cpuUsedMilli / totalCpuMilli) * 100, 100)) : 0;
   const memUsedPct = cluster.data
@@ -42,6 +49,11 @@ export default function OverviewPage() {
           Math.max(cluster.data.totalMemoryMB, 1)) *
           100,
       )
+=======
+  const cpuUsedPct = totalCpuMilli > 0 ? Math.round(Math.min((cpuUsedMilli / totalCpuMilli) * 100, 100)) : 0;
+  const memUsedPct = cluster.data
+    ? Math.round(((cluster.data.totalMemoryMB - cluster.data.allocatableMemoryMB) / Math.max(cluster.data.totalMemoryMB, 1)) * 100)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     : 0;
 
   return (
@@ -71,6 +83,7 @@ export default function OverviewPage() {
           icon={<Cpu size={16} />}
           tone="warn"
           value={cluster.isLoading ? '—' : `${cpuUsedPct}%`}
+<<<<<<< HEAD
           hint={
             cluster.data
               ? t('kpi.coresUsed', {
@@ -79,6 +92,14 @@ export default function OverviewPage() {
                 })
               : ''
           }
+=======
+          hint={cluster.data
+            ? t('kpi.coresUsed', {
+                used: (cpuUsedMilli / 1000).toFixed(1),
+                total: (totalCpuMilli / 1000).toFixed(1),
+              })
+            : ''}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           progress={cpuUsedPct}
         />
         <Kpi
@@ -86,6 +107,7 @@ export default function OverviewPage() {
           icon={<HardDrive size={16} />}
           tone="info"
           value={cluster.isLoading ? '—' : `${memUsedPct}%`}
+<<<<<<< HEAD
           hint={
             cluster.data
               ? t('kpi.memoryUsed', {
@@ -95,17 +117,29 @@ export default function OverviewPage() {
                 })
               : ''
           }
+=======
+          hint={cluster.data
+            ? t('kpi.memoryUsed', {
+                used: (cluster.data.totalMemoryMB - cluster.data.allocatableMemoryMB) / 1024 | 0,
+                total: (cluster.data.totalMemoryMB / 1024) | 0,
+              })
+            : ''}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           progress={memUsedPct}
         />
         <Kpi
           label={t('kpi.healthyNodes')}
           icon={<Server size={16} />}
           tone="ok"
+<<<<<<< HEAD
           value={
             cluster.isLoading
               ? '—'
               : `${cluster.data?.healthyNodes ?? 0}/${cluster.data?.nodeCount ?? 0}`
           }
+=======
+          value={cluster.isLoading ? '—' : `${cluster.data?.healthyNodes ?? 0}/${cluster.data?.nodeCount ?? 0}`}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           hint={t('kpi.maxSlots', { count: cluster.data?.maxMvmSlots ?? 0 })}
         />
       </div>
@@ -140,16 +174,26 @@ export default function OverviewPage() {
                 <Badge tone="info">{sb.state ?? 'running'}</Badge>
                 <span className="font-mono text-xs text-foreground/80">{short(sb.sandboxID)}</span>
                 <span className="text-muted-foreground">{sb.templateID ?? sb.alias ?? '—'}</span>
+<<<<<<< HEAD
                 {sb.clientID && <span className="chip-net">{sb.clientID}</span>}
+=======
+                {sb.clientID && (
+                  <span className="chip-net">{sb.clientID}</span>
+                )}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 <span className="ml-auto text-xs text-muted-foreground">
                   {formatRelative(sb.startedAt)}
                 </span>
               </Link>
             ))}
             {sandboxes.data?.length === 0 && (
+<<<<<<< HEAD
               <div className="py-10 text-center text-sm text-muted-foreground">
                 {t('noSandboxes')}
               </div>
+=======
+              <div className="py-10 text-center text-sm text-muted-foreground">{t('noSandboxes')}</div>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             )}
           </div>
         </Card>
@@ -178,6 +222,7 @@ export default function OverviewPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{tpl.templateID}</div>
+<<<<<<< HEAD
                   <div className="truncate font-mono text-xs text-muted-foreground">
                     {tpl.templateID}
                   </div>
@@ -191,14 +236,23 @@ export default function OverviewPage() {
                         : 'warn'
                   }
                 >
+=======
+                  <div className="truncate font-mono text-xs text-muted-foreground">{tpl.templateID}</div>
+                </div>
+                <Badge tone={tpl.status.toLowerCase() === 'ready' ? 'ok' : tpl.status.toLowerCase() === 'failed' ? 'err' : 'warn'}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   {tpl.version ?? tpl.status}
                 </Badge>
               </Link>
             ))}
             {templates.data?.length === 0 && (
+<<<<<<< HEAD
               <div className="py-6 text-center text-sm text-muted-foreground">
                 {t('noTemplates')}
               </div>
+=======
+              <div className="py-6 text-center text-sm text-muted-foreground">{t('noTemplates')}</div>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             )}
           </div>
         </Card>
@@ -227,10 +281,17 @@ function Kpi({
     tone === 'ok'
       ? 'from-cube-ok/70 to-cube-ok'
       : tone === 'warn'
+<<<<<<< HEAD
         ? 'from-cube-warn/70 to-cube-warn'
         : tone === 'err'
           ? 'from-cube-err/70 to-cube-err'
           : 'from-primary/70 to-cube-accent';
+=======
+      ? 'from-cube-warn/70 to-cube-warn'
+      : tone === 'err'
+      ? 'from-cube-err/70 to-cube-err'
+      : 'from-primary/70 to-cube-accent';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return (
     <Card>
       <div className="flex items-start justify-between">

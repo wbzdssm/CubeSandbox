@@ -10,6 +10,7 @@ import { ApiError } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+<<<<<<< HEAD
 import {
   ArrowLeft,
   RefreshCw,
@@ -20,6 +21,9 @@ import {
   Check,
   AlertTriangle,
 } from 'lucide-react';
+=======
+import { ArrowLeft, RefreshCw, Trash2, ChevronDown, ChevronUp, Copy, Check, AlertTriangle } from 'lucide-react';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import { cn, formatDeleteError, copyToClipboard } from '@/lib/utils';
 import { extractTemplateRuntimeConfig, extractTemplateNetworkPolicy } from '@/lib/templateConfig';
 import { BoolBadge } from '@/components/ui/typography';
@@ -28,6 +32,7 @@ import { BoolBadge } from '@/components/ui/typography';
 
 function statusDotClass(status: string) {
   switch (status.toUpperCase()) {
+<<<<<<< HEAD
     case 'READY':
       return 'bg-cube-ok';
     case 'BUILDING':
@@ -37,10 +42,18 @@ function statusDotClass(status: string) {
       return 'bg-cube-err';
     default:
       return 'bg-muted-foreground';
+=======
+    case 'READY':    return 'bg-cube-ok';
+    case 'BUILDING':
+    case 'RUNNING':  return 'bg-cube-warn animate-pulse';
+    case 'FAILED':   return 'bg-cube-err';
+    default:         return 'bg-muted-foreground';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   }
 }
 function statusTextClass(status: string) {
   switch (status.toUpperCase()) {
+<<<<<<< HEAD
     case 'READY':
       return 'text-cube-ok';
     case 'BUILDING':
@@ -50,12 +63,20 @@ function statusTextClass(status: string) {
       return 'text-cube-err';
     default:
       return 'text-muted-foreground';
+=======
+    case 'READY':    return 'text-cube-ok';
+    case 'BUILDING':
+    case 'RUNNING':  return 'text-cube-warn';
+    case 'FAILED':   return 'text-cube-err';
+    default:         return 'text-muted-foreground';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   }
 }
 function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation('templateDetail');
   const tone = (() => {
     switch (status.toUpperCase()) {
+<<<<<<< HEAD
       case 'READY':
         return 'bg-cube-ok/15 text-cube-ok border-cube-ok/30';
       case 'BUILDING':
@@ -74,6 +95,17 @@ function StatusBadge({ status }: { status: string }) {
         tone,
       )}
     >
+=======
+      case 'READY':    return 'bg-cube-ok/15 text-cube-ok border-cube-ok/30';
+      case 'BUILDING':
+      case 'RUNNING':  return 'bg-cube-warn/15 text-cube-warn border-cube-warn/30';
+      case 'FAILED':   return 'bg-cube-err/15 text-cube-err border-cube-err/30';
+      default:         return 'bg-muted text-muted-foreground border-border';
+    }
+  })();
+  return (
+    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', tone)}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       {t(`status.${status.toLowerCase()}` as 'status.ready', { defaultValue: status })}
     </span>
   );
@@ -81,6 +113,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function compatTone(status: string) {
   switch (status.toUpperCase()) {
+<<<<<<< HEAD
     case 'OK':
       return 'bg-cube-ok/15 text-cube-ok border-cube-ok/30';
     case 'STALE':
@@ -89,6 +122,12 @@ function compatTone(status: string) {
       return 'bg-cube-warn/15 text-cube-warn border-cube-warn/30';
     default:
       return 'bg-muted text-muted-foreground border-border';
+=======
+    case 'OK':      return 'bg-cube-ok/15 text-cube-ok border-cube-ok/30';
+    case 'STALE':   return 'bg-destructive/10 text-destructive border-destructive/30';
+    case 'UNKNOWN': return 'bg-cube-warn/15 text-cube-warn border-cube-warn/30';
+    default:        return 'bg-muted text-muted-foreground border-border';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   }
 }
 
@@ -100,12 +139,16 @@ function CompatBadge({ status }: { status: string }) {
   const { t } = useTranslation('templateDetail');
   const normalizedStatus = status.toUpperCase();
   return (
+<<<<<<< HEAD
     <span
       className={cn(
         'inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium',
         compatTone(normalizedStatus),
       )}
     >
+=======
+    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium', compatTone(normalizedStatus))}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       {t(`compat.status.${normalizedStatus}` as 'compat.status.OK', { defaultValue: status })}
     </span>
   );
@@ -123,10 +166,14 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
+<<<<<<< HEAD
       className={cn(
         'text-muted-foreground/50 hover:text-muted-foreground transition-colors',
         className,
       )}
+=======
+      className={cn('text-muted-foreground/50 hover:text-muted-foreground transition-colors', className)}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       title={t('copy')}
     >
       {copied ? <Check className="h-3 w-3 text-cube-ok" /> : <Copy className="h-3 w-3" />}
@@ -136,6 +183,7 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
 
 // ── field ─────────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 function Field({
   label,
   value,
@@ -161,6 +209,19 @@ function Field({
           dim && 'text-muted-foreground',
         )}
       >
+=======
+function Field({ label, value, mono, copyable, dim }: {
+  label: string; value?: string | null; mono?: boolean; copyable?: boolean; dim?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">{label}</span>
+      <span className={cn(
+        'text-sm break-all flex items-center gap-1.5',
+        mono && 'font-mono text-sm',
+        dim && 'text-muted-foreground',
+      )}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         <span>{value ?? '—'}</span>
         {copyable && value && <CopyButton text={value} />}
       </span>
@@ -170,6 +231,7 @@ function Field({
 
 // ── copy tooltip wrapper ─────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 function CopyableText({
   text,
   display,
@@ -179,6 +241,9 @@ function CopyableText({
   display?: string;
   className?: string;
 }) {
+=======
+function CopyableText({ text, display, className }: { text: string; display?: string; className?: string }) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const { t } = useTranslation('templateDetail');
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -194,11 +259,15 @@ function CopyableText({
     >
       <span>{display ?? text}</span>
       <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+<<<<<<< HEAD
         {copied ? (
           <Check className="h-3 w-3 text-cube-ok" />
         ) : (
           <Copy className="h-3 w-3 text-muted-foreground/50" />
         )}
+=======
+        {copied ? <Check className="h-3 w-3 text-cube-ok" /> : <Copy className="h-3 w-3 text-muted-foreground/50" />}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       </span>
     </span>
   );
@@ -206,6 +275,7 @@ function CopyableText({
 
 // ── section (borderless) ──────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 function Section({
   title,
   description,
@@ -227,6 +297,15 @@ function Section({
         <h2 className={cn('text-base font-semibold tracking-tight', danger && 'text-destructive')}>
           {title}
         </h2>
+=======
+function Section({ title, description, children, danger, className }: {
+  title: string; description?: string; children: React.ReactNode; danger?: boolean; className?: string;
+}) {
+  return (
+    <div className={cn('py-6 border-t border-border/70', danger && 'border-destructive/20', className)}>
+      <div className="mb-4">
+        <h2 className={cn('text-base font-semibold tracking-tight', danger && 'text-destructive')}>{title}</h2>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
       </div>
       {children}
@@ -246,14 +325,25 @@ function Monoblock({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null;
   return (
     <div className="flex flex-col gap-1.5">
+<<<<<<< HEAD
       <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">
         {label}
       </span>
+=======
+      <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">{label}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       <div className="relative">
         <pre className="rounded-md border border-border/50 bg-muted/30 pl-3 pr-10 py-2 font-mono text-xs whitespace-pre-wrap break-all leading-relaxed text-foreground/90">
           {value}
         </pre>
+<<<<<<< HEAD
         <CopyButton text={value} className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5" />
+=======
+        <CopyButton
+          text={value}
+          className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5"
+        />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       </div>
     </div>
   );
@@ -282,18 +372,26 @@ function LogViewer({ templateID, buildID }: { templateID: string; buildID: strin
     refetchInterval: 2000,
   });
   const lines = logsData?.lines ?? [];
+<<<<<<< HEAD
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [lines]);
+=======
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [lines]);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   return (
     <div className="rounded-md bg-muted/40 border border-border/50 p-3 font-mono text-xs overflow-y-auto max-h-64 space-y-0.5 mt-3">
       {lines.length === 0 && <span className="text-muted-foreground">No logs yet…</span>}
+<<<<<<< HEAD
       {lines.map((line, i) => (
         <div key={i} className="break-all leading-relaxed">
           {line}
         </div>
       ))}
+=======
+      {lines.map((line, i) => <div key={i} className="break-all leading-relaxed">{line}</div>)}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       <div ref={bottomRef} />
     </div>
   );
@@ -302,6 +400,7 @@ function LogViewer({ templateID, buildID }: { templateID: string; buildID: strin
 // ── replica table ─────────────────────────────────────────────────────────────
 
 interface Replica {
+<<<<<<< HEAD
   node_id?: string;
   node_ip?: string;
   phase?: string;
@@ -310,6 +409,10 @@ interface Replica {
   artifact_id?: string;
   snapshot_path?: string;
   last_job_id?: string;
+=======
+  node_id?: string; node_ip?: string; phase?: string; status?: string;
+  spec?: string; artifact_id?: string; snapshot_path?: string; last_job_id?: string;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   compat_status?: string;
 }
 
@@ -331,9 +434,13 @@ function findCompatForReplica(replica: Replica, compatNodes: TemplateNodeCompat[
   return compatNodes.find((node) => {
     const nodeID = nodeCompatKey(node.nodeID);
     const nodeIP = nodeCompatKey(node.nodeIP);
+<<<<<<< HEAD
     return (
       (!!replicaNodeID && replicaNodeID === nodeID) || (!!replicaNodeIP && replicaNodeIP === nodeIP)
     );
+=======
+    return (!!replicaNodeID && replicaNodeID === nodeID) || (!!replicaNodeIP && replicaNodeIP === nodeIP);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   });
 }
 
@@ -369,6 +476,7 @@ function VersionDeltaList({ node }: { node: TemplateNodeCompat }) {
         const changed = item.bound !== item.current;
         return (
           <div key={item.key} className="text-xs">
+<<<<<<< HEAD
             <span className="text-muted-foreground">
               {t(`compat.components.${item.key}` as 'compat.components.guestImage')}
             </span>
@@ -378,6 +486,10 @@ function VersionDeltaList({ node }: { node: TemplateNodeCompat }) {
                 changed ? 'text-destructive' : 'text-muted-foreground',
               )}
             >
+=======
+            <span className="text-muted-foreground">{t(`compat.components.${item.key}` as 'compat.components.guestImage')}</span>
+            <span className={cn('ml-1 font-mono', changed ? 'text-destructive' : 'text-muted-foreground')}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               {item.bound ?? '—'} -&gt; {item.current ?? '—'}
             </span>
           </div>
@@ -387,15 +499,20 @@ function VersionDeltaList({ node }: { node: TemplateNodeCompat }) {
   );
 }
 
+<<<<<<< HEAD
 function CompatNodeCard({
   node,
   variant = 'default',
 }: {
+=======
+function CompatNodeCard({ node, variant = 'default' }: {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   node: TemplateNodeCompat;
   variant?: 'default' | 'warning';
 }) {
   const warning = variant === 'warning';
   return (
+<<<<<<< HEAD
     <div
       className={cn(
         'rounded-md border p-3',
@@ -407,6 +524,15 @@ function CompatNodeCard({
           <p
             className={cn('font-mono font-medium text-foreground', warning ? 'text-xs' : 'text-sm')}
           >
+=======
+    <div className={cn(
+      'rounded-md border p-3',
+      warning ? 'border-destructive/15 bg-background/60' : 'border-border/60 bg-muted/20',
+    )}>
+      <div className={cn('flex items-center justify-between gap-3', warning && 'mb-2')}>
+        <div className="min-w-0">
+          <p className={cn('font-mono font-medium text-foreground', warning ? 'text-xs' : 'text-sm')}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             {compatNodeLabel(node)}
           </p>
           {!warning && node.nodeIP && node.nodeIP !== node.nodeID && (
@@ -422,6 +548,7 @@ function CompatNodeCard({
   );
 }
 
+<<<<<<< HEAD
 function ReplicaTable({
   replicas,
   compatNodes,
@@ -429,6 +556,9 @@ function ReplicaTable({
   replicas: Replica[];
   compatNodes: TemplateNodeCompat[];
 }) {
+=======
+function ReplicaTable({ replicas, compatNodes }: { replicas: Replica[]; compatNodes: TemplateNodeCompat[] }) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const { t } = useTranslation('templateDetail');
   if (replicas.length === 0) {
     return <p className="text-sm text-muted-foreground">{t('empty.replicas')}</p>;
@@ -438,6 +568,7 @@ function ReplicaTable({
       <table className="w-full text-sm" style={{ minWidth: '1040px' }}>
         <thead>
           <tr className="border-b border-border/50">
+<<<<<<< HEAD
             {[
               t('fields.node'),
               t('fields.phase'),
@@ -449,6 +580,10 @@ function ReplicaTable({
               <th key={h} className="tbl-th pl-0 pr-8 py-2">
                 {h}
               </th>
+=======
+            {[t('fields.node'), t('fields.phase'), t('fields.compat'), t('fields.spec'), t('fields.artifactID'), t('fields.lastJob')].map(h => (
+              <th key={h} className="tbl-th pl-0 pr-8 py-2">{h}</th>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             ))}
           </tr>
         </thead>
@@ -458,6 +593,7 @@ function ReplicaTable({
             const compatStatus = nodeCompat?.compatStatus ?? r.compat_status ?? 'UNKNOWN';
             return (
               <tr key={i} className="hover:bg-cube-ok/5 transition-colors">
+<<<<<<< HEAD
                 <td className="py-3 pr-8 text-sm font-medium text-num whitespace-nowrap">
                   {r.node_ip ?? r.node_id ?? '—'}
                 </td>
@@ -472,11 +608,19 @@ function ReplicaTable({
                     <span className={cn('text-sm', statusTextClass(r.phase ?? r.status ?? ''))}>
                       {r.phase ?? r.status ?? '—'}
                     </span>
+=======
+                <td className="py-3 pr-8 text-sm font-medium text-num whitespace-nowrap">{r.node_ip ?? r.node_id ?? '—'}</td>
+                <td className="py-3 pr-8 whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className={cn('h-1.5 w-1.5 rounded-full', statusDotClass(r.phase ?? r.status ?? ''))} />
+                    <span className={cn('text-sm', statusTextClass(r.phase ?? r.status ?? ''))}>{r.phase ?? r.status ?? '—'}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   </span>
                 </td>
                 <td className="py-3 pr-8 whitespace-nowrap">
                   <CompatBadge status={compatStatus} />
                 </td>
+<<<<<<< HEAD
                 <td className="py-3 pr-8 font-mono text-sm text-muted-foreground whitespace-nowrap">
                   {r.spec ?? '—'}
                 </td>
@@ -501,6 +645,26 @@ function ReplicaTable({
                   ) : (
                     '—'
                   )}
+=======
+                <td className="py-3 pr-8 font-mono text-sm text-muted-foreground whitespace-nowrap">{r.spec ?? '—'}</td>
+                <td className="py-3 pr-8 font-mono text-sm text-muted-foreground">
+                  {r.artifact_id
+                    ? <CopyableText
+                        text={r.artifact_id}
+                        display={r.artifact_id.slice(0, 28) + '…'}
+                        className="font-mono text-sm text-muted-foreground"
+                      />
+                    : '—'}
+                </td>
+                <td className="py-3 font-mono text-sm text-muted-foreground">
+                  {r.last_job_id
+                    ? <CopyableText
+                        text={r.last_job_id}
+                        display={r.last_job_id.slice(0, 28) + '…'}
+                        className="font-mono text-sm text-muted-foreground"
+                      />
+                    : '—'}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 </td>
               </tr>
             );
@@ -511,11 +675,15 @@ function ReplicaTable({
   );
 }
 
+<<<<<<< HEAD
 function CompatWarning({
   row,
   onRebuild,
   disabled,
 }: {
+=======
+function CompatWarning({ row, onRebuild, disabled }: {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   row: TemplateCompatRow;
   onRebuild: () => void;
   disabled: boolean;
@@ -535,6 +703,7 @@ function CompatWarning({
             {t('compat.staleDesc', { count: staleNodes.length })}
           </p>
         </div>
+<<<<<<< HEAD
         <Button
           variant="destructive"
           size="sm"
@@ -542,6 +711,9 @@ function CompatWarning({
           onClick={onRebuild}
           className="shrink-0"
         >
+=======
+        <Button variant="destructive" size="sm" disabled={disabled} onClick={onRebuild} className="shrink-0">
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           <RefreshCw className={cn('h-4 w-4 mr-1.5', disabled && 'animate-spin')} />
           {t('rebuild.button')}
         </Button>
@@ -608,6 +780,7 @@ export default function TemplateDetailPage() {
     refetchInterval: 30_000,
   });
 
+<<<<<<< HEAD
   const cachedSummary = qc
     .getQueryData<
       Array<{
@@ -619,6 +792,11 @@ export default function TemplateDetailPage() {
       }>
     >(['templates'])
     ?.find((t) => t.templateID === templateID);
+=======
+  const cachedSummary = qc.getQueryData<Array<{
+    templateID: string; status: string; imageInfo?: string | null; createdAt?: string | null; jobID?: string | null;
+  }>>(['templates'])?.find(t => t.templateID === templateID);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const cachedStatus = cachedSummary?.status?.toUpperCase();
 
   useEffect(() => {
@@ -626,12 +804,16 @@ export default function TemplateDetailPage() {
     const jobID = data?.jobID ?? cachedSummary?.jobID;
     if (!jobID) return;
     const status = (data?.status ?? cachedSummary?.status)?.toUpperCase();
+<<<<<<< HEAD
     if (
       status === 'RUNNING' ||
       status === 'PENDING' ||
       status === 'CREATING' ||
       status === 'BUILDING'
     ) {
+=======
+    if (status === 'RUNNING' || status === 'PENDING' || status === 'CREATING' || status === 'BUILDING') {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       setActiveBuildID(jobID);
       setShowLogs(true);
     }
@@ -684,36 +866,53 @@ export default function TemplateDetailPage() {
   // ── error / 404 ──
   const is404 = isError && error instanceof ApiError && error.status === 404;
   const isBuilding404 = is404 && (cachedStatus === 'RUNNING' || cachedStatus === 'BUILDING');
+<<<<<<< HEAD
   const isFailed404 = is404 && cachedStatus === 'FAILED';
+=======
+  const isFailed404   = is404 && cachedStatus === 'FAILED';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   if (isError || !data) {
     return (
       <div className="px-6 py-8">
+<<<<<<< HEAD
         <Link
           to="/templates"
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6"
         >
+=======
+        <Link to="/templates" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6">
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           <ArrowLeft className="h-4 w-4" /> {t('backToTemplates')}
         </Link>
         {isBuilding404 ? (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">{t('building')}</p>
+<<<<<<< HEAD
             <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
               {t('refresh')}
             </Button>
+=======
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>{t('refresh')}</Button>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </div>
         ) : isFailed404 ? (
           <div className="space-y-3">
             <p className="text-sm text-destructive">{t('buildFailed')}</p>
+<<<<<<< HEAD
             <p className="text-xs text-muted-foreground">
               {t('buildFailedDeleteHint', {
                 defaultValue: '该模板构建失败，无法查看详情，但你可以将其删除。',
               })}
             </p>
+=======
+            <p className="text-xs text-muted-foreground">{t('buildFailedDeleteHint', { defaultValue: '该模板构建失败，无法查看详情，但你可以将其删除。' })}</p>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             {showDeleteConfirm ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">{t('delete.confirmDesc')}</p>
                 <div className="flex gap-2">
+<<<<<<< HEAD
                   <Button
                     variant="destructive"
                     size="sm"
@@ -736,6 +935,18 @@ export default function TemplateDetailPage() {
               <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)}>
                 <Trash2 className="h-4 w-4 mr-1.5" />
                 {t('delete.button')}
+=======
+                  <Button variant="destructive" size="sm" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
+                    {deleteMutation.isPending ? t('delete.deleting') : t('delete.confirm')}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>{t('delete.cancel')}</Button>
+                </div>
+                {deleteMutation.isError && <p className="text-xs text-destructive">{formatDeleteError(deleteMutation.error)}</p>}
+              </div>
+            ) : (
+              <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+                <Trash2 className="h-4 w-4 mr-1.5" />{t('delete.button')}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               </Button>
             )}
           </div>
@@ -750,9 +961,13 @@ export default function TemplateDetailPage() {
   const isBuilding = !!activeBuildID || data.status?.toUpperCase() === 'BUILDING';
   const buildProgress = (buildStatus as { progress?: number } | undefined)?.progress ?? 0;
   const cfg = extractTemplateRuntimeConfig(data.createRequest);
+<<<<<<< HEAD
   const imgShort = shortImage(
     cachedSummary?.imageInfo ?? (data as { imageInfo?: string }).imageInfo,
   );
+=======
+  const imgShort = shortImage(cachedSummary?.imageInfo ?? (data as { imageInfo?: string }).imageInfo);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const createdAt = cachedSummary?.createdAt ?? (data as { createdAt?: string }).createdAt;
   const status = data.status ?? 'UNKNOWN';
   const compatRow = compat?.templates.find((row) => row.templateID === templateID);
@@ -763,11 +978,17 @@ export default function TemplateDetailPage() {
 
   return (
     <div className="px-6 py-8">
+<<<<<<< HEAD
       {/* back */}
       <Link
         to="/templates"
         className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-8 transition-colors"
       >
+=======
+
+      {/* back */}
+      <Link to="/templates" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-8 transition-colors">
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         <ArrowLeft className="h-3.5 w-3.5" /> {t('backToTemplates')}
       </Link>
 
@@ -776,6 +997,7 @@ export default function TemplateDetailPage() {
         {/* left: id + meta */}
         <div className={cn('min-w-0 space-y-2 border-l-[3px] pl-3', headerAccentClass)}>
           <div className="flex items-center gap-1.5">
+<<<<<<< HEAD
             <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">
               {t('templateId')}
             </span>
@@ -784,6 +1006,12 @@ export default function TemplateDetailPage() {
             <h1 className="text-lg font-semibold font-mono tracking-tight truncate">
               {data.templateID}
             </h1>
+=======
+            <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">{t('templateId')}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-semibold font-mono tracking-tight truncate">{data.templateID}</h1>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             <CopyButton text={data.templateID} />
           </div>
           {imgShort && (
@@ -800,6 +1028,7 @@ export default function TemplateDetailPage() {
           )}
           {createdAt && (
             <p className="text-xs text-muted-foreground/60">
+<<<<<<< HEAD
               {t('createdAt')}{' '}
               {new Date(createdAt).toLocaleString(undefined, {
                 year: 'numeric',
@@ -808,11 +1037,15 @@ export default function TemplateDetailPage() {
                 hour: '2-digit',
                 minute: '2-digit',
               })}
+=======
+              {t('createdAt')} {new Date(createdAt).toLocaleString(undefined, { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             </p>
           )}
         </div>
 
         {/* right: status kpi strip — 竖线分隔，无边框格子 */}
+<<<<<<< HEAD
         <div
           className={cn(
             'flex items-stretch shrink-0 divide-x',
@@ -849,6 +1082,22 @@ export default function TemplateDetailPage() {
               <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">
                 {label}
               </span>
+=======
+        <div className={cn('flex items-stretch shrink-0 divide-x', isStale ? 'divide-destructive/20' : 'divide-cube-ok/20')}>
+          {[
+            { label: t('fields.status'), content: (
+              <span className="inline-flex items-center gap-1.5">
+                <span className={cn('h-2 w-2 rounded-full', statusDotClass(status))} />
+                <span className={cn('text-sm font-semibold', statusTextClass(status))}>{t(`status.${status.toLowerCase()}` as 'status.ready', { defaultValue: status })}</span>
+              </span>
+            )},
+            { label: t('fields.compat'), content: <CompatBadge status={compatStatus} /> },
+            { label: t('fields.version'), content: <span className="text-base font-semibold text-num">{data.version ?? '—'}</span> },
+            { label: 'Replicas', content: <span className="text-base font-semibold text-num">{replicas.length}</span> },
+          ].map(({ label, content }) => (
+            <div key={label} className="px-5 flex flex-col gap-1 first:pl-0 last:pr-0">
+              <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">{label}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               {content}
             </div>
           ))}
@@ -871,18 +1120,26 @@ export default function TemplateDetailPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-cube-warn animate-pulse" />
               {t('rebuild.progress', { progress: buildProgress })}
             </span>
+<<<<<<< HEAD
             <button
               className="flex items-center gap-1 hover:text-foreground transition-colors"
               onClick={() => setShowLogs((v) => !v)}
             >
+=======
+            <button className="flex items-center gap-1 hover:text-foreground transition-colors" onClick={() => setShowLogs(v => !v)}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               {showLogs ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
               {showLogs ? t('rebuild.hideLogs') : t('rebuild.viewLogs')}
             </button>
           </div>
           <ProgressBar value={buildProgress} />
+<<<<<<< HEAD
           {showLogs && activeBuildID && (
             <LogViewer templateID={templateID!} buildID={activeBuildID} />
           )}
+=======
+          {showLogs && activeBuildID && <LogViewer templateID={templateID!} buildID={activeBuildID} />}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         </div>
       )}
 
@@ -893,15 +1150,23 @@ export default function TemplateDetailPage() {
           <>
             <div className="flex items-center gap-2 mb-3">
               <div className="h-3.5 w-0.5 rounded-full bg-blue-400/70" />
+<<<<<<< HEAD
               {/* specs */}
               <span className="text-sm font-semibold text-foreground/80">{t('specs')}</span>
+=======
+              {/* specs */}<span className="text-sm font-semibold text-foreground/80">{t('specs')}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5 mb-6">
               {cfg.cpu && <Field label="CPU" value={cfg.cpu} mono />}
               {cfg.mem && <Field label={t('fields.memory')} value={cfg.mem} mono />}
+<<<<<<< HEAD
               {cfg.writableLayerSize && (
                 <Field label={t('fields.writableLayerSize')} value={cfg.writableLayerSize} mono />
               )}
+=======
+              {cfg.writableLayerSize && <Field label={t('fields.writableLayerSize')} value={cfg.writableLayerSize} mono />}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             </div>
           </>
         )}
@@ -909,26 +1174,39 @@ export default function TemplateDetailPage() {
         {/* 属性分组 */}
         <div className="flex items-center gap-2 mb-3">
           <div className="h-3.5 w-0.5 rounded-full bg-blue-400/70" />
+<<<<<<< HEAD
           {/* attributes */}
           <span className="text-sm font-semibold text-foreground/80">{t('attributes')}</span>
+=======
+          {/* attributes */}<span className="text-sm font-semibold text-foreground/80">{t('attributes')}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-5">
           <Field label={t('fields.templateID')} value={data.templateID} mono copyable />
           <Field label={t('fields.instanceType')} value={data.instanceType ?? '—'} />
           {cfg?.exposedPorts && <Field label={t('exposedPorts')} value={cfg.exposedPorts} mono />}
+<<<<<<< HEAD
           {cfg?.probePath && (
             <Field label={t('probePath')} value={`${cfg.probePath} :${cfg.probePort}`} mono dim />
           )}
           {createdAt && (
             <Field label={t('createdAt')} value={new Date(createdAt).toLocaleString()} dim />
           )}
+=======
+          {cfg?.probePath && <Field label={t('probePath')} value={`${cfg.probePath} :${cfg.probePort}`} mono dim />}
+          {createdAt && <Field label={t('createdAt')} value={new Date(createdAt).toLocaleString()} dim />}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         </div>
 
         {cfg?.env && (
           <div className="mt-5 flex flex-col gap-1.5">
+<<<<<<< HEAD
             <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">
               {t('fields.env')}
             </span>
+=======
+            <span className="text-xs uppercase tracking-wider text-muted-foreground/70 font-medium">{t('fields.env')}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             <pre className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all leading-relaxed text-foreground/90">
               {cfg.env}
             </pre>
@@ -938,12 +1216,17 @@ export default function TemplateDetailPage() {
         {/* error */}
         {data.lastError && (
           <div className="mt-5 rounded-md border border-destructive/30 bg-destructive/5 p-3">
+<<<<<<< HEAD
             <p className="text-xs uppercase tracking-wider font-medium text-destructive/70 mb-1.5">
               {t('fields.lastError')}
             </p>
             <p className="font-mono text-xs break-all text-destructive/80 leading-relaxed">
               {data.lastError}
             </p>
+=======
+            <p className="text-xs uppercase tracking-wider font-medium text-destructive/70 mb-1.5">{t('fields.lastError')}</p>
+            <p className="font-mono text-xs break-all text-destructive/80 leading-relaxed">{data.lastError}</p>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </div>
         )}
       </Section>
@@ -954,6 +1237,7 @@ export default function TemplateDetailPage() {
           const policy = extractTemplateNetworkPolicy(data.createRequest);
           const netType = data.networkType ?? null;
           const internet = data.allowInternetAccess ?? null;
+<<<<<<< HEAD
           const hasAny = !!(
             netType ||
             internet != null ||
@@ -963,6 +1247,13 @@ export default function TemplateDetailPage() {
           );
           if (!hasAny) {
             return <p className="text-sm text-muted-foreground">{t('empty.noNetworkPolicy')}</p>;
+=======
+          const hasAny = !!(netType || internet != null || policy.dns || policy.allowOut || policy.denyOut);
+          if (!hasAny) {
+            return (
+              <p className="text-sm text-muted-foreground">{t('empty.noNetworkPolicy')}</p>
+            );
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           }
           return (
             <div className="space-y-5">
@@ -972,11 +1263,17 @@ export default function TemplateDetailPage() {
                     {t('fields.networkType')}
                   </span>
                   <div>
+<<<<<<< HEAD
                     {netType ? (
                       <span className="chip-net">{netType}</span>
                     ) : (
                       <span className="text-sm text-muted-foreground">—</span>
                     )}
+=======
+                    {netType
+                      ? <span className="chip-net">{netType}</span>
+                      : <span className="text-sm text-muted-foreground">—</span>}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
@@ -1011,11 +1308,15 @@ export default function TemplateDetailPage() {
       </Section>
 
       {/* ── rebuild action ── */}
+<<<<<<< HEAD
       <Section
         title={t('rebuild.button')}
         description={t('rebuild.confirmDesc')}
         className="border-border/70"
       >
+=======
+      <Section title={t('rebuild.button')} description={t('rebuild.confirmDesc')} className="border-border/70">
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         <Button
           variant="outline"
           size="sm"
@@ -1033,6 +1334,7 @@ export default function TemplateDetailPage() {
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">{t('delete.confirmDesc')}</p>
             <div className="flex gap-2">
+<<<<<<< HEAD
               <Button
                 variant="destructive"
                 size="sm"
@@ -1053,6 +1355,18 @@ export default function TemplateDetailPage() {
           <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)}>
             <Trash2 className="h-4 w-4 mr-1.5" />
             {t('delete.button')}
+=======
+              <Button variant="destructive" size="sm" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate()}>
+                {deleteMutation.isPending ? t('delete.deleting') : t('delete.confirm')}
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowDeleteConfirm(false)}>{t('delete.cancel')}</Button>
+            </div>
+            {deleteMutation.isError && <p className="text-xs text-destructive">{formatDeleteError(deleteMutation.error)}</p>}
+          </div>
+        ) : (
+          <Button variant="destructive" size="sm" onClick={() => setShowDeleteConfirm(true)}>
+            <Trash2 className="h-4 w-4 mr-1.5" />{t('delete.button')}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </Button>
         )}
       </Section>
@@ -1066,6 +1380,7 @@ export default function TemplateDetailPage() {
               <CardDescription>{t('rebuild.confirmDesc')}</CardDescription>
             </CardHeader>
             <CardContent className="flex gap-2 justify-end">
+<<<<<<< HEAD
               <Button
                 variant="default"
                 size="sm"
@@ -1083,6 +1398,12 @@ export default function TemplateDetailPage() {
               >
                 {t('rebuild.cancel')}
               </Button>
+=======
+              <Button variant="default" size="sm" className="whitespace-nowrap" disabled={rebuildMutation.isPending} onClick={() => rebuildMutation.mutate()}>
+                {rebuildMutation.isPending ? t('rebuild.building') : t('rebuild.confirm')}
+              </Button>
+              <Button variant="outline" size="sm" className="whitespace-nowrap" onClick={() => setShowRebuildConfirm(false)}>{t('rebuild.cancel')}</Button>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             </CardContent>
           </Card>
         </div>

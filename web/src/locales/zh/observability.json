@@ -28,7 +28,11 @@
   },
   "api": {
     "title": "API 请求监控",
+<<<<<<< HEAD
     "desc": "CubeOps 网关连通性与限流配置",
+=======
+    "desc": "CubeAPI 网关连通性与限流配置",
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     "rateLimit": "限流阈值",
     "auth": "认证状态",
     "authOn": "已启用",

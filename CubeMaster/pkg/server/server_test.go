@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
@@ -156,4 +157,20 @@ func TestMiddlewareSkippedOnNotFoundAndMethodMismatch(t *testing.T) {
 	w = do(http.MethodGet, "/cube/sandbox")
 	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
 	assert.Empty(t, w.Header().Get(mwHeader), "middleware must not run on method-mismatch (no auth on 405)")
+=======
+	"github.com/gorilla/mux"
+)
+
+func TestRegisterHandlersIncludesCADownloadRoute(t *testing.T) {
+	s := &internalHttp{router: mux.NewRouter()}
+	s.registerHandlers()
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		req := httptest.NewRequest(method, "/cube/ca/cube-root-ca.crt", nil)
+		var match mux.RouteMatch
+		if !s.router.Match(req, &match) {
+			t.Fatalf("%s /cube/ca/cube-root-ca.crt did not match any route", method)
+		}
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }

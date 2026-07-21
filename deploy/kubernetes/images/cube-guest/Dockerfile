@@ -16,6 +16,7 @@ RUN apt-get update \
 COPY package/cube-image ${IMAGE_ROOT}/cube-image
 COPY scripts/component-entrypoint.sh /usr/local/bin/component-entrypoint.sh
 
+<<<<<<< HEAD
 ARG CUBE_VERSION=unknown
 RUN set -eu; \
     img_ver="$(tr -d '[:space:]' < ${IMAGE_ROOT}/cube-image/version 2>/dev/null || true)"; \
@@ -30,5 +31,8 @@ RUN set -eu; \
       printf '\n  }\n}\n'; \
     } > ${IMAGE_ROOT}/cube-image/version.json \
     && chmod +x /usr/local/bin/component-entrypoint.sh
+=======
+RUN chmod +x /usr/local/bin/component-entrypoint.sh
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/component-entrypoint.sh"]

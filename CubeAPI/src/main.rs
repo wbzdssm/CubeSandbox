@@ -4,7 +4,13 @@
 
 mod config;
 mod constants;
+<<<<<<< HEAD
 mod cubemaster;
+=======
+mod crypto;
+mod cubemaster;
+mod db;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 mod error;
 mod handlers;
 mod logging;
@@ -179,8 +185,12 @@ fn main() -> anyhow::Result<()> {
         debug_mode = cli.debug,
         log_level = %cfg.log_level,
         bind = %cfg.bind,
+<<<<<<< HEAD
         auth_enabled = cfg.auth_callback_url.is_some()
             || cfg.cube_api_key.is_some(),
+=======
+        auth_enabled = cfg.auth_callback_url.is_some(),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         "cube-api starting"
     );
 

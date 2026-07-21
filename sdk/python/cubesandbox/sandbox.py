@@ -22,6 +22,10 @@ from ._policy import (
 from ._pty import Pty
 from ._stream import _parse_line
 from ._transport import build_client
+<<<<<<< HEAD
+=======
+from ._volume import VolumeMountsArg, _serialize_volume_mounts
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 JUPYTER_PORT = 49999
 
@@ -33,8 +37,18 @@ def _check_response(resp: requests.Response) -> None:
     if resp.ok:
         return
     try:
+<<<<<<< HEAD
         msg = resp.json().get("message") or resp.json().get("detail") or resp.text
     except Exception:
+=======
+        body = resp.json()
+        msg = (
+            (body.get("message") or body.get("detail") or resp.text)
+            if isinstance(body, dict)
+            else resp.text
+        )
+    except (ValueError, requests.JSONDecodeError):
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         msg = resp.text or f"HTTP {resp.status_code}"
     code = resp.status_code
     if code in (401, 403):
@@ -152,6 +166,10 @@ class Sandbox:
         allow_internet_access: bool = True,
         network: Dict[str, Any] | None = None,
         lifecycle: Dict[str, Any] | None = None,
+<<<<<<< HEAD
+=======
+        volume_mounts: VolumeMountsArg | None = None,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         config: Config | None = None,
         **kwargs: Any,
     ) -> "Sandbox":
@@ -189,6 +207,19 @@ class Sandbox:
 
                 Absent ``lifecycle`` keeps today's behaviour (idle sandboxes
                 are killed).
+<<<<<<< HEAD
+=======
+            volume_mounts: Optional dict mapping mount paths to volumes
+                (e2b-compatible). Key is the sandbox mount path, value is a
+                :class:`~cubesandbox.Volume` instance (or a plain ``volumeID``
+                string)::
+
+                    Sandbox.create(volume_mounts={"/workspace": vol})
+                    Sandbox.create(volume_mounts={"/workspace": "vol-123"})
+
+                Each value must resolve to an existing ``volumeID`` created via
+                :meth:`cubesandbox.Volume.create`.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             config: SDK config. Uses default (env-based) config if omitted.
 
         Returns:
@@ -242,6 +273,11 @@ class Sandbox:
         # camelCase keys. Absent => server-side default ("kill" on timeout).
         if lifecycle:
             payload["lifecycle"] = _serialize_lifecycle(lifecycle)
+<<<<<<< HEAD
+=======
+        if volume_mounts:
+            payload["volumeMounts"] = _serialize_volume_mounts(volume_mounts)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         payload.update(kwargs)
 
         s = requests.Session()

@@ -15,7 +15,10 @@ import (
 	"sync"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/go-sql-driver/mysql"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/google/uuid"
 	cubeboxv1 "github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/cubebox/v1"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
@@ -685,6 +688,7 @@ func refreshTemplateReplicaSummary(ctx context.Context, templateID string) error
 	return nil
 }
 
+<<<<<<< HEAD
 // createDefinitionWithOptions wraps createDefinitionTx in a real DB transaction
 // so the INSERT is atomic. Alias claiming is NOT done here — it happens
 // separately in claimTemplateAlias after the template reaches READY.
@@ -704,12 +708,27 @@ func createDefinition(ctx context.Context, templateID string, storedReq *sandbox
 // ensureTemplateDefinitionWithOptions checks whether a definition already exists
 // and creates one if missing, threading alias metadata (DisplayName) via opts.
 func ensureTemplateDefinitionWithOptions(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string, opts definitionCreateOptions) (bool, error) {
+=======
+func createDefinition(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string) error {
+	return createDefinitionTx(ctx, store.db.WithContext(ctx), templateID, storedReq, instanceType, version, definitionCreateOptions{})
+}
+
+func createDefinitionWithOptions(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string, opts definitionCreateOptions) error {
+	return createDefinitionTx(ctx, store.db.WithContext(ctx), templateID, storedReq, instanceType, version, opts)
+}
+
+func ensureTemplateDefinition(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string) (bool, error) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if _, err := GetDefinition(ctx, templateID); err == nil {
 		return false, nil
 	} else if !errors.Is(err, ErrTemplateNotFound) {
 		return false, err
 	}
+<<<<<<< HEAD
 	if err := createDefinitionWithOptions(ctx, templateID, storedReq, instanceType, version, opts); err != nil {
+=======
+	if err := createDefinition(ctx, templateID, storedReq, instanceType, version); err != nil {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		return false, err
 	}
 	if cacheErr := setTemplateRequestCache(templateID, storedReq); cacheErr != nil {
@@ -897,6 +916,7 @@ func GetDefinition(ctx context.Context, templateID string) (*models.TemplateDefi
 	return def, nil
 }
 
+<<<<<<< HEAD
 // GetTemplateByAlias looks up a non-deleted TEMPLATE definition by its
 // display_name (used as a stable alias). Returns ErrTemplateNotFound when no
 // template has the given alias.
@@ -1013,6 +1033,8 @@ func claimAliasAfterReady(ctx context.Context, templateID, alias string) (claimW
 	}
 	return "", ""
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func GetTemplateRequest(ctx context.Context, templateID string) (*sandboxtypes.CreateCubeSandboxReq, error) {
 	cacheStart := time.Now()
 	if req, hit, err := getCachedTemplateRequest(templateID); err != nil {

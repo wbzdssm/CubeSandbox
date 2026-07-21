@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Tencent. All rights reserved.
 
+<<<<<<< HEAD
 // Minimal fetch wrapper with dual base URLs:
 // - `api()`  → SDK/E2B endpoints (root path, JWT Bearer auth via CubeOps)
 // - `ops()`  → CubeOps ops endpoints (/opsapi/v1 prefix, JWT Bearer auth)
@@ -11,6 +12,13 @@ export type ApiInit = RequestInit & {
 
 const SDK_BASE = ''; // CubeAPI root path (E2B compatible)
 const OPS_BASE = '/opsapi/v1'; // CubeOps via nginx proxy
+=======
+// Minimal fetch wrapper. Auth header can be injected via the api-key header.
+
+export type ApiInit = RequestInit & { params?: Record<string, string | number | boolean | undefined> };
+
+const BASE = '/cubeapi/v1'; // same-origin via Vite proxy in dev; prefixed in prod
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 function buildQuery(params?: ApiInit['params']): string {
   if (!params) return '';
@@ -33,6 +41,7 @@ export class ApiError extends Error {
   }
 }
 
+<<<<<<< HEAD
 // --- Token management ---
 
 function getAccessToken(): string {
@@ -88,10 +97,13 @@ async function refreshAccessToken(): Promise<string | null> {
 
 // --- SDK API (CubeAPI via CubeOps proxy, JWT Bearer auth) ---
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 export async function api<T = unknown>(path: string, init: ApiInit = {}): Promise<T> {
   const { params, headers, ...rest } = init;
   const query = buildQuery(params);
 
+<<<<<<< HEAD
   const accessToken = getAccessToken();
   const url = `${SDK_BASE}${path}${query}`;
 
@@ -173,6 +185,26 @@ export async function ops<T = unknown>(path: string, init: ApiInit = {}): Promis
       (body && typeof body === 'object' && 'error' in body && (body as any).error) ||
       (body && typeof body === 'object' && 'message' in body && (body as any).message) ||
       `${resp.status} ${resp.statusText}`;
+=======
+  const apiKey = localStorage.getItem('cube.apiKey') ?? '';
+  const sessionToken = localStorage.getItem('cube.session') ?? '';
+  const url = `${BASE}${path}${query}`;
+  const resp = await fetch(url, {
+    ...rest,
+    headers: {
+      ...(rest.body != null ? { 'Content-Type': 'application/json' } : {}),
+      ...(apiKey ? { 'X-API-Key': apiKey } : {}),
+      ...(sessionToken ? { 'X-Session-Token': sessionToken } : {}),
+      ...(headers ?? {}),
+    },
+  });
+  const text = await resp.text();
+  const body = text ? safeJson(text) : undefined;
+  if (!resp.ok) {
+    const msg = (body && typeof body === 'object' && 'error' in body && (body as any).error)
+      || (body && typeof body === 'object' && 'message' in body && (body as any).message)
+      || `${resp.status} ${resp.statusText}`;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     throw new ApiError(resp.status, String(msg), body);
   }
   return body as T;

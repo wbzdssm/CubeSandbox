@@ -5,7 +5,10 @@
 package storage
 
 import (
+<<<<<<< HEAD
 	"context"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"encoding/json"
 	"fmt"
 	"os"
@@ -22,10 +25,14 @@ import (
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/constants"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/cubecow"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/plugins/cube/internals/cubes"
+<<<<<<< HEAD
 	volpkg "github.com/tencentcloud/CubeSandbox/Cubelet/plugins/volume"
 	volbinary "github.com/tencentcloud/CubeSandbox/Cubelet/plugins/volume/binary"
 	volrpc "github.com/tencentcloud/CubeSandbox/Cubelet/plugins/volume/rpc"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
+=======
+	"github.com/tencentcloud/CubeSandbox/cubelog"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 var cowLookPath = exec.LookPath
@@ -41,11 +48,14 @@ const StorageBackendCow = "cubecow"
 // matches the `BackendKind::Reflink` variant on the Rust side.
 const cowBackendReflink = "reflink"
 
+<<<<<<< HEAD
 // defaultVolumePluginBaseDir is the fallback parent directory that
 // plugin_volume Attach must mount volumes under when Config.VolumePluginBaseDir
 // is not set in TOML.
 const defaultVolumePluginBaseDir = "/data/volume"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 // reflinkExt4InitCommands lists the external commands the **cubelet
 // upper layers** need when they initialise an ext4 default-medium
 // volume on top of a reflink-backed file. cubecow itself uses zero
@@ -103,6 +113,7 @@ type Config struct {
 	// than the 3s default; this knob lets operators bump it without
 	// recompiling.
 	CmdTimeout tomlext.Duration `toml:"cmd_timeout"`
+<<<<<<< HEAD
 
 	// VolumePlugins lists external volume plugin configurations.
 	// Built-in plugins are registered in code and do not need entries here.
@@ -120,6 +131,8 @@ type Config struct {
 	// attach whose returned host_path is not located inside it. Defaults to
 	// defaultVolumePluginBaseDir ("/data/volume") when empty.
 	VolumePluginBaseDir string `toml:"volume_plugin_base_dir"`
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // CowInlineConfig mirrors the cubecow `AppConfig` schema. cubecow is
@@ -300,9 +313,12 @@ func init() {
 			if localStorage.config.PoolType == "" {
 				localStorage.config.PoolType = cp_type
 			}
+<<<<<<< HEAD
 			if localStorage.config.VolumePluginBaseDir == "" {
 				localStorage.config.VolumePluginBaseDir = defaultVolumePluginBaseDir
 			}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			if localStorage.config.CmdTimeout == 0 {
 				localStorage.config.CmdTimeout = tomlext.FromStdTime(defaultCmdTimeout)
 			}
@@ -341,12 +357,15 @@ func init() {
 				return nil, err
 			}
 
+<<<<<<< HEAD
 			// initialise external volume plugins declared in TOML
 			if err := initVolumePlugins(ic.Context, localStorage.config); err != nil {
 				CubeLog.Errorf("volume plugin init fail: %v", err)
 				return nil, err
 			}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			SetSnapshotCatalogRoots(constants.DefaultSnapshotDir)
 
 			return localStorage, nil
@@ -373,6 +392,7 @@ func checkPoolType(c *Config) {
 		}
 	}
 }
+<<<<<<< HEAD
 
 // collectLiveSandboxIDs reads all StorageInfo entries from the local DB and
 // returns the set of sandbox IDs that are currently persisted.
@@ -477,3 +497,5 @@ func initVolumePlugins(ctx context.Context, cfg *Config) error {
 	}
 	return nil
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

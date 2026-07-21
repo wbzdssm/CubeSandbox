@@ -52,7 +52,10 @@ BINARIES := \
 	cubeapi \
 	cubelet \
 	cubemaster \
+<<<<<<< HEAD
 	cubeops \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	cubevsmapdump \
 	network-agent \
 	shim \
@@ -108,13 +111,19 @@ help:
 	@printf "  agent         Build cube-agent in Docker\n"
 	@printf "  cubeapi       Build CubeAPI (cube-api) in Docker\n"
 	@printf "  cube-api      Alias of cubeapi\n"
+<<<<<<< HEAD
 	@printf "  cubeops       Build CubeOps in Docker\n"
 	@printf "  cubeops-test  Run CubeOps unit tests in Docker\n"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	@printf "  shim          Build containerd-shim-cube-rs and cube-runtime in Docker\n"
 	@printf "  cubemaster-test Run CubeMaster unit tests in Docker\n"
 	@printf "  cubelet-test  Run Cubelet unit tests in Docker\n"
 	@printf "  cube-api-test Run CubeAPI unit tests in Docker\n"
+<<<<<<< HEAD
 	@printf "  cubeops-test  Run CubeOps unit tests in Docker\n"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	@printf "  shim-test     Run CubeShim unit tests in Docker\n"
 	@printf "  network-agent-test Run network-agent unit tests in Docker\n"
 	@printf "  guest-kernel  Build guest kernel vmlinux/Image (KERNEL_SRC=...; native or cross x86_64<->aarch64)\n"
@@ -126,7 +135,10 @@ help:
 	@printf "  web-build     Build WebUI static assets\n"
 	@printf "  web-preview   Preview built WebUI assets\n"
 	@printf "  web-lint      Run WebUI lint checks\n"
+<<<<<<< HEAD
 	@printf "  web-fmt       Format WebUI sources\n"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	@printf "  fmt            Format code in all component directories\n"
 	@printf "  web-api-sync  Export OpenAPI and regenerate WebUI schema types\n"
 	@printf "  web-sync-dev-env Build and deploy WebUI into dev-env VM\n"
@@ -178,9 +190,13 @@ builder-shell: prepare-builder-home prepare-tmp-git-credentials
 
 .PHONY: builder-run
 builder-run: prepare-builder-home prepare-tmp-git-credentials
+<<<<<<< HEAD
 ifeq ($(strip $(BUILDER_CMD)),)
 	$(error BUILDER_CMD must not be empty)
 endif
+=======
+	@test -n "$(strip $(BUILDER_CMD))" || { echo "BUILDER_CMD must not be empty"; exit 1; }
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	docker run --rm -i \
 		--user "$(UID):$(GID)" \
 		-e HOME=$(BUILDER_CONTAINER_HOME) \
@@ -272,6 +288,7 @@ cubeapi: builder-image
 .PHONY: cube-api
 cube-api: cubeapi
 
+<<<<<<< HEAD
 .PHONY: cubeops
 cubeops: builder-image
 	@mkdir -p "$(OUTPUT_DIR)"
@@ -281,6 +298,8 @@ cubeops: builder-image
 cubeops-test: builder-image
 	$(MAKE) builder-run BUILDER_CMD='cd /workspace/CubeOps && go mod download && go test ./...'
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 .PHONY: cubemaster-test
 cubemaster-test: builder-image
 	$(MAKE) builder-run BUILDER_CMD='cd /workspace/CubeMaster && go mod download && make test'
@@ -358,10 +377,13 @@ web-preview:
 web-lint:
 	cd "$(WEB_DIR)" && npm run lint
 
+<<<<<<< HEAD
 .PHONY: web-fmt
 web-fmt:
 	@$(MAKE) -C web fmt
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 .PHONY: web-api-sync
 web-api-sync:
 	cd "$(WEB_DIR)" && npm run api:sync
@@ -386,6 +408,7 @@ fmt:
 	@$(MAKE) -C cubelog fmt
 	@printf '  %-8s %s\n' "FMT" "CubeMaster"
 	@$(MAKE) -C CubeMaster fmt
+<<<<<<< HEAD
 	@printf '  %-8s %s\n' "FMT" "CubeNet"
 	@$(MAKE) -C CubeNet fmt
 	@printf '  %-8s %s\n' "FMT" "CubeOps"
@@ -394,10 +417,15 @@ fmt:
 	@$(MAKE) -C CubeShim fmt
 	@printf '  %-8s %s\n' "FMT" "cube-lifecycle-manager"
 	@$(MAKE) -C cube-lifecycle-manager fmt
+=======
+	@printf '  %-8s %s\n' "FMT" "CubeShim"
+	@$(MAKE) -C CubeShim fmt
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	@printf '  %-8s %s\n' "FMT" "hypervisor"
 	@$(MAKE) -C hypervisor fmt
 	@printf '  %-8s %s\n' "FMT" "network-agent"
 	@$(MAKE) -C network-agent fmt
+<<<<<<< HEAD
 	@printf '  %-8s %s\n' "FMT" "sdk/go"
 	@$(MAKE) -C sdk/go fmt
 	@printf '  %-8s %s\n' "FMT" "examples/cube-bench"
@@ -408,3 +436,5 @@ fmt:
 	else \
 		printf '  %-8s %s\n' "SKIP" "web (npm not available)"; \
 	fi
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

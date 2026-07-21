@@ -341,7 +341,11 @@ func runRedoTemplateImageJob(ctx context.Context, jobID string, req *types.RedoT
 		failRedoTemplateImageJob(ctx, jobID, resumePhase, err.Error())
 		return
 	}
+<<<<<<< HEAD
 	if _, err := ensureTemplateDefinitionWithOptions(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, constants.GetAppSnapshotVersion(generatedReq.Annotations), definitionCreateOptions{}); err != nil {
+=======
+	if _, err := ensureTemplateDefinition(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, constants.GetAppSnapshotVersion(generatedReq.Annotations)); err != nil {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		failRedoTemplateImageJob(ctx, jobID, resumePhase, err.Error())
 		return
 	}
@@ -379,12 +383,17 @@ func runRedoTemplateImageJob(ctx context.Context, jobID string, req *types.RedoT
 		})
 		return
 	}
+<<<<<<< HEAD
+=======
+	resultPayload, _ := json.Marshal(info)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	finalStatus := JobStatusReady
 	finalPhase := JobPhaseReady
 	if info.Status == StatusFailed {
 		finalStatus = JobStatusFailed
 		finalPhase = JobPhaseSnapshotting
 	}
+<<<<<<< HEAD
 	// Claim alias after READY via the shared helper.
 	claimWarning := ""
 	if info.Status != StatusFailed {
@@ -399,6 +408,8 @@ func runRedoTemplateImageJob(ctx context.Context, jobID string, req *types.RedoT
 	if errorMessage == "" && claimWarning != "" {
 		errorMessage = claimWarning
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	_ = updateTemplateImageJob(ctx, jobID, map[string]any{
 		"status":          finalStatus,
 		"phase":           finalPhase,
@@ -407,6 +418,10 @@ func runRedoTemplateImageJob(ctx context.Context, jobID string, req *types.RedoT
 		"artifact_status": artifact.Status,
 		"template_status": info.Status,
 		"result_json":     string(resultPayload),
+<<<<<<< HEAD
 		"error_message":   errorMessage,
+=======
+		"error_message":   info.LastError,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	})
 }

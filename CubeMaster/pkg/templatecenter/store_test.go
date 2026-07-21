@@ -6,7 +6,10 @@ package templatecenter
 
 import (
 	"context"
+<<<<<<< HEAD
 	"database/sql"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"errors"
 	"reflect"
 	"strings"
@@ -20,7 +23,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/node"
 	sandboxtypes "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+<<<<<<< HEAD
 	"gorm.io/driver/mysql"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"gorm.io/gorm"
 )
 
@@ -144,7 +150,11 @@ func TestCreateTemplateUsesRequestedDistributionScope(t *testing.T) {
 	patches.ApplyFunc(normalizeStoredTemplateRequest, func(in *sandboxtypes.CreateCubeSandboxReq) (*sandboxtypes.CreateCubeSandboxReq, error) {
 		return in, nil
 	})
+<<<<<<< HEAD
 	patches.ApplyFunc(createDefinitionWithOptions, func(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string, _ definitionCreateOptions) error {
+=======
+	patches.ApplyFunc(createDefinition, func(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string) error {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		return nil
 	})
 	patches.ApplyFunc(setTemplateRequestCache, func(templateID string, req *sandboxtypes.CreateCubeSandboxReq) error {
@@ -260,6 +270,7 @@ func TestGetTemplateInfoPopulatesCreatedAtAndImageInfoFromDefinitionAndLatestJob
 		t.Fatalf("unexpected image_info: %q", info.ImageInfo)
 	}
 }
+<<<<<<< HEAD
 
 // TestGetTemplateByAliasEmptyAliasReturnsNotFound verifies the empty-alias
 // fast path: an empty (or whitespace-only) alias short-circuits to
@@ -401,3 +412,5 @@ func TestGetTemplateByAliasFiltersByKindExcludesSnapshots(t *testing.T) {
 	assert.True(t, aliasBound,
 		"alias must be bound in the query; captured vars: %v", capturedVars)
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

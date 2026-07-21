@@ -117,6 +117,7 @@ class TracingSandboxAdapter(SandboxAdapter):
         )
         return wrap_adapter(resumed, self._trace)
 
+<<<<<<< HEAD
     def get_host(self, port: int) -> str:
         return self._trace.capture(
             "get_host",
@@ -139,6 +140,8 @@ class TracingSandboxAdapter(SandboxAdapter):
             output=lambda token: {"token_present": bool(token)},
         )
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     def kill(self) -> None:
         return self._trace.capture(
             "kill",

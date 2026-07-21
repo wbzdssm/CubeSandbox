@@ -31,7 +31,10 @@ import (
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/plugin"
 	jsoniter "github.com/json-iterator/go"
+<<<<<<< HEAD
 	bolt "go.etcd.io/bbolt"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/tencentcloud/CubeSandbox/Cubelet/api/services/cubebox/v1"
@@ -43,7 +46,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/recov"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/ret"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/utils"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/Cubelet/plugins/volume/refcount"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/Cubelet/plugins/workflow"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
@@ -68,11 +74,14 @@ type local struct {
 	multiLock            *multilock.MultiLock
 	cowEngine            *cubecow.Engine
 	cowManager           cowVolumeManager
+<<<<<<< HEAD
 
 	// rcDB is the dedicated bbolt DB for the plugin-volume reference-count store.
 	// It is a sibling file to meta.db in the same db directory.
 	rcDB    *bolt.DB
 	rcStore *refcount.Store
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type HostStorageMeta struct {
@@ -569,6 +578,7 @@ func (l *local) initDb() error {
 		bucket.CubeStore = l.db
 		multimeta.RegisterBucket(bucket)
 	}
+<<<<<<< HEAD
 
 	// Open a dedicated bbolt file for plugin-volume ref-counts.
 	// This is separate from the sharded CubeStore so we can use bbolt
@@ -582,6 +592,8 @@ func (l *local) initDb() error {
 	if err != nil {
 		return fmt.Errorf("init volume refcount store: %w", err)
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	return nil
 }
 
@@ -804,6 +816,7 @@ func (l *local) Create(ctx context.Context, opts *workflow.CreateContext) (retEr
 	var restoreMemoryVolURL string
 	eg, groupCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
+<<<<<<< HEAD
 		var err error
 		func() {
 			defer func() {
@@ -818,6 +831,9 @@ func (l *local) Create(ctx context.Context, opts *workflow.CreateContext) (retEr
 			CubeLog.Errorf("[plugin_volume] prepareRequestVolumes error: %v", err)
 		}
 		return err
+=======
+		return l.prepareRequestVolumes(groupCtx, opts, realReq, result)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	})
 	eg.Go(func() error {
 		url, err := l.prefetchRestoreMemoryVolURL(groupCtx, opts)
@@ -866,11 +882,14 @@ func (l *local) prepareRequestVolumes(ctx context.Context, opts *workflow.Create
 		if err := l.prepareHostDirVolume(ctx, opts, v, result); err != nil {
 			return err
 		}
+<<<<<<< HEAD
 
 		// plugin_volume: routed entirely through the VolumePlugin framework.
 		if err := l.attachPluginVolume(ctx, opts, v, result); err != nil {
 			return err
 		}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 	return nil
 }
@@ -995,6 +1014,7 @@ func (l *local) prepareDefaultMedium(ctx context.Context, opts *workflow.CreateC
 		v.GetVolumeSource().GetEmptyDir().GetMedium() != cubebox.StorageMedium_StorageMediumDefault {
 		return nil
 	}
+<<<<<<< HEAD
 	// Plugin volumes are injected by CubeMaster as EmptyDir placeholders but
 	// must NOT be provisioned here — they are handled entirely by
 	// attachPluginVolume via the VolumePlugin binary framework.
@@ -1004,6 +1024,8 @@ func (l *local) prepareDefaultMedium(ctx context.Context, opts *workflow.CreateC
 	if isPluginVolume(opts.ReqInfo.GetAnnotations(), v.GetName()) {
 		return nil
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	sizeLimit := v.GetVolumeSource().GetEmptyDir().SizeLimit
 
 	templateID, hasSnapshotTemplate := opts.GetSnapshotTemplateID()
@@ -1277,8 +1299,12 @@ func (l *local) destroy(ctx context.Context, info *StorageInfo, opts *workflow.D
 		errs = errors.Join(errs, err)
 	}
 
+<<<<<<< HEAD
 	// plugin_volume: unmount all volumes that were provisioned via VolumePlugin.
 	if err := l.detachPluginVolumes(ctx, info, opts); err != nil {
+=======
+	if err := l.cleanupHostDirVolumes(ctx, info); err != nil {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		errs = errors.Join(errs, err)
 	}
 
@@ -1597,12 +1623,15 @@ type StorageInfo struct {
 	HostDirBackendInfos map[string]*HostDirBackendInfo `json:"hostDirBackendInfos,omitempty"`
 
 	RestoreMemoryVolURL string `json:"-"`
+<<<<<<< HEAD
 
 	// PluginVolumeBackendInfos records the result of every plugin_volume attach.
 	// Keyed by Volume.name (the RunCubeSandboxRequest name, not volumeID).
 	// Persisted in the same DB bucket as the rest of StorageInfo so
 	// Destroy / CleanUp can reconstruct what to detach.
 	PluginVolumeBackendInfos map[string]*PluginVolumeBackendInfo `json:"pluginVolumeBackendInfos,omitempty"`
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func (i *StorageInfo) GetNICQueues() int64 {

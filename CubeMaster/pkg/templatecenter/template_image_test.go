@@ -1478,7 +1478,11 @@ func TestRunRedoTemplateImageJobRegeneratesRequestForRedoTemplateID(t *testing.T
 		}
 		return nil
 	})
+<<<<<<< HEAD
 	patches.ApplyFunc(ensureTemplateDefinitionWithOptions, func(ctx context.Context, templateID string, storedReq *types.CreateCubeSandboxReq, instanceType, version string, _ definitionCreateOptions) (bool, error) {
+=======
+	patches.ApplyFunc(ensureTemplateDefinition, func(ctx context.Context, templateID string, storedReq *types.CreateCubeSandboxReq, instanceType, version string) (bool, error) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		if templateID != redoTemplateID {
 			t.Fatalf("definition templateID = %q, want %q", templateID, redoTemplateID)
 		}

@@ -13,7 +13,10 @@ package cubebox
 import (
 	v11 "github.com/tencentcloud/CubeSandbox/Cubelet/api/services/errorcode/v1"
 	v1 "github.com/tencentcloud/CubeSandbox/Cubelet/api/services/images/v1"
+<<<<<<< HEAD
 	vpv1 "github.com/tencentcloud/CubeSandbox/Cubelet/api/services/volumeplugin/v1"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -2540,10 +2543,14 @@ type VolumeSource struct {
 	// host_dir_volumes shares host directories into the container via virtiofs.
 	HostDirVolumes *HostDirVolumeSources `protobuf:"bytes,7,opt,name=host_dir_volumes,json=hostDirVolumes,proto3" json:"host_dir_volumes,omitempty"`
 	// image volume source for image volume mount
+<<<<<<< HEAD
 	Image *v1.ImageVolumeSource `protobuf:"bytes,9,opt,name=image,proto3" json:"image,omitempty"`
 	// plugin_volume delegates provisioning to a named external VolumePlugin.
 	// Field 11 matches the proto definition in volumeplugin.proto.
 	PluginVolume  *vpv1.PluginVolumeSource `protobuf:"bytes,11,opt,name=plugin_volume,json=pluginVolume,proto3" json:"plugin_volume,omitempty"`
+=======
+	Image         *v1.ImageVolumeSource `protobuf:"bytes,9,opt,name=image,proto3" json:"image,omitempty"`
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2606,6 +2613,7 @@ func (x *VolumeSource) GetImage() *v1.ImageVolumeSource {
 	return nil
 }
 
+<<<<<<< HEAD
 func (x *VolumeSource) GetPluginVolume() *vpv1.PluginVolumeSource {
 	if x != nil {
 		return x.PluginVolume
@@ -2613,6 +2621,8 @@ func (x *VolumeSource) GetPluginVolume() *vpv1.PluginVolumeSource {
 	return nil
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 // Volume represents a named volume in a pod that may be accessed by any container in the pod.
 type Volume struct {
 	state protoimpl.MessageState `protogen:"open.v1"`

@@ -6,7 +6,16 @@
 package inner
 
 import (
+<<<<<<< HEAD
 	"path/filepath"
+=======
+	"net/http"
+	"path/filepath"
+
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+	"github.com/tencentcloud/CubeSandbox/cubelog"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 const (
@@ -24,3 +33,39 @@ func InnerURI() string {
 func actionURI(uri string) string {
 	return filepath.Clean(filepath.Join(innerURI, uri))
 }
+<<<<<<< HEAD
+=======
+
+func HttpHandler(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	rt := CubeLog.GetTraceInfo(ctx)
+	var rsp interface{}
+	switch r.URL.Path {
+	case actionURI(NodeAction):
+		req := &types.GetNodeReq{}
+		querys := r.URL.Query()
+		req.RequestID = querys.Get("requestID")
+		req.HostID = querys.Get("host_id")
+		ss := querys.Get("score_only")
+		if ss != "" && ss == "true" {
+			req.ScoreOnly = true
+		}
+		rt.RequestID = req.RequestID
+		rsp = getNodeInfo(ctx, req)
+	case actionURI(StateWs):
+		handleWebsocket(w, r)
+		return
+	case actionURI(StateQuery):
+		handleQuery(w, r)
+		return
+	default:
+		rsp = &types.Res{
+			Ret: &types.Ret{
+				RetCode: -1,
+				RetMsg:  http.StatusText(http.StatusNotFound),
+			},
+		}
+	}
+	common.WriteResponse(w, http.StatusOK, rsp)
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

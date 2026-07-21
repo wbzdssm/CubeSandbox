@@ -17,8 +17,11 @@ pytestmark = [
 
 @pytest.mark.smoke
 def test_create_returns_usable_sandbox(sdk_sandbox, sdk_e2e_config):
+<<<<<<< HEAD
     # Verify that create returns a sandbox with a stable ID and a usable
     # command data plane.
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     info = sdk_sandbox.info()
 
     assert sdk_sandbox.sandbox_id
@@ -35,7 +38,10 @@ def test_create_returns_usable_sandbox(sdk_sandbox, sdk_e2e_config):
 
 
 def test_info_is_stable_for_created_sandbox(sdk_sandbox):
+<<<<<<< HEAD
     # Verify that repeated info calls keep reporting the created sandbox ID.
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     first = sdk_sandbox.info()
     second = sdk_sandbox.info()
 

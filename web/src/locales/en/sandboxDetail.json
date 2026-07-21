@@ -11,6 +11,7 @@
   "logsEmpty": "No log entries yet.",
   "logsEntries": "entries",
   "logsRefresh": "Refresh now",
+<<<<<<< HEAD
   "logsUnavailable": "The sandbox has ended. Log polling has stopped.",
   "logsError": "Failed to load logs. Try again later.",
   "refreshFailed": "Status refresh failed. Showing the last successfully fetched data.",
@@ -28,12 +29,17 @@
     "title": "Failed to load sandbox details",
     "description": "The sandbox details are temporarily unavailable. Check your connection and retry."
   },
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   "fields": {
     "vcpu": "vCPU",
     "memory": "Memory",
     "client": "Client",
     "alias": "Alias",
+<<<<<<< HEAD
     "template": "Template",
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     "ends": "Ends",
     "domain": "Domain",
     "started": "Started",
@@ -53,4 +59,8 @@
     "resumeCapacityDetail": "Insufficient memory to resume (need {{need}}, used {{used}}, quota {{quota}})",
     "resumeCapacityDetailCpu": "Insufficient CPU to resume (need {{need}}, used {{used}}, quota {{quota}})"
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

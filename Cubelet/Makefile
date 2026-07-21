@@ -2,7 +2,11 @@ APPS=cubelet cubecli
 COVERAGE_PROFILE=coverage.profile
 ROOT_DIR=$(shell pwd)
 BUILD_DIR=$(ROOT_DIR)/build
+<<<<<<< HEAD
 PROTO=services/errorcode services/version services/cubebox services/images services/nbi services/multimetadb services/volumeplugin types
+=======
+PROTO=services/errorcode services/version services/cubebox services/images services/nbi services/multimetadb types
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 PACK_DIR=$(BUILD_DIR)/cube-let
 
 export GO111MODULE=on

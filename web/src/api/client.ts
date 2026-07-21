@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Tencent. All rights reserved.
 
+<<<<<<< HEAD
 import { api, ops, setTokens, clearTokens } from '@/lib/api';
+=======
+import { api } from '@/lib/api';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import type { components } from './generated/schema';
 
 export type ClusterOverviewDto = components['schemas']['ClusterOverview'];
@@ -129,8 +133,12 @@ function mapTemplateSummary(dto: TemplateSummaryDto): TemplateSummary {
     imageInfo: dto.imageInfo,
     jobID: dto.jobID ?? null,
     networkType: (dto as unknown as { networkType?: string }).networkType ?? null,
+<<<<<<< HEAD
     allowInternetAccess:
       (dto as unknown as { allowInternetAccess?: boolean }).allowInternetAccess ?? null,
+=======
+    allowInternetAccess: (dto as unknown as { allowInternetAccess?: boolean }).allowInternetAccess ?? null,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   };
 }
 
@@ -147,8 +155,12 @@ function mapTemplateDetail(dto: TemplateDetailDto): TemplateDetail {
     createRequest: dto.createRequest,
     jobID: (dto as unknown as { jobID?: string }).jobID ?? null,
     networkType: (dto as unknown as { networkType?: string }).networkType ?? null,
+<<<<<<< HEAD
     allowInternetAccess:
       (dto as unknown as { allowInternetAccess?: boolean }).allowInternetAccess ?? null,
+=======
+    allowInternetAccess: (dto as unknown as { allowInternetAccess?: boolean }).allowInternetAccess ?? null,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   };
 }
 
@@ -167,8 +179,12 @@ function mapNode(dto: ApiNodeView): ClusterNodeView {
       maxMvmSlots: dto.maxMvmSlots,
       quotaCpu: (dto as unknown as { quotaCpu?: number }).quotaCpu ?? 0,
       quotaMemMB: (dto as unknown as { quotaMemMB?: number }).quotaMemMB ?? 0,
+<<<<<<< HEAD
       createConcurrentNum:
         (dto as unknown as { createConcurrentNum?: number }).createConcurrentNum ?? 0,
+=======
+      createConcurrentNum: (dto as unknown as { createConcurrentNum?: number }).createConcurrentNum ?? 0,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     },
     conditions: dto.conditions?.map((condition) => ({
       type: condition.type,
@@ -192,12 +208,17 @@ const DEFAULT_RESUME_BODY: SandboxResumeRequest = {
 };
 
 export const sandboxApi = {
+<<<<<<< HEAD
   list: (params?: {
     metadata?: string;
     state?: RunningSandbox['state'];
     nextToken?: string;
     limit?: number;
   }) => api<ListedSandboxDto[]>('/v2/sandboxes', { params }).then((items) => items.map(mapSandbox)),
+=======
+  list: (params?: { metadata?: string; state?: RunningSandbox['state']; nextToken?: string; limit?: number }) =>
+    api<ListedSandboxDto[]>('/v2/sandboxes', { params }).then((items) => items.map(mapSandbox)),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   get: (id: string) => api<SandboxDetailDto>(`/sandboxes/${id}`).then(mapSandboxDetail),
   kill: (id: string) => api<void>(`/sandboxes/${id}`, { method: 'DELETE' }),
   pause: (id: string) => api<void>(`/sandboxes/${id}/pause`, { method: 'POST' }),
@@ -207,6 +228,7 @@ export const sandboxApi = {
       body: JSON.stringify(body),
     }).then(() => undefined),
   setTimeout: (id: string, seconds: number) =>
+<<<<<<< HEAD
     api<void>(`/sandboxes/${id}/timeout`, {
       method: 'POST',
       body: JSON.stringify({ timeout: seconds }),
@@ -214,6 +236,16 @@ export const sandboxApi = {
   logs: (id: string, params?: { cursor?: number; limit?: number; direction?: string }) =>
     api<SandboxLogsDto>(`/v2/sandboxes/${id}/logs`, { params }),
   create: (body: { templateID: string; timeout?: number; metadata?: Record<string, string> }) =>
+=======
+    api<void>(`/sandboxes/${id}/timeout`, { method: 'POST', body: JSON.stringify({ timeout: seconds }) }),
+  logs: (id: string, params?: { cursor?: number; limit?: number; direction?: string }) =>
+    api<SandboxLogsDto>(`/v2/sandboxes/${id}/logs`, { params }),
+  create: (body: {
+    templateID: string;
+    timeout?: number;
+    metadata?: Record<string, string>;
+  }) =>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     api<SandboxSessionDto>('/sandboxes', {
       method: 'POST',
       body: JSON.stringify(body),
@@ -221,8 +253,12 @@ export const sandboxApi = {
 };
 
 export const templateApi = {
+<<<<<<< HEAD
   list: () =>
     api<TemplateSummaryDto[]>('/templates').then((items) => items.map(mapTemplateSummary)),
+=======
+  list: () => api<TemplateSummaryDto[]>('/templates').then((items) => items.map(mapTemplateSummary)),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   get: (id: string) => api<TemplateDetailDto>(`/templates/${id}`).then(mapTemplateDetail),
   create: (body: {
     templateID?: string;
@@ -247,6 +283,7 @@ export const templateApi = {
     denyOut?: string[];
     with_cube_ca?: boolean;
   }) => api<unknown>('/templates', { method: 'POST', body: JSON.stringify(body) }),
+<<<<<<< HEAD
   rebuild: (id: string) =>
     api<unknown>(`/templates/${id}`, { method: 'POST', body: JSON.stringify({}) }),
   getBuildStatus: (id: string, buildID: string) =>
@@ -255,6 +292,13 @@ export const templateApi = {
     api<{ lines?: string[]; status?: string; progress?: number }>(
       `/templates/${id}/builds/${buildID}/logs`,
     ),
+=======
+  rebuild: (id: string) => api<unknown>(`/templates/${id}`, { method: 'POST', body: JSON.stringify({}) }),
+  getBuildStatus: (id: string, buildID: string) =>
+    api<unknown>(`/templates/${id}/builds/${buildID}/status`),
+  getBuildLogs: (id: string, buildID: string) =>
+    api<{ lines?: string[]; status?: string; progress?: number }>(`/templates/${id}/builds/${buildID}/logs`),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   remove: (id: string) => api<void>(`/templates/${id}`, { method: 'DELETE' }),
   compat: () => api<TemplateCompatMatrix>('/templates/compat'),
   adoptCompatBaseline: (id: string) =>
@@ -262,6 +306,7 @@ export const templateApi = {
 };
 
 export const versionApi = {
+<<<<<<< HEAD
   matrix: () => ops<VersionMatrixDto>('/cluster/versions'),
 };
 
@@ -278,6 +323,22 @@ export const clusterApi = {
       sandboxDomain: string;
       instanceType: string;
     }>('/config'),
+=======
+  matrix: () => api<VersionMatrixDto>('/cluster/versions'),
+};
+
+export const clusterApi = {
+  overview: () => api<ClusterOverviewDto>('/cluster/overview'),
+  nodes: () => api<ApiNodeView[]>('/nodes').then((items) => items.map(mapNode)),
+  node: (id: string) => api<ApiNodeView>(`/nodes/${id}`).then(mapNode),
+  config: () => api<{
+    apiEndpoint: string;
+    rateLimitPerSec: number;
+    authEnabled: boolean;
+    sandboxDomain: string;
+    instanceType: string;
+  }>('/config'),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 };
 
 export interface ImageMeta {
@@ -293,8 +354,13 @@ export interface StoreMeta {
 }
 
 export const storeApi = {
+<<<<<<< HEAD
   meta: () => ops<StoreMeta>('/store/meta'),
   refresh: () => ops<StoreMeta>('/store/refresh', { method: 'POST' }),
+=======
+  meta: () => api<StoreMeta>('/store/meta'),
+  refresh: () => api<StoreMeta>('/store/refresh', { method: 'POST' }),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 };
 
 export interface AgentInstanceDto {
@@ -418,13 +484,18 @@ export interface SessionDto {
 }
 
 export interface LoginResponseDto {
+<<<<<<< HEAD
   accessToken: string;
   refreshToken: string;
+=======
+  token: string;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   username: string;
   expiresInSecs: number;
 }
 
 export const authApi = {
+<<<<<<< HEAD
   session: () => ops<SessionDto>('/auth/session'),
   login: (body: { username: string; password: string }) =>
     ops<LoginResponseDto>('/auth/login', { method: 'POST', body: JSON.stringify(body) }).then(
@@ -439,6 +510,14 @@ export const authApi = {
   },
   changePassword: (body: { username: string; oldPassword: string; newPassword: string }) =>
     ops<void>('/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
+=======
+  session: () => api<SessionDto>('/auth/session'),
+  login: (body: { username: string; password: string }) =>
+    api<LoginResponseDto>('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+  logout: () => api<void>('/auth/logout', { method: 'POST' }),
+  changePassword: (body: { username: string; oldPassword: string; newPassword: string }) =>
+    api<void>('/auth/change-password', { method: 'POST', body: JSON.stringify(body) }),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 };
 
 export interface AgentSettingsDto {
@@ -473,8 +552,13 @@ export interface AgentSettingsDto {
 }
 
 export const agentHubApi = {
+<<<<<<< HEAD
   list: () => ops<AgentInstanceDto[]>('/agenthub/instances'),
   listTemplates: () => ops<AgentTemplateDto[]>('/agenthub/templates'),
+=======
+  list: () => api<AgentInstanceDto[]>('/agenthub/instances'),
+  listTemplates: () => api<AgentTemplateDto[]>('/agenthub/templates'),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   registerMarketTemplate: (body: {
     templateId: string;
     name?: string;
@@ -482,11 +566,19 @@ export const agentHubApi = {
     version?: string;
     recommended?: boolean;
   }) =>
+<<<<<<< HEAD
     ops<AgentTemplateDto>('/agenthub/templates/market', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
   getSettings: () => ops<AgentSettingsDto>('/agenthub/settings'),
+=======
+    api<AgentTemplateDto>('/agenthub/templates/market', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  getSettings: () => api<AgentSettingsDto>('/agenthub/settings'),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   updateSettings: (body: {
     deepseekApiKey?: string;
     llmProvider?: string;
@@ -496,7 +588,11 @@ export const agentHubApi = {
     llmCredentialMode?: 'egress' | 'env';
     gatewayDomain?: string;
   }) =>
+<<<<<<< HEAD
     ops<AgentSettingsDto>('/agenthub/settings', {
+=======
+    api<AgentSettingsDto>('/agenthub/settings', {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'PUT',
       body: JSON.stringify(body),
     }),
@@ -510,11 +606,16 @@ export const agentHubApi = {
     botId?: string;
     botSecret?: string;
   }) =>
+<<<<<<< HEAD
     ops<AgentInstanceDto>('/agenthub/instances', {
+=======
+    api<AgentInstanceDto>('/agenthub/instances', {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'POST',
       body: JSON.stringify(body),
     }),
   delete: (id: string) =>
+<<<<<<< HEAD
     ops<void>(`/agenthub/instances/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     }),
@@ -536,15 +637,43 @@ export const agentHubApi = {
     }),
   updateModel: (id: string, body: { model: string }) =>
     ops<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/model`, {
+=======
+    api<void>(`/agenthub/instances/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
+  restart: (id: string) =>
+    api<AgentSetupResultDto>(`/agenthub/instances/${encodeURIComponent(id)}/restart`, {
+      method: 'POST',
+    }),
+  pause: (id: string) =>
+    api<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/pause`, {
+      method: 'POST',
+    }),
+  resume: (id: string) =>
+    api<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/resume`, {
+      method: 'POST',
+    }),
+  upgrade: (id: string) =>
+    api<AgentSetupResultDto>(`/agenthub/instances/${encodeURIComponent(id)}/upgrade`, {
+      method: 'POST',
+    }),
+  updateModel: (id: string, body: { model: string }) =>
+    api<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/model`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'PUT',
       body: JSON.stringify(body),
     }),
   updateWecomConfig: (id: string, body: { botId: string; botSecret: string }) =>
+<<<<<<< HEAD
     ops<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/wecom`, {
+=======
+    api<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/wecom`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'PUT',
       body: JSON.stringify(body),
     }),
   getWecomConfig: (id: string) =>
+<<<<<<< HEAD
     ops<AgentWeComConfigDto | null>(`/agenthub/instances/${encodeURIComponent(id)}/wecom`),
   getGatewayHealth: (id: string) =>
     ops<AgentGatewayHealthDto>(`/agenthub/instances/${encodeURIComponent(id)}/gateway/health`),
@@ -554,10 +683,22 @@ export const agentHubApi = {
     ops<AgentSnapshotDto[]>(`/agenthub/instances/${encodeURIComponent(id)}/snapshots`),
   createSnapshot: (id: string, body: { name?: string }) =>
     ops<AgentSnapshotJobDto>(`/agenthub/instances/${encodeURIComponent(id)}/snapshots`, {
+=======
+    api<AgentWeComConfigDto | null>(`/agenthub/instances/${encodeURIComponent(id)}/wecom`),
+  getGatewayHealth: (id: string) =>
+    api<AgentGatewayHealthDto>(`/agenthub/instances/${encodeURIComponent(id)}/gateway/health`),
+  listOperations: (id: string) =>
+    api<AgentOperationDto[]>(`/agenthub/instances/${encodeURIComponent(id)}/operations`),
+  listSnapshots: (id: string) =>
+    api<AgentSnapshotDto[]>(`/agenthub/instances/${encodeURIComponent(id)}/snapshots`),
+  createSnapshot: (id: string, body: { name?: string }) =>
+    api<AgentSnapshotJobDto>(`/agenthub/instances/${encodeURIComponent(id)}/snapshots`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'POST',
       body: JSON.stringify(body),
     }),
   deleteSnapshot: (id: string, snapshotId: string) =>
+<<<<<<< HEAD
     ops<void>(
       `/agenthub/instances/${encodeURIComponent(id)}/snapshots/${encodeURIComponent(snapshotId)}`,
       {
@@ -578,15 +719,36 @@ export const agentHubApi = {
     }),
   rollback: (id: string, body: { snapshotId: string }) =>
     ops<AgentRollbackResponseDto>(`/agenthub/instances/${encodeURIComponent(id)}/rollback`, {
+=======
+    api<void>(`/agenthub/instances/${encodeURIComponent(id)}/snapshots/${encodeURIComponent(snapshotId)}`, {
+      method: 'DELETE',
+    }),
+  updateSnapshot: (id: string, snapshotId: string, body: { name?: string; isHealthy?: boolean }) =>
+    api<void>(`/agenthub/instances/${encodeURIComponent(id)}/snapshots/${encodeURIComponent(snapshotId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  recover: (id: string) =>
+    api<AgentRecoverResponseDto>(`/agenthub/instances/${encodeURIComponent(id)}/recover`, {
+      method: 'POST',
+    }),
+  rollback: (id: string, body: { snapshotId: string }) =>
+    api<AgentRollbackResponseDto>(`/agenthub/instances/${encodeURIComponent(id)}/rollback`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'POST',
       body: JSON.stringify(body),
     }),
   clone: (id: string, body: { name?: string; snapshotId?: string }) =>
+<<<<<<< HEAD
     ops<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/clone`, {
+=======
+    api<AgentInstanceDto>(`/agenthub/instances/${encodeURIComponent(id)}/clone`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'POST',
       body: JSON.stringify(body),
     }),
   publishTemplate: (id: string, body: { name?: string; snapshotId?: string }) =>
+<<<<<<< HEAD
     ops<AgentPublishTemplateResponseDto>(
       `/agenthub/instances/${encodeURIComponent(id)}/publish-template`,
       {
@@ -596,11 +758,23 @@ export const agentHubApi = {
     ),
   updateTemplate: (templateId: string, body: { name?: string; recommended?: boolean }) =>
     ops<void>(`/agenthub/templates/${encodeURIComponent(templateId)}`, {
+=======
+    api<AgentPublishTemplateResponseDto>(`/agenthub/instances/${encodeURIComponent(id)}/publish-template`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateTemplate: (templateId: string, body: { name?: string; recommended?: boolean }) =>
+    api<void>(`/agenthub/templates/${encodeURIComponent(templateId)}`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
   deleteTemplate: (templateId: string) =>
+<<<<<<< HEAD
     ops<void>(`/agenthub/templates/${encodeURIComponent(templateId)}`, {
+=======
+    api<void>(`/agenthub/templates/${encodeURIComponent(templateId)}`, {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       method: 'DELETE',
     }),
 };

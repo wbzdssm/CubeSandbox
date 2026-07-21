@@ -254,7 +254,10 @@ type resumeOptions struct {
 	taskDeadline      time.Time
 	reconcileDeadline time.Time
 	persist           bool
+<<<<<<< HEAD
 	skipAdmission     bool // true only for delete-triggered auto-resume; overcommit is bounded by destroy deadline
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type resumeResult struct {
@@ -274,10 +277,15 @@ func (s *service) resumeLocked(ctx context.Context, sb *cubeboxstore.CubeBox, op
 	preflightCtx, preflightCancel := context.WithDeadline(ctx, opts.taskDeadline)
 	defer preflightCancel()
 
+<<<<<<< HEAD
 	if !opts.skipAdmission {
 		if rejected := s.admitResume(preflightCtx, sb); rejected != nil {
 			return resumeResult{ret: rejected}
 		}
+=======
+	if rejected := s.admitResume(preflightCtx, sb); rejected != nil {
+		return resumeResult{ret: rejected}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 	if err := preflightCtx.Err(); err != nil {
 		return resumeResult{ret: &errorcode.Ret{

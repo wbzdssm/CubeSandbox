@@ -6,6 +6,7 @@
 // on a cubelet node and normalises them into a flat list for reporting to
 // cubemaster on register / heartbeat.
 //
+<<<<<<< HEAD
 // Primary data source is per-component version.json next to staged artifacts.
 // Fallbacks, in order:
 //
@@ -18,13 +19,37 @@
 // vmlinux symlink, and reports only the active bm|pvm variant.
 //
 // Collection never blocks register/heartbeat: missing sources degrade gracefully.
+=======
+// Primary data source is the release-manifest.json installed alongside the
+// node binaries (machine-readable, complete, release-consistent). Four
+// adjustments are layered on top:
+//
+//  1. the cubelet entry is overridden with the running binary's own
+//     pkg/version (the truly-running cubelet, not just what the manifest
+//     shipped);
+//  2. guest-image is taken from the on-node cube-image/version file (the
+//     version actually in effect, which may drift from the manifest), with a
+//     lazy mtime-based re-read so an out-of-band guest upgrade is picked up
+//     without restarting cubelet;
+//  3. kernel is selected from the active cube-kernel-scf/vmlinux symlink so
+//     PVM nodes report the PVM guest kernel version instead of the ordinary
+//     packaged kernel;
+//  4. components are filtered to those actually installed on this node, so a
+//     compute node does not report control-plane binaries it never runs.
+//
+// Collection never blocks register/heartbeat: a missing or malformed manifest
+// degrades to "cubelet self version + guest-image file (if present)".
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 package versioninfo
 
 import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+<<<<<<< HEAD
 	"strings"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"sync"
 
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/controller/runtemplate/components"
@@ -33,10 +58,16 @@ import (
 
 // Source labels for ComponentVersion.Source.
 const (
+<<<<<<< HEAD
 	SourceManifest      = "manifest"
 	SourceBinary        = "binary"
 	SourceFile          = "file"
 	SourceComponentJSON = "component-json"
+=======
+	SourceManifest = "manifest"
+	SourceBinary   = "binary"
+	SourceFile     = "file"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 // Canonical component names.
@@ -49,6 +80,7 @@ const (
 )
 
 const (
+<<<<<<< HEAD
 	manifestFileName     = "release-manifest.json"
 	componentVersionJSON = "version.json"
 	guestImageVerPath    = "cube-image/version"
@@ -60,6 +92,19 @@ const (
 
 // oneClickInstallLayout maps manifest component keys to the concrete one-click
 // install paths that prove the component is actually present on this node.
+=======
+	manifestFileName  = "release-manifest.json"
+	guestImageVerPath = "cube-image/version"
+	kernelVmlinuxPath = "cube-kernel-scf/vmlinux"
+	cubeEgressVerPath = "cube-egress/version"
+)
+
+// oneClickInstallLayout maps manifest component keys to the concrete one-click
+// install paths that prove the component is actually present on this node. The
+// collector still supports the original "${baseDir}/<component>/" directory
+// shape first; these aliases cover the packaged control-plane layout
+// (CubeMaster/CubeAPI/Cubelet/cube-shim, etc.).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 var oneClickInstallLayout = map[string][][]string{
 	"cubemaster":              {{"CubeMaster", "bin", "cubemaster"}},
 	"cubemastercli":           {{"CubeMaster", "bin", "cubemastercli"}},
@@ -71,6 +116,7 @@ var oneClickInstallLayout = map[string][][]string{
 	"cube-egress":             {{"cube-egress", "version"}},
 }
 
+<<<<<<< HEAD
 // pathAllowlist restricts which component keys may be accepted from each
 // directory's version.json.
 var pathAllowlist = map[string]map[string]struct{}{
@@ -82,12 +128,18 @@ var pathAllowlist = map[string]map[string]struct{}{
 }
 
 // ComponentVersion is a pure-data version record.
+=======
+// ComponentVersion is a pure-data version record. It mirrors
+// masterclient.ComponentVersion (kept independent to avoid a layering
+// dependency from this low-level package onto the HTTP client).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 type ComponentVersion struct {
 	Component string
 	Version   string
 	Commit    string
 	BuildTime string
 	Source    string
+<<<<<<< HEAD
 	Variant   string // kernel: bm|pvm
 }
 
@@ -95,6 +147,8 @@ type ComponentVersion struct {
 type CollectReport struct {
 	Versions   []ComponentVersion
 	Incomplete bool
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type manifestComponent struct {
@@ -117,6 +171,7 @@ type releaseManifest struct {
 	} `json:"kernel"`
 }
 
+<<<<<<< HEAD
 type componentJSONFile struct {
 	SchemaVersion int `json:"schema_version"`
 	Components    map[string]struct {
@@ -135,6 +190,11 @@ type componentJSONFile struct {
 type Collector struct {
 	baseDir      string
 	bootstrapDir string
+=======
+// Collector assembles the node's component versions. Safe for concurrent use.
+type Collector struct {
+	baseDir string
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	mu sync.Mutex
 	// manifest is parsed once and cached (nil when missing/unreadable).
@@ -151,11 +211,17 @@ type Collector struct {
 }
 
 // NewCollector builds a collector rooted at baseDir. An empty baseDir falls
+<<<<<<< HEAD
 // back to the component manager's default versioned base dir.
+=======
+// back to the component manager's default versioned base dir (single source
+// of truth for the install layout).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func NewCollector(baseDir string) *Collector {
 	if baseDir == "" {
 		baseDir = components.DefaultConfig().VersionedBaseDir
 	}
+<<<<<<< HEAD
 	bootstrap := strings.TrimSpace(os.Getenv("STATE_DIR"))
 	if bootstrap == "" {
 		bootstrap = strings.TrimSpace(os.Getenv("CUBE_BOOTSTRAP_STATE"))
@@ -210,6 +276,23 @@ func (c *Collector) CollectReport() CollectReport {
 	}
 
 	add(ComponentVersion{
+=======
+	return &Collector{baseDir: baseDir}
+}
+
+// Collect returns the current component versions for this node. It never
+// returns an error: collection failures degrade to a minimal set so the
+// heartbeat is never blocked.
+func (c *Collector) Collect() []ComponentVersion {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	man := c.loadManifestLocked()
+	out := make([]ComponentVersion, 0, 12)
+
+	// (1) cubelet always reported from the running binary.
+	out = append(out, ComponentVersion{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		Component: ComponentCubelet,
 		Version:   version.Version,
 		Commit:    version.Commit,
@@ -217,6 +300,7 @@ func (c *Collector) CollectReport() CollectReport {
 		Source:    SourceBinary,
 	})
 
+<<<<<<< HEAD
 	// Mid-stage gap: staging marker or ready-sentinel with missing dir.
 	c.detectStageGapsLocked(&report)
 
@@ -266,12 +350,24 @@ func (c *Collector) CollectReport() CollectReport {
 		add(c.kernelVersionLocked(man))
 		for name, mc := range man.Components {
 			if name == ComponentCubelet || name == ComponentCubeAgent || name == ComponentCubeEgress || name == ComponentKernel {
+=======
+	if man != nil {
+		// (2) binary components from the manifest, filtered to those actually
+		// installed on this node. cubelet handled above; cube-agent handled
+		// from guest_image.agent_version below.
+		for name, mc := range man.Components {
+			if name == ComponentCubelet || name == ComponentCubeAgent || name == ComponentCubeEgress {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 				continue
 			}
 			if !c.componentInstalledLocked(name) {
 				continue
 			}
+<<<<<<< HEAD
 			add(ComponentVersion{
+=======
+			out = append(out, ComponentVersion{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 				Component: name,
 				Version:   mc.Version,
 				Commit:    mc.Commit,
@@ -279,6 +375,7 @@ func (c *Collector) CollectReport() CollectReport {
 				Source:    SourceManifest,
 			})
 		}
+<<<<<<< HEAD
 		add(ComponentVersion{
 			Component: ComponentCubeAgent,
 			Version:   man.GuestImage.AgentVersion,
@@ -445,6 +542,67 @@ func (c *Collector) kernelVersionLocked(man *releaseManifest) ComponentVersion {
 			Version:   kernelArtifactIdentity(man.Kernel.Version, man.Kernel.VMLinuxDigest),
 			Source:    SourceFile,
 			Variant:   "bm",
+=======
+		// (3) cube-agent: take the guest's baked-in agent version, de-duped.
+		if man.GuestImage.AgentVersion != "" {
+			out = append(out, ComponentVersion{
+				Component: ComponentCubeAgent,
+				Version:   man.GuestImage.AgentVersion,
+				Source:    SourceManifest,
+			})
+		}
+		// (4) kernel: report the active guest kernel variant, not the host
+		// kernel and not just the static ordinary manifest value.
+		if kernel := c.kernelVersionLocked(man); kernel.Version != "" {
+			out = append(out, kernel)
+		}
+	}
+
+	// (5) guest-image: the version actually in effect on this node.
+	if ver := c.guestImageVersionLocked(); ver != "" {
+		out = append(out, ComponentVersion{
+			Component: ComponentGuestImage,
+			Version:   ver,
+			Source:    SourceFile,
+		})
+	}
+
+	// (6) cube-egress: version marker written by the deploy system.
+	// The marker file cube-egress/version is present only when the
+	// CubeEgress container is deployed on this node; when absent the
+	// component is silently omitted (graceful degradation).
+	if ver := c.cubeEgressVersionLocked(); ver != "" {
+		out = append(out, ComponentVersion{
+			Component: ComponentCubeEgress,
+			Version:   ver,
+			Source:    SourceFile,
+		})
+	}
+
+	return out
+}
+
+// kernelVersionLocked returns the active guest kernel version. The active
+// variant is represented by cube-kernel-scf/vmlinux: a symlink to vmlinux-bm
+// for ordinary nodes, or vmlinux-pvm for PVM nodes. If the symlink is missing
+// or from an older install layout, fall back to the ordinary manifest identity.
+func (c *Collector) kernelVersionLocked(man *releaseManifest) ComponentVersion {
+	target, ok := c.kernelLinkTargetLocked()
+	if ok {
+		switch filepath.Base(target) {
+		case "vmlinux-pvm":
+			return ComponentVersion{
+				Component: ComponentKernel,
+				Version:   kernelArtifactIdentity(man.Kernel.PVMVersion, man.Kernel.VMLinuxPVMDigest),
+				Source:    SourceFile,
+			}
+		case "vmlinux-bm":
+			return ComponentVersion{
+				Component: ComponentKernel,
+				Version:   kernelArtifactIdentity(man.Kernel.Version, man.Kernel.VMLinuxDigest),
+				Source:    SourceFile,
+			}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		}
 	}
 	identity := kernelArtifactIdentity(man.Kernel.Version, man.Kernel.VMLinuxDigest)
@@ -455,7 +613,10 @@ func (c *Collector) kernelVersionLocked(man *releaseManifest) ComponentVersion {
 		Component: ComponentKernel,
 		Version:   identity,
 		Source:    SourceManifest,
+<<<<<<< HEAD
 		Variant:   "bm",
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 }
 
@@ -488,6 +649,10 @@ func (c *Collector) kernelLinkTargetLocked() (string, bool) {
 	return target, true
 }
 
+<<<<<<< HEAD
+=======
+// loadManifestLocked parses the manifest once and caches the result.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func (c *Collector) loadManifestLocked() *releaseManifest {
 	if c.manifestParsed {
 		return c.manifest
@@ -505,10 +670,18 @@ func (c *Collector) loadManifestLocked() *releaseManifest {
 	return c.manifest
 }
 
+<<<<<<< HEAD
 func (c *Collector) componentInstalledLocked(name string) bool {
 	if name == "" || strings.Contains(name, "..") || strings.ContainsAny(name, `/\`) {
 		return false
 	}
+=======
+// componentInstalledLocked reports whether a versioned directory exists for
+// the component (${baseDir}/<component>), or whether the one-click packaged
+// install layout carries the matching binary/config path, i.e. it is actually
+// deployed here.
+func (c *Collector) componentInstalledLocked(name string) bool {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if exists(filepath.Join(c.baseDir, name)) {
 		return true
 	}
@@ -521,6 +694,12 @@ func (c *Collector) componentInstalledLocked(name string) bool {
 	return false
 }
 
+<<<<<<< HEAD
+=======
+// guestImageVersionLocked returns the single-line guest image version, using
+// an mtime cache so an out-of-band guest upgrade is reflected without
+// restarting cubelet.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func (c *Collector) guestImageVersionLocked() string {
 	path := filepath.Join(c.baseDir, guestImageVerPath)
 	info, err := os.Stat(path)
@@ -544,7 +723,15 @@ func (c *Collector) guestImageVersionLocked() string {
 	return c.guestImageVer
 }
 
+<<<<<<< HEAD
 func (c *Collector) readSingleLine(path string) string {
+=======
+// cubeEgressVersionLocked returns the single-line cube-egress version from the
+// host-side marker file written by the deploy system at install time. The file
+// is static between deployments, so we read it directly without mtime caching.
+func (c *Collector) cubeEgressVersionLocked() string {
+	path := filepath.Join(c.baseDir, cubeEgressVerPath)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return ""
@@ -552,8 +739,16 @@ func (c *Collector) readSingleLine(path string) string {
 	return firstLine(data)
 }
 
+<<<<<<< HEAD
 func firstLine(data []byte) string {
 	start := 0
+=======
+// firstLine returns the first line of data, trimmed of surrounding
+// whitespace. Matches CubeShim::get_image_version's strict single-line read.
+func firstLine(data []byte) string {
+	start := 0
+	// skip leading whitespace
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	for start < len(data) && isSpace(data[start]) {
 		start++
 	}
@@ -562,6 +757,10 @@ func firstLine(data []byte) string {
 		end++
 	}
 	line := data[start:end]
+<<<<<<< HEAD
+=======
+	// trim trailing whitespace
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	j := len(line)
 	for j > 0 && isSpace(line[j-1]) {
 		j--

@@ -7,15 +7,24 @@ package cube
 import (
 	"net/http"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	jsoniter "github.com/json-iterator/go"
 	api "github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/cubebox/v1"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
+=======
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+	"github.com/tencentcloud/CubeSandbox/cubelog"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 var previewConstructCubeletReqFn = sandbox.ConstructCubeletReq
@@ -28,12 +37,29 @@ type sandboxPreviewResponse struct {
 	CubeletRequest *api.RunCubeSandboxRequest  `json:"cubelet_request,omitempty"`
 }
 
+<<<<<<< HEAD
 func handleSandboxPreviewAction(c *gin.Context) {
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 	common.WriteAPI(c, previewSandbox(c.Request, rt))
 }
 
 func previewSandbox(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+=======
+func handleSandboxPreviewAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	if r.Method != http.MethodPost {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+	return previewSandbox(w, r, rt)
+}
+
+func previewSandbox(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	req, err := constructCreateReq(r)
 	if err != nil {
 		rt.RetCode = int64(errorcode.ErrorCode_MasterParamsError)

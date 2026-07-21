@@ -1,7 +1,10 @@
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
+<<<<<<< HEAD
 ENV PATH="/usr/local/services/cubetoolbox/cube-shim/bin:${PATH}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

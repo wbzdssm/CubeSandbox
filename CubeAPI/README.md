@@ -68,6 +68,7 @@ cargo build --release
 |----------|---------|-------------|
 | `CUBE_API_BIND` | `0.0.0.0:3000` | Listen address |
 | `LOG_LEVEL` | `info` | Log level |
+<<<<<<< HEAD
 | `CUBE_MASTER_ADDR` | `http://127.0.0.1:8089` | CubeMaster base URL |
 | `CUBE_API_SANDBOX_DOMAIN` | `cube.app` | Domain returned in sandbox API responses |
 | `AUTH_CALLBACK_URL` | *(unset)* | External auth callback URL (callback mode) |
@@ -99,6 +100,10 @@ Every request (except `/health`) must carry either `Authorization: Bearer <your-
 or `X-API-Key: <your-secret-key>`. The credential is compared as a string
 against `CUBE_API_KEY`; a match grants access, a mismatch or missing
 credential returns 401.
+=======
+
+CubeAPI also exposes dashboard-oriented routes under `/cubeapi/v1`. The one-click WebUI is served by a separate nginx container on port `12088`; that nginx instance serves the packaged static dashboard and proxies same-origin `/cubeapi` requests back to the host CubeAPI through Docker `host-gateway`.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ---
 

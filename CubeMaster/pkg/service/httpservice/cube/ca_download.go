@@ -11,9 +11,13 @@ import (
 	"path/filepath"
 	"strconv"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
+=======
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
@@ -38,6 +42,7 @@ var caServableFiles = map[string]struct{}{
 	"cube-root-ca.key": {},
 }
 
+<<<<<<< HEAD
 // openCAFile resolves, opens, and stats the requested CA file and writes the
 // common Content-Type/Length headers. On error it writes the API error
 // response and returns ok=false. On success the caller owns file (must Close).
@@ -48,12 +53,49 @@ func openCAFile(c *gin.Context) (filename string, file *os.File, stat os.FileInf
 	requested := c.Param("filename")
 	if _, allow := caServableFiles[requested]; !allow {
 		common.WriteAPI(c, &types.Res{
+=======
+// handleCADownloadAction serves the CubeEgress root CA materials
+// (cube-root-ca.crt / cube-root-ca.key) to compute nodes that need to
+// run their own CubeEgress instance against templates baked with the
+// same CA.
+//
+// Path: /cube/ca/<filename>. Other names → 404.
+//
+// Auth: NONE today. Anyone reachable on the master HTTP port can pull
+// the MITM private key. Acceptable iff the master HTTP port is
+// reachable only from inside the cluster network (the typical
+// one-click deployment). Production hardening — bearer token in a
+// header, request-source ACL, or mTLS — should land before this
+// endpoint is exposed to anything wider; a verifyAuth(r) hook is the
+// natural place to add it.
+func handleCADownloadAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return &types.Res{
+			Ret: &types.Ret{
+				RetCode: int(errorcode.ErrorCode_MasterParamsError),
+				RetMsg:  http.StatusText(http.StatusMethodNotAllowed),
+			},
+		}
+	}
+
+	// Trim and basename so a malicious caller can't request
+	// /cube/ca/../../etc/passwd. filepath.Base alone normalises any
+	// traversal attempt to a single path element; the allow-list then
+	// rejects anything not on the documented list.
+	requested := filepath.Base(filepath.Clean(r.URL.Path))
+	if _, ok := caServableFiles[requested]; !ok {
+		return &types.Res{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_NotFound),
 				RetMsg:  http.StatusText(http.StatusNotFound),
 			},
+<<<<<<< HEAD
 		})
 		return "", nil, nil, false
+=======
+		}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 
 	fullPath := filepath.Join(caRootDir, requested)
@@ -68,11 +110,16 @@ func openCAFile(c *gin.Context) (filename string, file *os.File, stat os.FileInf
 		if errors.Is(err, os.ErrNotExist) {
 			retCode = int(errorcode.ErrorCode_NotFound)
 		}
+<<<<<<< HEAD
 		common.WriteAPI(c, &types.Res{
+=======
+		return &types.Res{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: retCode,
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return "", nil, nil, false
 	}
@@ -81,10 +128,20 @@ func openCAFile(c *gin.Context) (filename string, file *os.File, stat os.FileInf
 	if err != nil {
 		f.Close()
 		common.WriteAPI(c, &types.Res{
+=======
+		}
+	}
+	defer f.Close()
+
+	stat, err := f.Stat()
+	if err != nil {
+		return &types.Res{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Ret: &types.Ret{
 				RetCode: int(errorcode.ErrorCode_MasterInternalError),
 				RetMsg:  err.Error(),
 			},
+<<<<<<< HEAD
 		})
 		return "", nil, nil, false
 	}
@@ -115,10 +172,22 @@ func downloadCAGinHandler(c *gin.Context) {
 		return
 	}
 	defer f.Close()
+=======
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
+	if r.Method == http.MethodHead {
+		rt.RetCode = int64(errorcode.ErrorCode_Success)
+		return nil
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	// http.ServeContent gives us range support for free; the CA files
 	// are tiny (sub-kilobyte) so range isn't load-bearing, but it
 	// keeps the response handling consistent with the artifact
 	// download endpoint.
+<<<<<<< HEAD
 	http.ServeContent(c.Writer, c.Request, requested, stat.ModTime(), f)
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
 }
@@ -131,4 +200,9 @@ func headCAGinHandler(c *gin.Context) {
 	}
 	f.Close()
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
+=======
+	http.ServeContent(w, r, requested, stat.ModTime(), f)
+	rt.RetCode = int64(errorcode.ErrorCode_Success)
+	return nil
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }

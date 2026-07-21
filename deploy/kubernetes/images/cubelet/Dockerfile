@@ -4,7 +4,10 @@ ARG DEBIAN_FRONTEND=noninteractive
 ENV IMAGE_ROOT=/opt/cube-image
 ENV TOOLBOX_ROOT=/usr/local/services/cubetoolbox
 ENV CUBE_COMPONENT=cubelet
+<<<<<<< HEAD
 ENV PATH="/usr/local/services/cubetoolbox/cube-shim/bin:${PATH}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -28,10 +31,14 @@ RUN apt-get update \
 COPY package/Cubelet ${IMAGE_ROOT}/Cubelet
 COPY scripts/component-entrypoint.sh /usr/local/bin/component-entrypoint.sh
 
+<<<<<<< HEAD
 ARG CUBE_VERSION=unknown
 RUN printf '{"schema_version":1,"components":{"cubelet":{"version":"%s"},"cubecli":{"version":"%s"}}}\n' \
       "${CUBE_VERSION}" "${CUBE_VERSION}" > ${IMAGE_ROOT}/Cubelet/version.json \
     && chmod +x \
+=======
+RUN chmod +x \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       ${IMAGE_ROOT}/Cubelet/bin/cubelet \
       ${IMAGE_ROOT}/Cubelet/bin/cubecli \
       /usr/local/bin/component-entrypoint.sh \

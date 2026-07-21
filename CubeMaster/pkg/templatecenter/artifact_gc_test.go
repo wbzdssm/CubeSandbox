@@ -55,6 +55,7 @@ func TestTrySessionLockPostgreSQL(t *testing.T) {
 	gormDB := openMigratedPostgresGORM(t, env)
 	ctx := context.Background()
 
+<<<<<<< HEAD
 	err := gormDB.WithContext(ctx).Connection(func(tx *gorm.DB) error {
 		acquired, err := trySessionLock(tx, "cubemaster_test_lock")
 		if err != nil {
@@ -74,5 +75,17 @@ func TestTrySessionLockPostgreSQL(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("connection: %v", err)
+=======
+	// Pin one connection via Transaction so acquire and release share a session.
+	err := gormDB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if !trySessionLock(tx, "cubemaster_test_lock") {
+			t.Fatal("expected pg_try_advisory_lock to succeed on fresh database")
+		}
+		releaseSessionLock(tx, "cubemaster_test_lock")
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("transaction: %v", err)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 }

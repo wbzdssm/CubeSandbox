@@ -46,7 +46,12 @@ export function CreateAgentDialog({
   const [engine, setEngine] = useState<AgentEngine>('openclaw');
   const [botId, setBotId] = useState('');
   const [secret, setSecret] = useState('');
+<<<<<<< HEAD
   const [persistenceMode, setPersistenceMode] = useState<AgentPersistenceMode>('shared_files');
+=======
+  const [persistenceMode, setPersistenceMode] =
+    useState<AgentPersistenceMode>('shared_files');
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const [templates, setTemplates] = useState<AgentTemplateDto[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [templatesLoading, setTemplatesLoading] = useState(false);
@@ -149,17 +154,33 @@ export function CreateAgentDialog({
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
+<<<<<<< HEAD
         <Dialog.Overlay className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm data-[state=open]:animate-fade-in" />
+=======
+        <Dialog.Overlay
+          className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm data-[state=open]:animate-fade-in"
+        />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         <Dialog.Content
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-[min(720px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2',
             'max-h-[calc(100vh-3rem)] overflow-hidden rounded-2xl border border-border/60 bg-card shadow-2xl',
+<<<<<<< HEAD
             'flex flex-col',
+=======
+            'flex flex-col'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           )}
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+<<<<<<< HEAD
             <Dialog.Title className="text-base font-semibold">{t('dialog.title')}</Dialog.Title>
+=======
+            <Dialog.Title className="text-base font-semibold">
+              {t('dialog.title')}
+            </Dialog.Title>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             <Dialog.Close asChild>
               <button
                 type="button"
@@ -253,6 +274,7 @@ export function CreateAgentDialog({
                     {t('dialog.templateSelected', { templateId: selectedTemplate.templateId })}
                   </div>
                   <div className="mt-2 grid gap-1.5 text-muted-foreground sm:grid-cols-2">
+<<<<<<< HEAD
                     <span>
                       {t('dialog.templateFields.model')}: {selectedTemplate.model}
                     </span>
@@ -273,6 +295,17 @@ export function CreateAgentDialog({
                     <span>
                       {t('dialog.templateFields.createdAt')}: {selectedTemplate.createdAt || '-'}
                     </span>
+=======
+                    <span>{t('dialog.templateFields.model')}: {selectedTemplate.model}</span>
+                    <span>{t('dialog.templateFields.version')}: {selectedTemplate.version}</span>
+                    {inheritedPersistenceMode && (
+                      <span>
+                        {t('dialog.templateFields.persistence')}: {t(`dialog.persistenceOptions.${inheritedPersistenceMode === 'shared_files' ? 'sharedFiles' : 'fullSnapshot'}.title`)}
+                      </span>
+                    )}
+                    <span>{t('dialog.templateFields.sourceAgent')}: {selectedTemplate.sourceAgentId}</span>
+                    <span>{t('dialog.templateFields.createdAt')}: {selectedTemplate.createdAt || '-'}</span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   </div>
                 </div>
               )}
@@ -322,7 +355,13 @@ export function CreateAgentDialog({
                   </span>
                   <span className="font-medium">{llmModel}</span>
                 </div>
+<<<<<<< HEAD
                 <span className="text-xs text-muted-foreground">{t('dialog.modelHint')}</span>
+=======
+                <span className="text-xs text-muted-foreground">
+                  {t('dialog.modelHint')}
+                </span>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               </div>
             </Section>
 
@@ -423,13 +462,21 @@ function EngineCard({
         selected
           ? 'border-primary/60 bg-primary/5 ring-2 ring-primary/30'
           : 'border-border/60 bg-background hover:bg-muted/40',
+<<<<<<< HEAD
         disabled && 'cursor-not-allowed opacity-60 hover:bg-background',
+=======
+        disabled && 'cursor-not-allowed opacity-60 hover:bg-background'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       )}
     >
       <span
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-bold ring-1',
+<<<<<<< HEAD
           glyphBg,
+=======
+          glyphBg
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         )}
       >
         {glyph}

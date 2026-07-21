@@ -1,4 +1,5 @@
 #!/bin/sh
+<<<<<<< HEAD
 # Shared helpers for node-prep / pvm-host sentinels (Big Pod + PVM DS).
 # Source from pvm-host-bootstrap / wait-pvm-host / cube-node-init /
 # write-node-prep-ready / wait-node-prep.
@@ -13,13 +14,24 @@
 #
 # pvm-mutating: set while host kernel/bootloader mutation is in progress so
 # waiters fail closed across the invalidate → reboot window.
+=======
+# Shared helpers for node-prep-ready sentinel (Big Pod REV3.2).
+# Source from pvm-host-bootstrap / cube-node-init / write-node-prep-ready / wait-node-prep.
+#
+# Fingerprint fields (version=1):
+#   version, mode (full|noop), kernel, boot_args (space-separated required tokens),
+#   prep_generation, pvm_enabled, node_init_enabled
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 STATE_DIR="${STATE_DIR:-/var/lib/cube-node-bootstrap}"
 HOST_ROOT="${HOST_ROOT:-}"
 NODE_PREP_READY_NAME="${NODE_PREP_READY_NAME:-node-prep-ready}"
+<<<<<<< HEAD
 PVM_HOST_READY_NAME="${PVM_HOST_READY_NAME:-pvm-host-ready}"
 EFFECTIVE_PVM_NAME="${EFFECTIVE_PVM_NAME:-effective-pvm}"
 PVM_MUTATING_NAME="${PVM_MUTATING_NAME:-pvm-mutating}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 PREP_GENERATION="${PREP_GENERATION:-1}"
 PVM_ENABLED="${PVM_ENABLED:-0}"
 NODE_INIT_ENABLED="${NODE_INIT_ENABLED:-0}"
@@ -43,6 +55,7 @@ node_prep_ready_path() {
   node_prep_host_path "${STATE_DIR}/${NODE_PREP_READY_NAME}"
 }
 
+<<<<<<< HEAD
 pvm_host_ready_path() {
   node_prep_host_path "${STATE_DIR}/${PVM_HOST_READY_NAME}"
 }
@@ -55,6 +68,8 @@ pvm_mutating_path() {
   node_prep_host_path "${STATE_DIR}/${PVM_MUTATING_NAME}"
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 node_prep_resolve_mode() {
   if [ -n "$PREP_MODE" ]; then
     printf '%s' "$PREP_MODE"
@@ -88,6 +103,7 @@ node_prep_missing_boot_args() {
   [ -z "$missing" ] || printf '%s' "$missing"
 }
 
+<<<<<<< HEAD
 node_prep_normalize_boot_args() {
   printf '%s' "$KERNEL_BOOT_ARGS" | tr -s ' ' | sed 's/^ //;s/ $//'
 }
@@ -144,13 +160,20 @@ pvm_is_mutating() {
 
 node_prep_compute_fingerprint() {
   apply_effective_pvm_env
+=======
+node_prep_compute_fingerprint() {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   mode="$(node_prep_resolve_mode)"
   kernel="$(uname -r 2>/dev/null || true)"
   pvm="$(node_prep_bool01 "$PVM_ENABLED")"
   ninit="$(node_prep_bool01 "$NODE_INIT_ENABLED")"
   boot_args=""
   if [ "$mode" = "full" ] && [ "$pvm" = "1" ]; then
+<<<<<<< HEAD
     boot_args="$(node_prep_normalize_boot_args)"
+=======
+    boot_args="$(printf '%s' "$KERNEL_BOOT_ARGS" | tr -s ' ' | sed 's/^ //;s/ $//')"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   fi
   printf 'version=1\n'
   printf 'mode=%s\n' "$mode"
@@ -161,6 +184,40 @@ node_prep_compute_fingerprint() {
   printf 'node_init_enabled=%s\n' "$ninit"
 }
 
+<<<<<<< HEAD
+=======
+node_prep_fingerprint_matches_file() {
+  ready="$(node_prep_ready_path)"
+  [ -f "$ready" ] || return 1
+  expected="$(node_prep_compute_fingerprint)"
+  actual="$(cat "$ready")"
+  [ "$expected" = "$actual" ]
+}
+
+node_prep_fingerprint_valid_for_wait() {
+  # Wait accepts a ready file whose fields match the currently desired fingerprint.
+  node_prep_fingerprint_matches_file
+}
+
+invalidate_node_prep_ready() {
+  ready="$(node_prep_ready_path)"
+  if [ -e "$ready" ] || [ -e "${ready}.tmp" ]; then
+    rm -f "$ready" "${ready}.tmp"
+    printf '[node-prep] invalidated %s\n' "$ready"
+  fi
+}
+
+write_node_prep_ready() {
+  dir="$(node_prep_state_dir)"
+  mkdir -p "$dir"
+  ready="$(node_prep_ready_path)"
+  tmp="${ready}.tmp"
+  node_prep_compute_fingerprint > "$tmp"
+  mv -f "$tmp" "$ready"
+  printf '[node-prep] wrote %s\n' "$ready"
+}
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 node_prep_kernel_ready() {
   # True when running kernel already satisfies pvm pattern + required boot args
   # (or pvm is disabled).
@@ -172,6 +229,7 @@ node_prep_kernel_ready() {
   missing="$(node_prep_missing_boot_args)"
   [ -z "$missing" ]
 }
+<<<<<<< HEAD
 
 pvm_host_compute_fingerprint() {
   kernel="$(uname -r 2>/dev/null || true)"
@@ -321,3 +379,5 @@ invalidate_pvm_gate_sentinels() {
   invalidate_pvm_host_ready
   invalidate_effective_pvm
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

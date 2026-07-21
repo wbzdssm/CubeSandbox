@@ -11,4 +11,8 @@
   "chinese": "简体中文",
   "github": "GitHub",
   "docs": "Docs"
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

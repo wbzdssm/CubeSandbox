@@ -280,7 +280,11 @@ func App() *cli.App {
 		},
 		&cli.IntFlag{
 			Name:  "state-tmpfs-size",
+<<<<<<< HEAD
 			Value: 1024,
+=======
+			Value: 500,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Usage: "state-tmpfs-size(MB)",
 		},
 		&cli.IntFlag{
@@ -660,6 +664,30 @@ func ensureRootSharedMount(rootDir string) error {
 	return nil
 }
 
+<<<<<<< HEAD
+=======
+func mountTmpfsDir(stateDir string, context *cli.Context) error {
+	exist, _ := mountinfo.Mounted(stateDir)
+	if exist {
+		return nil
+	}
+	size := context.Int("state-tmpfs-size")
+	_ = mount.UnmountAll(stateDir, 0)
+	m := &mount.Mount{
+		Type:    "tmpfs",
+		Source:  "none",
+		Options: []string{fmt.Sprintf("size=%dm", size)},
+	}
+	if err := m.Mount(stateDir); err != nil {
+		return err
+	}
+	exist, _ = mountinfo.Mounted(stateDir)
+	if !exist {
+		return fmt.Errorf("mount tmpfs:%v fail", stateDir)
+	}
+	return nil
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func setPidFile(pidFile string) error {
 	if pidFile == "" {
 		return nil

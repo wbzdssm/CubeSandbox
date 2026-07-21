@@ -6,7 +6,10 @@ from __future__ import annotations
 import os
 import sys
 import uuid
+<<<<<<< HEAD
 from dataclasses import replace
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -86,7 +89,10 @@ def pytest_configure(config: pytest.Config) -> None:
         "sdk_compat: SDK compatibility E2E tests",
         "requires_capability(name): current SDK backend must support this capability",
         "sandbox_create_options(**kwargs): SDK sandbox create options for this test",
+<<<<<<< HEAD
         "sandbox_template_id(template_id): override template ID for this test or module",
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         "requires_code_interpreter: test requires a stateful Code Interpreter kernel",
         "requires_internet: test requires public internet access from the sandbox",
         "requires_cubeproxy: test requires CubeProxy routing to the sandbox",
@@ -102,6 +108,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+<<<<<<< HEAD
     config._sdk_e2e_template_ids = {
         template_id
         for item in items
@@ -110,6 +117,8 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     config._sdk_e2e_default_template_needed = any(
         _template_id_for_node(item) is None for item in items
     )
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     if config.getoption("--run-e2e"):
         return
     skip = pytest.mark.skip(reason="live SDK E2E disabled; pass --run-e2e to run")
@@ -217,6 +226,7 @@ def sdk_e2e_preflight(pytestconfig: pytest.Config, sdk_e2e_config: SdkE2EConfig,
     if not pytestconfig.getoption("--run-e2e"):
         return
     try:
+<<<<<<< HEAD
         run_preflight(
             sdk_e2e_config,
             sdk_e2e_reporter,
@@ -227,6 +237,9 @@ def sdk_e2e_preflight(pytestconfig: pytest.Config, sdk_e2e_config: SdkE2EConfig,
                 True,
             ),
         )
+=======
+        run_preflight(sdk_e2e_config, sdk_e2e_reporter)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     except RuntimeError as exc:
         pytest.exit(str(exc), returncode=2)
 
@@ -261,10 +274,15 @@ def sdk_sandbox(
             "(cube-proxy + lifecycle manager coordination)"
         )
 
+<<<<<<< HEAD
     template_id = _template_id_for_node(request.node) or sdk_e2e_config.cube_template_id
     if not template_id:
         pytest.skip("CUBE_TEMPLATE_ID or --cube-template-id is required for SDK E2E")
     node_config = replace(sdk_e2e_config, cube_template_id=template_id)
+=======
+    if not sdk_e2e_config.cube_template_id:
+        pytest.skip("CUBE_TEMPLATE_ID or --cube-template-id is required for SDK E2E")
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
     create_options = _create_options_for_node(request.node)
 
@@ -275,7 +293,11 @@ def sdk_sandbox(
         "test_run_id": uuid.uuid4().hex,
     }
     if request.node.get_closest_marker("requires_cubeproxy"):
+<<<<<<< HEAD
         create_options.setdefault("timeout", node_config.platform_lifecycle_idle_timeout)
+=======
+        create_options.setdefault("timeout", sdk_e2e_config.platform_lifecycle_idle_timeout)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     request.node._sdk_e2e_backend = sdk_backend
     trace_token = set_current_trace(sdk_e2e_trace)
     adapter = None
@@ -283,12 +305,19 @@ def sdk_sandbox(
         try:
             _setup_log(
                 f"creating sandbox backend={sdk_backend} "
+<<<<<<< HEAD
                 f"template_id={node_config.cube_template_id} "
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 f"nodeid={request.node.nodeid}"
             )
             adapter = create_adapter(
                 sdk_backend,
+<<<<<<< HEAD
                 node_config,
+=======
+                sdk_e2e_config,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 metadata=metadata,
                 create_options=create_options,
             )
@@ -313,7 +342,11 @@ def sdk_sandbox(
                 adapter,
                 request,
                 sdk_backend,
+<<<<<<< HEAD
                 node_config,
+=======
+                sdk_e2e_config,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 sdk_e2e_reporter,
             )
     finally:
@@ -347,6 +380,7 @@ def _create_options_for_node(node: pytest.Item) -> dict:
     return create_options
 
 
+<<<<<<< HEAD
 def _template_id_for_node(node: pytest.Item) -> str | None:
     marker = node.get_closest_marker("sandbox_template_id")
     if marker is None:
@@ -366,6 +400,8 @@ def _template_id_for_node(node: pytest.Item) -> str | None:
     return template_id.strip()
 
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 def _cleanup_sdk_sandbox(
     adapter,
     request: pytest.FixtureRequest,

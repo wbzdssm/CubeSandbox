@@ -46,10 +46,13 @@ func Update(ctx context.Context, req *types.UpdateRequest) (rsp *types.Res) {
 		rsp.Ret.RetMsg = "action should be pause or resume"
 		return
 	}
+<<<<<<< HEAD
 	if ret := normalizeSandboxIDInReq(ctx, &req.SandboxID); ret != nil {
 		rsp.Ret = ret
 		return
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	var hostIP string
 	if v := localcache.GetSandboxCache(req.SandboxID); v != nil {

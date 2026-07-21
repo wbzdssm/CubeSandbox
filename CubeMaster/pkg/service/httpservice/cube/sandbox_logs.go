@@ -6,10 +6,15 @@ package cube
 
 import (
 	"bufio"
+<<<<<<< HEAD
+=======
+	"net/http"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"os"
 	"strconv"
 	"time"
 
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/utils"
@@ -18,6 +23,13 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
+=======
+	jsoniter "github.com/json-iterator/go"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/utils"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+	"github.com/tencentcloud/CubeSandbox/cubelog"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 const (
@@ -70,6 +82,7 @@ type SandboxLogsRes struct {
 
 var fastJSON = jsoniter.ConfigFastest
 
+<<<<<<< HEAD
 func handleSandboxLogsAction(c *gin.Context) {
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 	req := &SandboxLogsReq{}
@@ -83,19 +96,40 @@ func handleSandboxLogsAction(c *gin.Context) {
 			req.Cursor, _ = strconv.ParseInt(cursor, 10, 64)
 		}
 		if l := c.Query("limit"); l != "" {
+=======
+// handleSandboxLogsAction handles POST /cube/sandbox/logs.
+func handleSandboxLogsAction(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	req := &SandboxLogsReq{}
+	if err := utils.DecodeHttpBody(r.Body, req); err != nil {
+		// Also support query params for GET-style calls.
+		q := r.URL.Query()
+		req.SandboxID = q.Get("sandbox_id")
+		if req.SandboxID == "" {
+			req.SandboxID = q.Get("sandboxID")
+		}
+		if c := q.Get("cursor"); c != "" {
+			req.Cursor, _ = strconv.ParseInt(c, 10, 64)
+		}
+		if l := q.Get("limit"); l != "" {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			req.Limit, _ = strconv.Atoi(l)
 		}
 	}
 
 	if req.SandboxID == "" {
 		rt.RetCode = int64(errorcode.ErrorCode_MasterParamsError)
+<<<<<<< HEAD
 		common.WriteAPI(c, &SandboxLogsRes{
+=======
+		return &SandboxLogsRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Res: &types.Res{
 				Ret: &types.Ret{
 					RetCode: int(errorcode.ErrorCode_MasterParamsError),
 					RetMsg:  "sandboxID is required",
 				},
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
@@ -105,6 +139,9 @@ func handleSandboxLogsAction(c *gin.Context) {
 		return
 	} else {
 		req.SandboxID = resolved
+=======
+		}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 
 	limit := req.Limit
@@ -119,26 +156,42 @@ func handleSandboxLogsAction(c *gin.Context) {
 	if err != nil {
 		CubeLog.Errorf("readShimLogs sandboxID=%s err=%v", req.SandboxID, err)
 		rt.RetCode = int64(errorcode.ErrorCode_MasterInternalError)
+<<<<<<< HEAD
 		common.WriteAPI(c, &SandboxLogsRes{
+=======
+		return &SandboxLogsRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			Res: &types.Res{
 				Ret: &types.Ret{
 					RetCode: int(errorcode.ErrorCode_MasterInternalError),
 					RetMsg:  err.Error(),
 				},
 			},
+<<<<<<< HEAD
 		})
 		return
 	}
 
 	rt.RetCode = 0
 	common.WriteAPI(c, &SandboxLogsRes{
+=======
+		}
+	}
+
+	rt.RetCode = 0
+	return &SandboxLogsRes{
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		Res: &types.Res{
 			Ret: &types.Ret{RetCode: 0, RetMsg: ""},
 		},
 		Logs:       entries,
 		NextCursor: nextCursor,
 		HasMore:    hasMore,
+<<<<<<< HEAD
 	})
+=======
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // readShimLogs scans the shim log file and returns entries matching sandboxID.

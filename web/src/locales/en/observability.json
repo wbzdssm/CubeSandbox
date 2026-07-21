@@ -28,7 +28,11 @@
   },
   "api": {
     "title": "API Monitor",
+<<<<<<< HEAD
     "desc": "CubeOps gateway connectivity and rate-limit config",
+=======
+    "desc": "CubeAPI gateway connectivity and rate-limit config",
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     "rateLimit": "Rate Limit",
     "auth": "Auth",
     "authOn": "Enabled",

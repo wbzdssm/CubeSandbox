@@ -2,7 +2,10 @@
 {{- $domain := .Values.cubeProxy.domain -}}
 {{- $internalMaster := and .Values.controlPlane.enabled .Values.controlPlane.master.enabled -}}
 {{- $internalAPI := and .Values.controlPlane.enabled .Values.controlPlane.api.enabled -}}
+<<<<<<< HEAD
 {{- $internalOps := eq (include "cube.opsEnabled" .) "true" -}}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- $externalAPIEndpoint := default "" .Values.externalControlPlane.apiEndpoint -}}
 apiVersion: v1
 kind: Pod
@@ -46,6 +49,7 @@ spec:
           echo '[health-test] skip CubeMaster: no internal or external control plane'
           {{- end }}
 
+<<<<<<< HEAD
           {{- if $internalOps }}
           echo '[health-test] check CubeOps'
           curl --connect-timeout 5 --max-time 15 -fsS http://{{ include "cube.opsFQDN" . }}:{{ .Values.cubeOps.service.port }}/health
@@ -53,6 +57,8 @@ spec:
           echo '[health-test] skip CubeOps: cubeOps.enabled=false'
           {{- end }}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           {{- if or $internalAPI $externalAPIEndpoint }}
           echo '[health-test] check CubeAPI'
           api_endpoint={{ include "cube.apiEndpoint" . | quote }}
@@ -77,6 +83,7 @@ spec:
           echo '[health-test] skip CubeAPI: no internal API and externalControlPlane.apiEndpoint is empty'
           {{- end }}
 
+<<<<<<< HEAD
           {{- if and .Values.webui.enabled $internalOps }}
           echo '[health-test] check WebUI'
           curl --connect-timeout 5 --max-time 15 -fsS http://{{ include "cube.webuiName" . }}.{{ .Release.Namespace }}.svc.{{ include "cube.clusterDomain" . }}:{{ .Values.webui.service.port }}/ >/dev/null
@@ -85,6 +92,16 @@ spec:
 
           {{- if eq (include "cube.proxyEnabled" .) "true" }}
           echo '[health-test] check CubeProxy CloneSet'
+=======
+          {{- if and .Values.webui.enabled $internalAPI }}
+          echo '[health-test] check WebUI'
+          curl --connect-timeout 5 --max-time 15 -fsS http://{{ include "cube.webuiName" . }}.{{ .Release.Namespace }}.svc.{{ include "cube.clusterDomain" . }}:{{ .Values.webui.service.port }}/ >/dev/null
+          curl --connect-timeout 5 --max-time 15 -fsS http://{{ include "cube.webuiName" . }}.{{ .Release.Namespace }}.svc.{{ include "cube.clusterDomain" . }}:{{ .Values.webui.service.port }}/cubeapi/v1/health
+          {{- end }}
+
+          {{- if eq (include "cube.proxyEnabled" .) "true" }}
+          echo '[health-test] check CubeProxy Deployment'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           proxy_pods_json="$(kget "/api/v1/namespaces/${ns}/pods?labelSelector=app.kubernetes.io/component%3Dcube-proxy")"
           printf '%s\n' "${proxy_pods_json}" \
             | grep -oE '"ready"[[:space:]]*:[[:space:]]*true' | grep -q true
@@ -225,7 +242,11 @@ spec:
         - -ec
         - |
           echo '[health-test] check Redis'
+<<<<<<< HEAD
           REDISCLI_AUTH="${REDIS_PASSWORD}" redis-cli -h {{ include "cube.redisHost" . | quote }} -p {{ .Values.redis.port }} ping | grep -x PONG
+=======
+          redis-cli -h {{ include "cube.redisHost" . | quote }} -p {{ .Values.redis.port }} -a "${REDIS_PASSWORD}" ping | grep -x PONG
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- end }}
 {{ if eq (include "cube.proxyEnabled" .) "true" }}
 ---

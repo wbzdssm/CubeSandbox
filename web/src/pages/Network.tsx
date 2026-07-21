@@ -13,6 +13,7 @@ import { BoolBadge, MetricValue } from '@/components/ui/typography';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+<<<<<<< HEAD
 function SectionHeader({
   icon: Icon,
   title,
@@ -21,6 +22,10 @@ function SectionHeader({
   icon: React.ElementType;
   title: string;
   description?: string;
+=======
+function SectionHeader({ icon: Icon, title, description }: {
+  icon: React.ElementType; title: string; description?: string;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }) {
   return (
     <div className="flex items-start gap-3 mb-5">
@@ -35,6 +40,7 @@ function SectionHeader({
   );
 }
 
+<<<<<<< HEAD
 function InfoRow({
   label,
   value,
@@ -45,13 +51,21 @@ function InfoRow({
   value?: React.ReactNode;
   mono?: boolean;
   badge?: React.ReactNode;
+=======
+function InfoRow({ label, value, mono, badge }: {
+  label: string; value?: React.ReactNode; mono?: boolean; badge?: React.ReactNode;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }) {
   return (
     <div className="flex items-center justify-between py-2.5 border-b border-border/40 last:border-0">
       <span className="text-sm text-muted-foreground">{label}</span>
+<<<<<<< HEAD
       <span
         className={cn('text-sm text-foreground/90 flex items-center gap-2', mono && 'font-mono')}
       >
+=======
+      <span className={cn('text-sm text-foreground/90 flex items-center gap-2', mono && 'font-mono')}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         {badge}
         {value}
       </span>
@@ -71,14 +85,19 @@ function GatewaySection() {
       <div className="rounded-xl border border-border/60 bg-card/40 px-5 py-1">
         {isLoading ? (
           <div className="space-y-3 py-3">
+<<<<<<< HEAD
             {[1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-4 w-full" />
             ))}
+=======
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-4 w-full" />)}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </div>
         ) : (
           <>
             <InfoRow
               label={t('gateway.rateLimit')}
+<<<<<<< HEAD
               value={
                 <MetricValue value={data?.rateLimitPerSec ?? '—'} unit="req/s · per API Key" />
               }
@@ -94,6 +113,11 @@ function GatewaySection() {
                 />
               }
             />
+=======
+              value={<MetricValue value={data?.rateLimitPerSec ?? '—'} unit="req/s · per API Key" />}
+            />
+            <InfoRow label={t('gateway.auth')} value={undefined} badge={<BoolBadge value={data?.authEnabled} trueLabel={t('gateway.authOn')} falseLabel={t('gateway.authOff')} />} />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             <InfoRow label={t('gateway.domain')} value={data?.sandboxDomain ?? '—'} />
             <InfoRow label={t('gateway.instanceType')} value={data?.instanceType ?? '—'} />
           </>
@@ -121,6 +145,7 @@ function NodeQuotaSection() {
         <table className="w-full text-sm" style={{ minWidth: '700px' }}>
           <thead>
             <tr className="border-b border-border/50">
+<<<<<<< HEAD
               {[
                 t('quota.colNode'),
                 t('quota.colStatus'),
@@ -132,6 +157,10 @@ function NodeQuotaSection() {
                 <th key={h} className="tbl-th">
                   {h}
                 </th>
+=======
+              {[t('quota.colNode'), t('quota.colStatus'), t('quota.colConcurrent'), t('quota.colCpuQuota'), t('quota.colMemQuota'), t('quota.colMvmSlots')].map(h => (
+                <th key={h} className="tbl-th">{h}</th>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               ))}
             </tr>
           </thead>
@@ -139,18 +168,27 @@ function NodeQuotaSection() {
             {isLoading ? (
               Array.from({ length: 2 }).map((_, i) => (
                 <tr key={i}>
+<<<<<<< HEAD
                   {[1, 2, 3, 4, 5, 6].map((j) => (
                     <td key={j} className="px-5 py-3">
                       <Skeleton className="h-4 w-20" />
                     </td>
+=======
+                  {[1, 2, 3, 4, 5, 6].map(j => (
+                    <td key={j} className="px-5 py-3"><Skeleton className="h-4 w-20" /></td>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   ))}
                 </tr>
               ))
             ) : !nodes || nodes.length === 0 ? (
               <tr>
+<<<<<<< HEAD
                 <td colSpan={6} className="px-5 py-6 text-sm text-muted-foreground text-center">
                   {t('quota.empty')}
                 </td>
+=======
+                <td colSpan={6} className="px-5 py-6 text-sm text-muted-foreground text-center">{t('quota.empty')}</td>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               </tr>
             ) : (
               nodes.map((node) => (
@@ -166,6 +204,7 @@ function NodeQuotaSection() {
                   </td>
                   <td className="px-5 py-3">
                     <span className="inline-flex items-center gap-1.5">
+<<<<<<< HEAD
                       <span
                         className={cn(
                           'h-1.5 w-1.5 rounded-full',
@@ -178,11 +217,16 @@ function NodeQuotaSection() {
                           node.healthy ? 'text-cube-ok' : 'text-cube-err',
                         )}
                       >
+=======
+                      <span className={cn('h-1.5 w-1.5 rounded-full', node.healthy ? 'bg-cube-ok' : 'bg-cube-err')} />
+                      <span className={cn('text-xs font-medium', node.healthy ? 'text-cube-ok' : 'text-cube-err')}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                         {node.healthy ? t('quota.ready') : t('quota.degraded')}
                       </span>
                     </span>
                   </td>
                   <td className="px-5 py-3 text-sm tbl-td-num">
+<<<<<<< HEAD
                     {node.resources.createConcurrentNum != null ? (
                       node.resources.createConcurrentNum
                     ) : (
@@ -208,6 +252,19 @@ function NodeQuotaSection() {
                     ) : (
                       <Minus size={12} className="text-muted-foreground/40" />
                     )}
+=======
+                    {node.resources.createConcurrentNum != null ? node.resources.createConcurrentNum : <Minus size={12} className="text-muted-foreground/40" />}
+                  </td>
+                  <td className="px-5 py-3 text-sm tbl-td-num">
+                    {node.resources.quotaCpu > 0
+                      ? <MetricValue value={(node.resources.quotaCpu / 1000).toFixed(1)} unit="cores" />
+                      : <Minus size={12} className="text-muted-foreground/40" />}
+                  </td>
+                  <td className="px-5 py-3 text-sm tbl-td-num">
+                    {node.resources.quotaMemMB > 0
+                      ? <MetricValue value={(node.resources.quotaMemMB / 1024).toFixed(1)} unit="GiB" />
+                      : <Minus size={12} className="text-muted-foreground/40" />}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   </td>
                   <td className="px-5 py-3 text-sm tbl-td-num">{node.resources.maxMvmSlots}</td>
                 </tr>

@@ -22,7 +22,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/localcache"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/task"
+<<<<<<< HEAD
 	volrefcount "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/volume/refcount"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -35,6 +38,7 @@ func DestroySandbox(ctx context.Context, req *types.DeleteCubeSandboxReq) (rsp *
 			RetMsg:  errorcode.ErrorCode_Success.String(),
 		},
 	}
+<<<<<<< HEAD
 	if req.SandboxID == "" {
 		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)
 		rsp.Ret.RetMsg = "should provide sandbox id"
@@ -47,6 +51,8 @@ func DestroySandbox(ctx context.Context, req *types.DeleteCubeSandboxReq) (rsp *
 	}
 	rsp.SandboxID = req.SandboxID
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	destroyReq := &cubebox.DestroyCubeSandboxRequest{
 		RequestID:   req.RequestID,
 		SandboxID:   req.SandboxID,
@@ -98,6 +104,14 @@ func DestroySandbox(ctx context.Context, req *types.DeleteCubeSandboxReq) (rsp *
 	if config.GetConfig().Common.MockCreateDirect {
 		return
 	}
+<<<<<<< HEAD
+=======
+	if req.SandboxID == "" {
+		rsp.Ret.RetCode = int(errorcode.ErrorCode_MasterParamsError)
+		rsp.Ret.RetMsg = "should provide sandbox id"
+		return
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	switch req.InstanceType {
 	case cubebox.InstanceType_cubebox.String():
@@ -198,9 +212,12 @@ func callCubelet(ctx context.Context, callEp string, req *cubebox.DestroyCubeSan
 			log.G(ctx).Errorf("Destroy error:%+v", rsp)
 			return ret.Err(errorcode.MasterCode(rsp.GetRet().GetRetCode()), rsp.GetRet().GetRetMsg())
 		}
+<<<<<<< HEAD
 		// Apply any node-level volume ref-count transitions (1→0) reported by
 		// Cubelet so the volume DB releases the reference held by this node.
 		volrefcount.ApplyFromExtInfo(ctx, rsp.GetExtInfo())
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 
 	err := localcache.DeleteSandboxProxyMap(ctx, req.GetSandboxID())

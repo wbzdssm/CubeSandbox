@@ -6,8 +6,11 @@ on:
     paths:
       - 'CubeAPI/**'
       - 'CubeMaster/**'
+<<<<<<< HEAD
       - 'CubeOps/**'
       - 'CubeDB/**'
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       - 'Cubelet/**'
       - 'CubeShim/**'
       - 'agent/**'
@@ -20,8 +23,11 @@ on:
     paths:
       - 'CubeAPI/**'
       - 'CubeMaster/**'
+<<<<<<< HEAD
       - 'CubeOps/**'
       - 'CubeDB/**'
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       - 'Cubelet/**'
       - 'CubeShim/**'
       - 'agent/**'
@@ -56,10 +62,13 @@ jobs:
             make_target: cubeapi
             expected_bins: |
               _output/bin/cube-api
+<<<<<<< HEAD
           - component: CubeOps
             make_target: cubeops
             expected_bins: |
               _output/bin/cubeops
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           - component: CubeMaster
             make_target: cubemaster
             expected_bins: |
@@ -192,6 +201,7 @@ jobs:
               exit 1
             fi
           done <<< "${EXPECTED_BINS}"
+<<<<<<< HEAD
 
   # R16 fix: Docker smoke build for CubeMaster and CubeOps release images.
   # This catches context/dockerignore issues (R01/R05) that the regular
@@ -221,3 +231,5 @@ jobs:
           file: CubeOps/Dockerfile
           push: false
           load: false
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

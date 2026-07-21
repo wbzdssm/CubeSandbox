@@ -6,10 +6,14 @@ package templatecenter
 
 import (
 	"context"
+<<<<<<< HEAD
 	"database/sql"
 	"database/sql/driver"
 	"errors"
 	"fmt"
+=======
+	"errors"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"runtime/debug"
 	"sync"
 	"time"
@@ -25,18 +29,28 @@ const (
 	artifactGCLockName    = "cubemaster_templatecenter_artifact_gc_v1"
 	artifactGCMaxPerPass  = 100
 	artifactGCWorkerLimit = 5
+<<<<<<< HEAD
 
 	artifactGCSelectionTimeout   = 30 * time.Second
 	artifactGCLockReleaseTimeout = 5 * time.Second
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 var (
 	artifactGCOnce         sync.Once
 	cleanupArtifactFullyGC = cleanupArtifactFully
+<<<<<<< HEAD
+=======
+	// errArtifactGCLockNotAcquired is returned from the candidate-selection
+	// transaction when another instance already holds the session lock.
+	errArtifactGCLockNotAcquired = errors.New("artifact gc lock not acquired")
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 )
 
 // trySessionLock attempts to acquire a cross-instance session lock with 0
 // timeout (immediate return). MySQL: GET_LOCK(name, 0); PG: pg_try_advisory_lock(hashtext(name)).
+<<<<<<< HEAD
 // Caller must pass a *gorm.DB that is pinned to one connection so acquire and
 // release share the same session.
 func trySessionLock(sess *gorm.DB, name string) (bool, error) {
@@ -66,10 +80,26 @@ func trySessionLock(sess *gorm.DB, name string) (bool, error) {
 		}
 	default:
 		return false, fmt.Errorf("unsupported database dialect %q", dialect)
+=======
+// Caller must pass a *gorm.DB that is pinned to one connection (e.g. inside
+// Transaction) so acquire and release share the same session.
+func trySessionLock(tx *gorm.DB, name string) bool {
+	driver := tx.Dialector.Name()
+	switch driver {
+	case "postgres":
+		var ok bool
+		err := tx.Raw("SELECT pg_try_advisory_lock(hashtext(?))", name).Scan(&ok).Error
+		return err == nil && ok
+	default: // mysql
+		var res int64
+		err := tx.Raw("SELECT GET_LOCK(?, 0)", name).Scan(&res).Error
+		return err == nil && res == 1
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 }
 
 // releaseSessionLock releases a cross-instance session lock on the same
+<<<<<<< HEAD
 // connection that acquired it. A false result means the current session is
 // known not to hold the lock; an error means the lock state is unknown.
 func releaseSessionLock(sess *gorm.DB, name string) (bool, error) {
@@ -130,6 +160,25 @@ func pinnedSessionWithContext(sess *gorm.DB, ctx context.Context) *gorm.DB {
 	clean := sess.Session(&gorm.Session{NewDB: true})
 	clean.Error = nil
 	return clean.WithContext(ctx)
+=======
+// connection that acquired it.
+func releaseSessionLock(tx *gorm.DB, name string) {
+	driver := tx.Dialector.Name()
+	var err error
+	switch driver {
+	case "postgres":
+		err = tx.Exec("SELECT pg_advisory_unlock(hashtext(?))", name).Error
+	default:
+		err = tx.Exec("SELECT RELEASE_LOCK(?)", name).Error
+	}
+	if err != nil {
+		ctx := context.Background()
+		if tx.Statement != nil && tx.Statement.Context != nil {
+			ctx = tx.Statement.Context
+		}
+		log.G(ctx).Warnf("artifact gc: release lock %q failed: %v", name, err)
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // startArtifactGC launches the orphan/expired rootfs-artifact garbage
@@ -218,6 +267,7 @@ func cleanupArtifactGCCandidate(ctx context.Context, artifact models.RootfsArtif
 
 func listArtifactGCCandidatesLocked(ctx context.Context) ([]models.RootfsArtifact, bool) {
 	logger := log.G(ctx).WithFields(map[string]any{"component": "artifact_gc"})
+<<<<<<< HEAD
 	candidates, acquired, err := listArtifactGCCandidatesLockedWithError(ctx)
 	if err != nil {
 		logger.Warnf("artifact gc: candidate selection failed: %v", err)
@@ -279,4 +329,34 @@ func listArtifactGCCandidatesLockedWithError(ctx context.Context) ([]models.Root
 		return nil, false, err
 	}
 	return candidates, acquired, nil
+=======
+
+	// Pin one connection for acquire + query + release: MySQL GET_LOCK and
+	// PostgreSQL pg_try_advisory_lock are session-scoped, so unlocking on a
+	// different pooled connection would silently no-op and leak the lock.
+	var candidates []models.RootfsArtifact
+	err := store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if !trySessionLock(tx, artifactGCLockName) {
+			return errArtifactGCLockNotAcquired
+		}
+		defer releaseSessionLock(tx, artifactGCLockName)
+
+		now := time.Now().Unix()
+		if err := tx.Table(constants.RootfsArtifactTableName).
+			Where("status IN ? OR (gc_deadline > 0 AND gc_deadline < ?)",
+				[]string{ArtifactStatusFailed, ArtifactStatusOrphaned, ArtifactStatusCleanupPending}, now).
+			Limit(artifactGCMaxPerPass).Find(&candidates).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+	if errors.Is(err, errArtifactGCLockNotAcquired) {
+		return nil, false
+	}
+	if err != nil {
+		logger.Warnf("artifact gc: list candidates failed: %v", err)
+		return nil, false
+	}
+	return candidates, true
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }

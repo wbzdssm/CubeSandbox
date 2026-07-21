@@ -25,9 +25,12 @@ fi
 if [[ -n "${AUTH_CALLBACK_URL:-}" ]]; then
   export AUTH_CALLBACK_URL
 fi
+<<<<<<< HEAD
 if [[ -n "${CUBE_API_KEY:-}" ]]; then
   export CUBE_API_KEY
 fi
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 if [[ -n "${DATABASE_URL:-}" ]]; then
   export DATABASE_URL
 else

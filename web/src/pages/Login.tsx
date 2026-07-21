@@ -32,7 +32,11 @@ export default function LoginPage() {
     setError(null);
     try {
       const res = await authApi.login({ username: username.trim(), password });
+<<<<<<< HEAD
       setSession(res.accessToken, res.refreshToken, res.username);
+=======
+      setSession(res.token, res.username);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       navigate(redirectTo, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {

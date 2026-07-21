@@ -6,13 +6,19 @@ package cubebox
 
 import (
 	"errors"
+<<<<<<< HEAD
 	"strings"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	jsoniter "github.com/json-iterator/go"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/sandboxid"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/utils"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/plugins/cube/multimeta"
 )
@@ -116,6 +122,7 @@ func (s *Store) Add(box *CubeBox) {
 }
 
 func (s *Store) Get(id string) (*CubeBox, error) {
+<<<<<<< HEAD
 	id = sandboxid.NormalizeInput(id)
 	if sandboxid.IsFullID(id) {
 		return s.getByKey(strings.ToLower(id))
@@ -133,6 +140,9 @@ func (s *Store) Get(id string) (*CubeBox, error) {
 
 func (s *Store) getByKey(key string) (*CubeBox, error) {
 	obj, exist, err := s.indexer.GetByKey(key)
+=======
+	obj, exist, err := s.indexer.GetByKey(id)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	if err != nil {
 		return nil, err
 	}
@@ -146,6 +156,7 @@ func (s *Store) getByKey(key string) (*CubeBox, error) {
 	return cb, nil
 }
 
+<<<<<<< HEAD
 func (s *Store) resolveID(input string) (string, error) {
 	boxes := s.List()
 	candidates := make([]string, 0, len(boxes))
@@ -155,6 +166,8 @@ func (s *Store) resolveID(input string) (string, error) {
 	return sandboxid.Resolve(input, candidates)
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func (s *Store) GetContainer(id string) (*Container, error) {
 
 	objs, err := s.indexer.ByIndex(containerIDIndexerKey, id)

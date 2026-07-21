@@ -37,14 +37,21 @@ type ResourceSnapshot struct {
 
 // ComponentVersion mirrors the cubelet-side masterclient.ComponentVersion.
 // It carries the real version of one component installed on a node. Source is
+<<<<<<< HEAD
 // one of "manifest" | "binary" | "file" | "component-json".
+=======
+// one of "manifest" | "binary" | "file".
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 type ComponentVersion struct {
 	Component string `json:"component"`
 	Version   string `json:"version,omitempty"`
 	Commit    string `json:"commit,omitempty"`
 	BuildTime string `json:"build_time,omitempty"`
 	Source    string `json:"source,omitempty"`
+<<<<<<< HEAD
 	Variant   string `json:"variant,omitempty"` // kernel: bm|pvm
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type ContainerImage struct {
@@ -77,7 +84,10 @@ type RegisterNodeRequest struct {
 	CreateConcurrentNum int64              `json:"create_concurrent_num,omitempty"`
 	MaxMvmNum           int64              `json:"max_mvm_num,omitempty"`
 	Versions            []ComponentVersion `json:"versions,omitempty"`
+<<<<<<< HEAD
 	InventoryIncomplete bool               `json:"inventory_incomplete,omitempty"`
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 type UpdateNodeStatusRequest struct {
@@ -91,8 +101,12 @@ type UpdateNodeStatusRequest struct {
 	DiskUsage  *DiskUsage          `json:"disk_usage,omitempty"`
 	MetricTime time.Time           `json:"metric_time,omitempty"`
 
+<<<<<<< HEAD
 	Versions            []ComponentVersion `json:"versions,omitempty"`
 	InventoryIncomplete bool               `json:"inventory_incomplete,omitempty"`
+=======
+	Versions []ComponentVersion `json:"versions,omitempty"`
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // AllocatedResources is cubelet-side aggregation of sandbox-quota CPU /
@@ -287,7 +301,11 @@ func RegisterNode(ctx context.Context, req *RegisterNodeRequest) (*NodeSnapshot,
 	applyCurrentHealth(snap, time.Now())
 	global.mu.Unlock()
 	syncLocalcache(snap)
+<<<<<<< HEAD
 	global.persistVersions(ctx, req.NodeID, req.Versions, req.InventoryIncomplete)
+=======
+	global.persistVersions(ctx, req.NodeID, req.Versions)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	return cloneSnapshot(snap), nil
 }
 
@@ -338,6 +356,7 @@ func UpdateNodeStatus(ctx context.Context, nodeID string, req *UpdateNodeStatusR
 	// hundreds of nodes would otherwise dominate write traffic, and Redis
 	// already provides the cross-replica fan-out used by the scheduler.
 	fanOutResourceMetric(ctx, nodeID, req)
+<<<<<<< HEAD
 	global.persistVersions(ctx, nodeID, req.Versions, req.InventoryIncomplete)
 	return cloneSnapshot(snap), nil
 }
@@ -347,10 +366,17 @@ func UpdateNodeStatus(ctx context.Context, nodeID string, req *UpdateNodeStatusR
 // result still triggers a write (and can hard-delete stale rows).
 const incompleteVersionsHashTag = "|incomplete"
 
+=======
+	global.persistVersions(ctx, nodeID, req.Versions)
+	return cloneSnapshot(snap), nil
+}
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 // persistVersions records the node's component versions, skipping the DB
 // write entirely when the reported set is unchanged (content-hash compare
 // against the in-memory snapshot). This keeps the 10s heartbeat from turning
 // slow-changing version data into a MySQL write storm.
+<<<<<<< HEAD
 //
 // When inventoryIncomplete is true, missing components are not deleted from
 // the DB (upsert-only) so a transient collection gap cannot wipe history.
@@ -358,20 +384,29 @@ const incompleteVersionsHashTag = "|incomplete"
 // heartbeats that do not change the effective inventory are no-ops.
 func (s *service) persistVersions(ctx context.Context, nodeID string, versions []ComponentVersion, inventoryIncomplete bool) {
 	s.persistVersionsWithWriter(ctx, nodeID, versions, inventoryIncomplete, s.writeVersions)
+=======
+func (s *service) persistVersions(ctx context.Context, nodeID string, versions []ComponentVersion) {
+	s.persistVersionsWithWriter(ctx, nodeID, versions, s.writeVersions)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func (s *service) persistVersionsWithWriter(
 	ctx context.Context,
 	nodeID string,
 	versions []ComponentVersion,
+<<<<<<< HEAD
 	inventoryIncomplete bool,
 	writer func(string, []ComponentVersion, bool) error,
+=======
+	writer func(string, []ComponentVersion) error,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ) {
 	if len(versions) == 0 {
 		return
 	}
 	unlock := s.lockVersionWrite(nodeID)
 	defer unlock()
+<<<<<<< HEAD
 	snap := s.ensureNode(nodeID)
 	s.mu.RLock()
 	prevVersions := append([]ComponentVersion(nil), snap.Versions...)
@@ -395,10 +430,24 @@ func (s *service) persistVersionsWithWriter(
 		return
 	}
 	if err := writer(nodeID, versions, inventoryIncomplete); err != nil {
+=======
+	h := versionsHash(versions)
+	snap := s.ensureNode(nodeID)
+	s.mu.RLock()
+	unchanged := snap.versionsHash == h
+	prevCompat := compatRelevantVersions(snap.Versions)
+	s.mu.RUnlock()
+	if unchanged {
+		log.G(ctx).Debugf("version_write_skipped node=%s", nodeID)
+		return
+	}
+	if err := writer(nodeID, versions); err != nil {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		log.G(ctx).Warnf("write node component versions failed for %s: %v", nodeID, err)
 		return
 	}
 	s.mu.Lock()
+<<<<<<< HEAD
 	if inventoryIncomplete {
 		snap.Versions = merged
 		snap.versionsHash = h
@@ -409,10 +458,18 @@ func (s *service) persistVersionsWithWriter(
 	s.mu.Unlock()
 	log.G(ctx).Debugf("version_write_applied node=%s components=%d incomplete=%v", nodeID, len(versions), inventoryIncomplete)
 	if OnGuestAgentVersionChanged != nil && compatVersionsChanged(prevCompat, compatRelevantVersions(snap.Versions)) {
+=======
+	snap.Versions = append([]ComponentVersion(nil), versions...)
+	snap.versionsHash = h
+	s.mu.Unlock()
+	log.G(ctx).Debugf("version_write_applied node=%s components=%d", nodeID, len(versions))
+	if OnGuestAgentVersionChanged != nil && compatVersionsChanged(prevCompat, compatRelevantVersions(versions)) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		go OnGuestAgentVersionChanged(nodeID)
 	}
 }
 
+<<<<<<< HEAD
 func mergeComponentVersions(prev, next []ComponentVersion) []ComponentVersion {
 	byName := make(map[string]ComponentVersion, len(prev)+len(next))
 	for _, v := range prev {
@@ -435,6 +492,8 @@ func mergeComponentVersions(prev, next []ComponentVersion) []ComponentVersion {
 	return out
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func (s *service) lockVersionWrite(nodeID string) func() {
 	lockAny, _ := s.versionWriteLocks.LoadOrStore(nodeID, &sync.Mutex{})
 	lock := lockAny.(*sync.Mutex)
@@ -442,10 +501,18 @@ func (s *service) lockVersionWrite(nodeID string) func() {
 	return lock.Unlock
 }
 
+<<<<<<< HEAD
 // writeVersions upserts the reported component rows. When inventoryIncomplete
 // is false, physically removes any component previously recorded for the node
 // but absent from this report. When true, only upserts (plan M0).
 func (s *service) writeVersions(nodeID string, versions []ComponentVersion, inventoryIncomplete bool) error {
+=======
+// writeVersions upserts the reported component rows and physically removes
+// any component previously recorded for the node but absent from this report.
+// The table carries no soft-delete column, so Delete is a hard delete by
+// design (see models.NodeComponentVersion).
+func (s *service) writeVersions(nodeID string, versions []ComponentVersion) error {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	now := time.Now().Unix()
 	rows := make([]*models.NodeComponentVersion, 0, len(versions))
 	keep := make([]string, 0, len(versions))
@@ -475,9 +542,12 @@ func (s *service) writeVersions(nodeID string, versions []ComponentVersion, inve
 				return err
 			}
 		}
+<<<<<<< HEAD
 		if inventoryIncomplete {
 			return nil
 		}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		del := tx.Where("node_id = ?", nodeID)
 		if len(keep) > 0 {
 			del = del.Where("component NOT IN ?", keep)
@@ -496,7 +566,11 @@ func versionsHash(versions []ComponentVersion) string {
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Component < sorted[j].Component })
 	h := fnv.New64a()
 	for _, v := range sorted {
+<<<<<<< HEAD
 		fmt.Fprintf(h, "%s|%s|%s|%s|%s|%s\n", v.Component, v.Version, v.Commit, v.BuildTime, v.Source, v.Variant)
+=======
+		fmt.Fprintf(h, "%s|%s|%s|%s|%s\n", v.Component, v.Version, v.Commit, v.BuildTime, v.Source)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	}
 	return strconv.FormatUint(h.Sum64(), 16)
 }
@@ -941,6 +1015,7 @@ func (s *service) reload() error {
 	return nil
 }
 
+<<<<<<< HEAD
 // applyReloadResult merges a DB snapshot (next) into the live in-memory map and
 // then re-syncs node health into localcache for every node the reload touched.
 //
@@ -987,6 +1062,20 @@ func (s *service) mergeReloadResult(next map[string]*NodeSnapshot) []*NodeSnapsh
 	syncSnaps := make([]*NodeSnapshot, 0, len(next))
 	for nodeID, newSnap := range next {
 		if existing, ok := s.nodes[nodeID]; ok {
+=======
+// applyReloadResult merges a DB snapshot (next) into the live in-memory map.
+// Registration fields take the DB value (same eventual-consistency trade-off as
+// other labels). Status/heartbeat keep in-memory when fresher. After unlocking,
+// nodes whose cordon state changed are synced to localcache.
+func (s *service) applyReloadResult(next map[string]*NodeSnapshot) {
+	toSync := make([]*NodeSnapshot, 0)
+
+	s.mu.Lock()
+	for nodeID, newSnap := range next {
+		if existing, ok := s.nodes[nodeID]; ok {
+			prevDisabled := snapshotSchedulingDisabled(existing)
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			existing.Labels = cloneStringMap(newSnap.Labels)
 			existing.labelsJSONCorrupt = newSnap.labelsJSONCorrupt
 			existing.Capacity = newSnap.Capacity
@@ -1009,6 +1098,7 @@ func (s *service) mergeReloadResult(next map[string]*NodeSnapshot) []*NodeSnapsh
 				existing.ReportedReady = newSnap.ReportedReady
 			}
 			applyCurrentHealth(existing, time.Now())
+<<<<<<< HEAD
 			syncSnaps = append(syncSnaps, cloneSnapshot(existing))
 		} else {
 			s.nodes[nodeID] = newSnap
@@ -1016,6 +1106,24 @@ func (s *service) mergeReloadResult(next map[string]*NodeSnapshot) []*NodeSnapsh
 		}
 	}
 	return syncSnaps
+=======
+
+			if prevDisabled != snapshotSchedulingDisabled(existing) {
+				toSync = append(toSync, cloneSnapshot(existing))
+			}
+		} else {
+			s.nodes[nodeID] = newSnap
+		}
+	}
+	s.mu.Unlock()
+
+	if !s.ready {
+		return
+	}
+	for _, snap := range toSync {
+		syncLocalcache(snap)
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func (s *service) loopReload(ctx context.Context) {
@@ -1122,6 +1230,7 @@ func syncLocalcache(snap *NodeSnapshot) {
 	localcache.SyncNodeTemplates(snap.NodeID, templateIDsFromLocalTemplates(snap.LocalTemplates))
 }
 
+<<<<<<< HEAD
 // syncNodeHealthFn is the reload -> localcache sync hook invoked by
 // applyReloadResult for every touched node. It is a package var (not a direct
 // call to syncLocalcacheNodeHealth) so unit tests can observe the sync path
@@ -1140,6 +1249,8 @@ func syncLocalcacheNodeHealth(snap *NodeSnapshot) {
 	localcache.UpsertNode(toSchedulerNode(snap))
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func templateIDsFromLocalTemplates(localTemplates []LocalTemplate) []string {
 	if len(localTemplates) == 0 {
 		return nil

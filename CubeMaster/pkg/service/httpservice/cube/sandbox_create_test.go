@@ -42,7 +42,11 @@ func TestCreateSandboxMapsMissingTemplateToNotFound(t *testing.T) {
 		}
 	}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := createSandbox(req, rt)
+=======
+	resp := createSandbox(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*types.Res)
 	if !ok {
@@ -77,7 +81,11 @@ func TestCreateSandboxKeepsOtherTemplateErrorsAsParamsError(t *testing.T) {
 		}
 	}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := createSandbox(req, rt)
+=======
+	resp := createSandbox(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*types.Res)
 	if !ok {

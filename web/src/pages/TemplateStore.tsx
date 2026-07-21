@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+<<<<<<< HEAD
 import {
   agentHubApi,
   templateApi,
@@ -20,11 +21,17 @@ import {
   type StoreTemplate,
   type CategoryId,
 } from '@/data/templateStore';
+=======
+import { agentHubApi, templateApi, storeApi, type TemplateSummary, type ImageMeta } from '@/api/client';
+import { showToast } from '@/components/ui/ToastProvider';
+import { STORE_TEMPLATES, CATEGORIES, type StoreTemplate, type CategoryId } from '@/data/templateStore';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+<<<<<<< HEAD
 import {
   Code2,
   Globe,
@@ -39,12 +46,16 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
+=======
+import { Code2, Globe, Bot, Box, Search, X, ChevronDown, Package, Loader2, Plus, AlertTriangle, RefreshCw } from 'lucide-react';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import { cn } from '@/lib/utils';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function categoryIcon(category: StoreTemplate['category']) {
   switch (category) {
+<<<<<<< HEAD
     case 'code':
       return Code2;
     case 'browser':
@@ -53,14 +64,24 @@ function categoryIcon(category: StoreTemplate['category']) {
       return Bot;
     case 'base':
       return Box;
+=======
+    case 'code':    return Code2;
+    case 'browser': return Globe;
+    case 'ai':      return Bot;
+    case 'base':    return Box;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   }
 }
 
 /** 只计 status=READY 的模板为"已安装" */
+<<<<<<< HEAD
 function getInstalledTemplates(
   item: StoreTemplate,
   templates: TemplateSummary[],
 ): TemplateSummary[] {
+=======
+function getInstalledTemplates(item: StoreTemplate, templates: TemplateSummary[]): TemplateSummary[] {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return templates.filter((tpl) => {
     if (!tpl.imageInfo) return false;
     const statusOk = tpl.status?.toUpperCase() === 'READY';
@@ -81,8 +102,13 @@ type InstallPhase =
   | { kind: 'idle' }
   | { kind: 'submitting' }
   | { kind: 'polling'; templateID: string }
+<<<<<<< HEAD
   | { kind: 'ready'; templateID: string }
   | { kind: 'failed'; message: string };
+=======
+  | { kind: 'ready';   templateID: string }
+  | { kind: 'failed';  message: string };
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 interface InstallModalProps {
   item: StoreTemplate;
@@ -171,7 +197,13 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
       }),
     onMutate: () => setPhase({ kind: 'submitting' }),
     onSuccess: (data) => {
+<<<<<<< HEAD
       const id = (data as { templateID?: string } | null)?.templateID ?? '';
+=======
+      const id =
+        (data as { templateID?: string } | null)?.templateID ??
+        '';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       setPhase({ kind: 'polling', templateID: id });
       startPolling(id);
     },
@@ -181,7 +213,11 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
   });
 
   const isBuilding = phase.kind === 'submitting' || phase.kind === 'polling';
+<<<<<<< HEAD
   const isDone = phase.kind === 'ready';
+=======
+  const isDone     = phase.kind === 'ready';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -189,6 +225,7 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
         {/* header */}
         <div className="flex items-center justify-between border-b px-6 py-5">
           <div>
+<<<<<<< HEAD
             <p className="text-base font-semibold font-mono">{item.image.split('/').pop()}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t('installModal.subtitle')}</p>
           </div>
@@ -197,6 +234,13 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
               stopPolling();
               onClose();
             }}
+=======
+            <p className="text-base font-semibold font-mono">{item.image.split("/").pop()}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('installModal.subtitle')}</p>
+          </div>
+          <button
+            onClick={() => { stopPolling(); onClose(); }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             className="text-muted-foreground hover:text-foreground"
           >
             <X className="h-4 w-4" />
@@ -206,6 +250,7 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
         <CardContent className="space-y-5 pt-5 px-6 pb-6">
           {/* 镜像信息（只读） */}
           <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm font-mono">
+<<<<<<< HEAD
             <div>
               <span className="text-muted-foreground">image: </span>
               {item.image_cn}
@@ -222,14 +267,24 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
               <span className="text-muted-foreground">probe-path: </span>
               {item.probe_path}
             </div>
+=======
+            <div><span className="text-muted-foreground">image: </span>{item.image_cn}</div>
+            <div><span className="text-muted-foreground">expose-port: </span>{item.expose_ports.join(', ')}</div>
+            <div><span className="text-muted-foreground">probe: </span>{item.probe_port}</div>
+            <div><span className="text-muted-foreground">probe-path: </span>{item.probe_path}</div>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </div>
 
           {/* 可编辑参数 */}
           <div className="space-y-3">
             <div className="space-y-1.5">
+<<<<<<< HEAD
               <label className="text-sm font-medium text-muted-foreground">
                 writable-layer-size
               </label>
+=======
+              <label className="text-sm font-medium text-muted-foreground">writable-layer-size</label>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               <Input
                 placeholder="1G"
                 value={writableLayerSize}
@@ -258,11 +313,15 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
               ✅ {t('installModal.success')}
               <button
                 className="ml-2 underline"
+<<<<<<< HEAD
                 onClick={() => {
                   stopPolling();
                   onClose();
                   navigate(`/templates/${phase.templateID}`);
                 }}
+=======
+                onClick={() => { stopPolling(); onClose(); navigate(`/templates/${phase.templateID}`); }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               >
                 {t('installModal.viewTemplate')} {phase.templateID}
               </button>
@@ -280,20 +339,34 @@ function InstallModal({ item, enableForAgentHub = false, onClose }: InstallModal
             <Button
               variant="outline"
               size="sm"
+<<<<<<< HEAD
               onClick={() => {
                 stopPolling();
                 onClose();
               }}
+=======
+              onClick={() => { stopPolling(); onClose(); }}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             >
               {isDone ? t('installModal.close') : t('installModal.cancel')}
             </Button>
             {!isDone && (
+<<<<<<< HEAD
               <Button size="sm" disabled={isBuilding || enabling} onClick={() => mutation.mutate()}>
                 {isBuilding || enabling ? (
                   <>
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     {t('installModal.installing')}
                   </>
+=======
+              <Button
+                size="sm"
+                disabled={isBuilding || enabling}
+                onClick={() => mutation.mutate()}
+              >
+                {isBuilding || enabling ? (
+                  <><Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />{t('installModal.installing')}</>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 ) : phase.kind === 'failed' ? (
                   t('installModal.retry')
                 ) : (
@@ -338,10 +411,15 @@ function InstalledDropdown({ installed, onInstallAnother }: InstalledDropdownPro
     if (!open) return;
     function handle(e: MouseEvent) {
       if (
+<<<<<<< HEAD
         menuRef.current &&
         !menuRef.current.contains(e.target as Node) &&
         triggerRef.current &&
         !triggerRef.current.contains(e.target as Node)
+=======
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        triggerRef.current && !triggerRef.current.contains(e.target as Node)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       ) {
         setOpen(false);
       }
@@ -383,8 +461,12 @@ function InstalledDropdown({ installed, onInstallAnother }: InstalledDropdownPro
         className="text-green-600 border-green-500/40 hover:bg-green-500/10"
         onClick={() => (open ? setOpen(false) : openMenu())}
       >
+<<<<<<< HEAD
         ✓ {t('installedCount', { count: installed.length })}{' '}
         <ChevronDown className="ml-1 h-3 w-3" />
+=======
+        ✓ {t('installedCount', { count: installed.length })} <ChevronDown className="ml-1 h-3 w-3" />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       </Button>
       <Button
         variant="ghost"
@@ -395,6 +477,7 @@ function InstalledDropdown({ installed, onInstallAnother }: InstalledDropdownPro
       >
         <Plus className="h-3.5 w-3.5" />
       </Button>
+<<<<<<< HEAD
       {open &&
         createPortal(
           <div
@@ -424,6 +507,33 @@ function InstalledDropdown({ installed, onInstallAnother }: InstalledDropdownPro
           </div>,
           document.body,
         )}
+=======
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: 'absolute', top: pos.top, right: pos.right, zIndex: 9999 }}
+          className="w-64 max-h-60 overflow-y-auto rounded-lg border bg-popover shadow-xl"
+        >
+          {installed.map((tpl) => (
+            <button
+              key={tpl.templateID}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted"
+              onClick={() => { setOpen(false); navigate(`/templates/${tpl.templateID}`); }}
+            >
+              <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="font-mono truncate flex-1 min-w-0">{tpl.templateID}</span>
+              <Badge
+                tone={tpl.status?.toUpperCase() === 'READY' ? 'ok' : 'warn'}
+                className="ml-auto text-xs shrink-0"
+              >
+                {tpl.status}
+              </Badge>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     </div>
   );
 }
@@ -440,6 +550,7 @@ interface StoreCardProps {
   liveMeta?: ImageMeta;
 }
 
+<<<<<<< HEAD
 function StoreCard({
   item,
   installed,
@@ -459,6 +570,17 @@ function StoreCard({
   const latestDigest = liveMeta?.digest_short ?? null;
   const hasUpdate =
     installedDigest != null && latestDigest != null && installedDigest !== latestDigest;
+=======
+function StoreCard({ item, installed, onInstall, onInstallAndEnable, onEnableInstalled, enabling = false, liveMeta }: StoreCardProps) {
+  const { t } = useTranslation('store');
+  const installedDigest = installed.length > 0
+    ? (installed[0].imageInfo ?? '').split('sha256:')[1]
+      ? 'sha256:' + (installed[0].imageInfo ?? '').split('sha256:')[1]
+      : null
+    : null;
+  const latestDigest = liveMeta?.digest_short ?? null;
+  const hasUpdate = installedDigest != null && latestDigest != null && installedDigest !== latestDigest;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const displaySizeMb = liveMeta?.size_mb ?? item.size_mb;
   const Icon = categoryIcon(item.category);
   const isInstalled = installed.length > 0;
@@ -484,12 +606,17 @@ function StoreCard({
             <Icon size={18} />
           </span>
           <div>
+<<<<<<< HEAD
             <p className="text-sm font-semibold leading-tight">{item.image.split('/').pop()}</p>
             <p className="text-xs text-muted-foreground mt-0.5 text-num">
               {displaySizeMb >= 1000
                 ? (displaySizeMb / 1024).toFixed(1) + ' GB'
                 : displaySizeMb + ' MB'}
             </p>
+=======
+            <p className="text-sm font-semibold leading-tight">{item.image.split("/").pop()}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 text-num">{displaySizeMb >= 1000 ? (displaySizeMb / 1024).toFixed(1) + " GB" : displaySizeMb + " MB"}</p>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </div>
         </div>
 
@@ -515,7 +642,15 @@ function StoreCard({
         </p>
         <div className="flex flex-wrap justify-end gap-2">
           {isInstalled && isOpenClawTemplate(item) && (
+<<<<<<< HEAD
             <Button size="sm" disabled={enabling} onClick={() => onEnableInstalled(installed[0])}>
+=======
+            <Button
+              size="sm"
+              disabled={enabling}
+              onClick={() => onEnableInstalled(installed[0])}
+            >
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               {enabling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
               {t('enableAgentHub')}
             </Button>
@@ -524,6 +659,7 @@ function StoreCard({
             <InstalledDropdown installed={installed} onInstallAnother={onInstall} />
           ) : isOpenClawTemplate(item) ? (
             <>
+<<<<<<< HEAD
               <Button size="sm" onClick={onInstallAndEnable}>
                 {t('installAndEnableAgentHub')}
               </Button>
@@ -535,6 +671,13 @@ function StoreCard({
             <Button size="sm" onClick={onInstall}>
               {t('install')}
             </Button>
+=======
+              <Button size="sm" onClick={onInstallAndEnable}>{t('installAndEnableAgentHub')}</Button>
+              <Button size="sm" variant="outline" onClick={onInstall}>{t('installOnly')}</Button>
+            </>
+          ) : (
+            <Button size="sm" onClick={onInstall}>{t('install')}</Button>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           )}
         </div>
       </div>
@@ -564,7 +707,11 @@ export default function TemplateStorePage() {
     queryKey: ['store-meta'],
     queryFn: storeApi.meta,
     refetchInterval: 6 * 60 * 60 * 1000, // 6 hours
+<<<<<<< HEAD
     staleTime: 60 * 60 * 1000, // 1 hour
+=======
+    staleTime: 60 * 60 * 1000,            // 1 hour
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   });
 
   const { mutate: checkUpdates, isPending: isChecking } = useMutation({
@@ -651,6 +798,7 @@ export default function TemplateStorePage() {
             disabled={isChecking}
             className="gap-1.5 text-xs"
           >
+<<<<<<< HEAD
             <RefreshCw className={isChecking ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
             {isChecking ? t('checking') : t('checkUpdates')}
           </Button>
@@ -662,6 +810,19 @@ export default function TemplateStorePage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+=======
+            <RefreshCw className={isChecking ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+            {isChecking ? t('checking') : t('checkUpdates')}
+          </Button>
+          <div className="relative w-56">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="pl-8 h-9 text-sm"
+            placeholder={t('searchPlaceholder')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           </div>
         </div>
       </header>
@@ -707,9 +868,13 @@ export default function TemplateStorePage() {
                 setInstalling(item);
               }}
               onEnableInstalled={(template) => enableInstalledTemplate(item, template)}
+<<<<<<< HEAD
               enabling={getInstalledTemplates(item, templates ?? []).some(
                 (tpl) => tpl.templateID === enablingTemplateId,
               )}
+=======
+              enabling={getInstalledTemplates(item, templates ?? []).some((tpl) => tpl.templateID === enablingTemplateId)}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               liveMeta={storeMeta?.images.find((m) => m.image === item.image)}
             />
           ))}

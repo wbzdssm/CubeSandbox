@@ -1,7 +1,10 @@
 FROM ubuntu:22.04
 
 ARG DEBIAN_FRONTEND=noninteractive
+<<<<<<< HEAD
 ENV PATH="/usr/local/services/cubetoolbox/cube-shim/bin:${PATH}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 # Minimal image for Big Pod wait-node-prep sidecar (Kruise priority) and
 # bootstrap write-ready/hold. Bumping wait image on Big Pod may InPlace; do not

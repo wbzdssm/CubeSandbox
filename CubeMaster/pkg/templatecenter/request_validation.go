@@ -8,7 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+<<<<<<< HEAD
 	"regexp"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"sort"
 	"strings"
 
@@ -91,9 +94,12 @@ func normalizeTemplateImageRequest(req *types.CreateTemplateFromImageReq) (*type
 		return nil, err
 	}
 	cloned.ExposedPorts = exposedPorts
+<<<<<<< HEAD
 	if err := validateTemplateAlias(cloned.Alias); err != nil {
 		return nil, err
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	// Always auto-generate the template ID. Users are not allowed to set
 	// custom template IDs because the snapshot system depends on the
 	// tpl- / snap- prefix convention for storage naming and identification.
@@ -113,6 +119,7 @@ func normalizeTemplateImageRequest(req *types.CreateTemplateFromImageReq) (*type
 	return &cloned, nil
 }
 
+<<<<<<< HEAD
 // aliasValidationRe matches the allowed alias charset: lowercase alphanumeric
 // and hyphens, starting with an alphanumeric character, max 64 characters.
 var aliasValidationRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
@@ -136,6 +143,8 @@ func validateTemplateAlias(alias string) error {
 	return nil
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func validateTemplateCubeNetworkConfig(cfg *types.CubeNetworkConfig) error {
 	if cfg == nil || !hasDomainAllowOutTarget(cfg.AllowOut) {
 		return nil

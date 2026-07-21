@@ -43,6 +43,7 @@ type TemplateBuildStatus struct {
 }
 
 type BuildTemplateOptions struct {
+<<<<<<< HEAD
 	Image               string
 	InstanceType        string
 	WritableLayerSize   string
@@ -65,6 +66,30 @@ type BuildTemplateOptions struct {
 	// Extra is merged into the request payload after the named fields above,
 	// so duplicate keys override those fields to match Python kwargs behavior.
 	Extra map[string]any
+=======
+	Image                string
+	InstanceType         string
+	WritableLayerSize    string
+	ExposedPorts         []uint16
+	ProbePort            *uint16
+	ProbePath            string
+	CPU                  *uint32
+	Memory               *uint32
+	Env                  map[string]string
+	AllowInternetAccess  *bool
+	NetworkType          string
+	Nodes                []string
+	RegistryUsername     string
+	RegistryPassword     string
+	Command              []string
+	Args                 []string
+	DNS                  []string
+	AllowOut             []string
+	DenyOut              []string
+	// Extra is merged into the request payload after the named fields above,
+	// so duplicate keys override those fields to match Python kwargs behavior.
+	Extra                map[string]any
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func (c *Client) ListTemplates(ctx context.Context) ([]TemplateInfo, error) {

@@ -17,7 +17,11 @@ import (
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"github.com/pressly/goose/v3/lock"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/CubeDB/migrate"
+=======
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/dao/migrate"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

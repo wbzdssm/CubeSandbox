@@ -98,7 +98,10 @@ jobs:
               "cube-egress",
               "cube-master",
               "cube-api",
+<<<<<<< HEAD
               "cube-ops",
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
               "cube-proxy",
               "webui",
               "cube-lifecycle-manager",
@@ -136,6 +139,7 @@ jobs:
                   "cache_scope": "cube-api",
               },
               {
+<<<<<<< HEAD
                   "component": "cube-ops",
                   "image": "cube-ops",
                   "context": ".",
@@ -143,6 +147,8 @@ jobs:
                   "cache_scope": "cube-ops",
               },
               {
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                   "component": "cube-proxy",
                   "image": "cube-proxy",
                   "context": "CubeProxy",

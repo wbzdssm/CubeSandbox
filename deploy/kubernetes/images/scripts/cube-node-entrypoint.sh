@@ -19,11 +19,15 @@ if [[ -z "${CUBE_MASTER_ENDPOINT:-}" ]]; then
 fi
 CUBE_PVM_ENABLE="${CUBE_PVM_ENABLE:-1}"
 CUBE_SANDBOX_AUTO_DETECT_ETH="${CUBE_SANDBOX_AUTO_DETECT_ETH:-true}"
+<<<<<<< HEAD
 STATE_DIR="${STATE_DIR:-/var/lib/cube-node-bootstrap}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 log() { printf '[cube-node-entrypoint] %s\n' "$*"; }
 fail() { printf '[cube-node-entrypoint] ERROR: %s\n' "$*" >&2; exit 1; }
 
+<<<<<<< HEAD
 apply_effective_pvm_from_state() {
   local path="${STATE_DIR}/effective-pvm"
   local val
@@ -38,6 +42,8 @@ apply_effective_pvm_from_state() {
   esac
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing command in cube-node image: $1"
 }
@@ -162,7 +168,10 @@ configure_sandbox_dns() {
 [[ -n "${CUBE_SANDBOX_NODE_IP:-}" ]] || fail "CUBE_SANDBOX_NODE_IP is required"
 
 validate_runtime_commands
+<<<<<<< HEAD
 apply_effective_pvm_from_state
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 select_guest_kernel
 
 # Escape backslashes, ampersands, and forward slashes so they cannot terminate
@@ -221,7 +230,11 @@ mkdir -p \
 
 # Keep shim bundle metadata on the dataCubelet hostPath across Pod rebuilds.
 # cubelet mountTmpfsDir() skips when state is already mounted; without this,
+<<<<<<< HEAD
 # a 1Gi tmpfs in cubelet's private mount NS holds bootstrap.json/address and
+=======
+# a 500Mi tmpfs in cubelet's private mount NS holds bootstrap.json/address and
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 # is discarded when the Pod (and that mount NS) goes away, breaking
 # LoadExistingShims even if shim processes and /run/containerd sockets survive.
 if ! findmnt --mountpoint /data/cubelet/state >/dev/null 2>&1; then

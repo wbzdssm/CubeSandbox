@@ -47,7 +47,10 @@ DIST_TAR="${SCRIPT_DIR}/dist/cube-sandbox-one-click-${DIST_VERSION}.tar.gz"
 CUBEMASTER_BUILD_MODE="${ONE_CLICK_CUBEMASTER_BUILD_MODE:-local}"
 CUBELET_BUILD_MODE="${ONE_CLICK_CUBELET_BUILD_MODE:-local}"
 API_BUILD_MODE="${ONE_CLICK_CUBE_API_BUILD_MODE:-local}"
+<<<<<<< HEAD
 CUBE_OPS_BUILD_MODE="${ONE_CLICK_CUBE_OPS_BUILD_MODE:-local}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 NETWORK_AGENT_BUILD_MODE="${ONE_CLICK_NETWORK_AGENT_BUILD_MODE:-local}"
 CUBEVSMAPDUMP_BUILD_MODE="${ONE_CLICK_CUBEVSMAPDUMP_BUILD_MODE:-local}"
 
@@ -56,7 +59,10 @@ CUBEMASTERCLI_BIN_OVERRIDE="${ONE_CLICK_CUBEMASTERCLI_BIN:-}"
 CUBELET_BIN_OVERRIDE="${ONE_CLICK_CUBELET_BIN:-}"
 CUBECLI_BIN_OVERRIDE="${ONE_CLICK_CUBECLI_BIN:-}"
 API_BIN_OVERRIDE="${ONE_CLICK_CUBE_API_BIN:-}"
+<<<<<<< HEAD
 CUBE_OPS_BIN_OVERRIDE="${ONE_CLICK_CUBE_OPS_BIN:-}"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 NETWORK_AGENT_BIN_OVERRIDE="${ONE_CLICK_NETWORK_AGENT_BIN:-}"
 CUBEVSMAPDUMP_BIN_OVERRIDE="${ONE_CLICK_CUBEVSMAPDUMP_BIN:-}"
 
@@ -282,6 +288,7 @@ components["cube-api"] = {
     "digest_sha256": required_sha256(os.path.join(core_bin_dir, "cube-api")),
 }
 
+<<<<<<< HEAD
 # ── cubeops from CORE_BIN_DIR ──
 components["cubeops"] = {
     "version": cube_version,
@@ -290,6 +297,8 @@ components["cubeops"] = {
     "digest_sha256": required_sha256(os.path.join(core_bin_dir, "cubeops")),
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 # ── Rust binaries from build-vm-assets.sh ──
 components["cube-agent"] = {
     "version": cube_version,
@@ -494,10 +503,13 @@ build_or_copy_rust_binary \
   "${ROOT_DIR}/CubeAPI" "${API_BUILD_MODE}" \
   "${CORE_BIN_DIR}/cube-api"
 build_or_copy_go_binary \
+<<<<<<< HEAD
   "cubeops" "${CUBE_OPS_BIN_OVERRIDE}" \
   "${ROOT_DIR}/CubeOps" "${CUBE_OPS_BUILD_MODE}" \
   "${CORE_BIN_DIR}/cubeops" ./cmd/cubeops
 build_or_copy_go_binary \
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   "network-agent" "${NETWORK_AGENT_BIN_OVERRIDE}" \
   "${ROOT_DIR}/network-agent" "${NETWORK_AGENT_BUILD_MODE}" \
   "${CORE_BIN_DIR}/network-agent" ./cmd/network-agent "${NETAGENT_VERSION_PKG}"
@@ -510,11 +522,16 @@ mkdir -p \
   "${PACKAGE_ROOT}/network-agent/bin" \
   "${PACKAGE_ROOT}/network-agent/state" \
   "${PACKAGE_ROOT}/CubeAPI/bin" \
+<<<<<<< HEAD
   "${PACKAGE_ROOT}/CubeOps/bin" \
   "${PACKAGE_ROOT}/CubeMaster/bin" \
   "${PACKAGE_ROOT}/CubeMaster/plugin" \
   "${PACKAGE_ROOT}/Cubelet/bin" \
   "${PACKAGE_ROOT}/Cubelet/plugin" \
+=======
+  "${PACKAGE_ROOT}/CubeMaster/bin" \
+  "${PACKAGE_ROOT}/Cubelet/bin" \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   "${PACKAGE_ROOT}/Cubelet/config" \
   "${PACKAGE_ROOT}/Cubelet/dynamicconf" \
   "${PACKAGE_ROOT}/cubeproxy" \
@@ -543,9 +560,12 @@ copy_file "${ROOT_DIR}/configs/single-node/network-agent.yaml" "${PACKAGE_ROOT}/
 copy_dir_contents "${SCRIPT_DIR}/CubeAPI" "${PACKAGE_ROOT}/CubeAPI"
 copy_file "${CORE_BIN_DIR}/cube-api" "${PACKAGE_ROOT}/CubeAPI/bin/cube-api"
 
+<<<<<<< HEAD
 # CubeOps binary — admin/ops API (Go), depends on CubeDB via go.mod replace.
 copy_file "${CORE_BIN_DIR}/cubeops" "${PACKAGE_ROOT}/CubeOps/bin/cubeops"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 # Same ordering for CubeMaster so cubemaster/cubemastercli binaries survive the
 # copy_dir_contents wipe and coexist with the one-click CubeMaster assets.
 copy_dir_contents "${SCRIPT_DIR}/CubeMaster" "${PACKAGE_ROOT}/CubeMaster"
@@ -566,6 +586,7 @@ fi
 copy_dir_contents "${ROOT_DIR}/Cubelet/config" "${PACKAGE_ROOT}/Cubelet/config"
 copy_dir_contents "${ROOT_DIR}/Cubelet/dynamicconf" "${PACKAGE_ROOT}/Cubelet/dynamicconf"
 
+<<<<<<< HEAD
 VOLUME_COS_PLUGIN_SRC="${ROOT_DIR}/examples/volume/cos/binary/cube-volume-cos.sh"
 VOLUME_COS_CONF_EXAMPLE="${ROOT_DIR}/examples/volume/cos/volume-cos.conf.example"
 ensure_file "${VOLUME_COS_PLUGIN_SRC}"
@@ -576,6 +597,8 @@ chmod +x "${PACKAGE_ROOT}/CubeMaster/plugin/cube-volume-cos" "${PACKAGE_ROOT}/Cu
 copy_file "${VOLUME_COS_CONF_EXAMPLE}" "${PACKAGE_ROOT}/CubeMaster/plugin/volume-cos.conf.example"
 copy_file "${VOLUME_COS_CONF_EXAMPLE}" "${PACKAGE_ROOT}/Cubelet/plugin/volume-cos.conf.example"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 copy_dir_contents "${CUBE_PROXY_TEMPLATE_DIR}" "${PACKAGE_ROOT}/cubeproxy"
 copy_dir_contents "${CUBE_COREDNS_TEMPLATE_DIR}" "${PACKAGE_ROOT}/coredns"
 copy_dir_contents "${CUBE_WEBUI_TEMPLATE_DIR}" "${PACKAGE_ROOT}/webui"

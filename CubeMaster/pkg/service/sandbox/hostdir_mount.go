@@ -122,6 +122,7 @@ func validateHostPath(hostPath string) (string, error) {
 	}
 	return "", fmt.Errorf("hostPath %q is not within an allowed mount prefix", hostPath)
 }
+<<<<<<< HEAD
 
 // AnnotationPluginVolumeMounts is the annotation key CubeAPI uses to forward
 // VolumeMount entries for plugin_volume volumes.  The value is a JSON array of
@@ -176,3 +177,5 @@ func injectPluginVolumeMounts(ctx context.Context, req *types.CreateCubeSandboxR
 	}
 	return nil
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

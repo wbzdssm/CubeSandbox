@@ -43,12 +43,18 @@ export function copyToClipboard(text: string, message = 'Copied'): void {
   };
 
   if (navigator.clipboard && window.isSecureContext) {
+<<<<<<< HEAD
     navigator.clipboard
       .writeText(text)
       .then(() => dispatch(true))
       .catch(() => {
         fallbackCopy(text, dispatch);
       });
+=======
+    navigator.clipboard.writeText(text).then(() => dispatch(true)).catch(() => {
+      fallbackCopy(text, dispatch);
+    });
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   } else {
     fallbackCopy(text, dispatch);
   }

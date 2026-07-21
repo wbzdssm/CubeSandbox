@@ -7,25 +7,36 @@ package cube
 import (
 	"context"
 	"fmt"
+<<<<<<< HEAD
 	"net/http"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/agiledragon/gomonkey/v2"
+<<<<<<< HEAD
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+=======
+	"github.com/stretchr/testify/assert"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/node"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/localcache"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/common"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
+<<<<<<< HEAD
 // invokeCommitHandler drives the gin handler handleSandboxCommitAction with a
 // test gin.Context carrying rt, returning the decoded JSON response.
 func invokeCommitHandler(t *testing.T, req *http.Request, rt *CubeLog.RequestTrace) commitTemplateResponse {
@@ -40,6 +51,8 @@ func invokeCommitHandler(t *testing.T, req *http.Request, rt *CubeLog.RequestTra
 	return got
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func TestHandleSandboxCommitActionRejectsEmptyRequestID(t *testing.T) {
 	body := `{
 		"sandbox_id":"sb-1",
@@ -55,10 +68,22 @@ func TestHandleSandboxCommitActionRejectsEmptyRequestID(t *testing.T) {
 	}`
 	req := httptest.NewRequest("POST", "/cube/sandbox/commit", strings.NewReader(body))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	got := invokeCommitHandler(t, req, rt)
 
 	require.NotNil(t, got.Res)
 	require.NotNil(t, got.Res.Ret)
+=======
+	resp := handleSandboxCommitAction(httptest.NewRecorder(), req, rt)
+
+	got, ok := resp.(*commitTemplateResponse)
+	if !ok {
+		t.Fatalf("unexpected response type %T", resp)
+	}
+	if got.Res == nil || got.Res.Ret == nil {
+		t.Fatalf("missing Ret in response: %#v", got)
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	assert.Equal(t, int(errorcode.ErrorCode_MasterParamsError), got.Res.Ret.RetCode)
 	assert.Contains(t, got.Res.Ret.RetMsg, "requestID is required")
 	assert.NotEqual(t, "tpl-1", got.TemplateID)
@@ -69,8 +94,17 @@ func TestHandleSandboxCommitActionRejectsMissingFields(t *testing.T) {
 	body := `{"requestID":"req-1"}`
 	req := httptest.NewRequest("POST", "/cube/sandbox/commit", strings.NewReader(body))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	got := invokeCommitHandler(t, req, rt)
 
+=======
+	resp := handleSandboxCommitAction(httptest.NewRecorder(), req, rt)
+
+	got, ok := resp.(*commitTemplateResponse)
+	if !ok {
+		t.Fatalf("unexpected response type %T", resp)
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	assert.Equal(t, int(errorcode.ErrorCode_MasterParamsError), got.Res.Ret.RetCode)
 	assert.Contains(t, got.Res.Ret.RetMsg, "sandbox_id and create_request are required")
 }
@@ -109,8 +143,17 @@ func TestHandleSandboxCommitActionIgnoresProvidedTemplateID(t *testing.T) {
 	}`
 	req := httptest.NewRequest("POST", "/cube/sandbox/commit", strings.NewReader(body))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	got := invokeCommitHandler(t, req, rt)
 
+=======
+	resp := handleSandboxCommitAction(httptest.NewRecorder(), req, rt)
+
+	got, ok := resp.(*commitTemplateResponse)
+	if !ok {
+		t.Fatalf("unexpected response type %T", resp)
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	assert.Equal(t, int(errorcode.ErrorCode_Success), got.Res.Ret.RetCode)
 	assert.Equal(t, submittedTemplateID, got.TemplateID)
 	assert.NotEqual(t, "custom-template", got.TemplateID)

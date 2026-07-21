@@ -354,6 +354,7 @@ func SetRunCubeSandboxRequestDefaultValue(req *cubebox.RunCubeSandboxRequest) {
 }
 
 func setCubeExtKey(rsp *cubebox.RunCubeSandboxResponse, createInfo *workflow.CreateContext) {
+<<<<<<< HEAD
 	// Only report node-level volume ref-count transitions when the sandbox
 	// was created successfully. On failure the workflow rolls back (detach),
 	// so the net node transition is zero and nothing should be reported.
@@ -395,6 +396,10 @@ func marshalVolumeRefEvents(events []workflow.VolumeRefEvent) []byte {
 		return nil
 	}
 	return data
+=======
+	_ = rsp
+	_ = createInfo
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func dealCreateInnerMetric(rsp *cubebox.RunCubeSandboxResponse, createInfo *workflow.CreateContext) {
@@ -546,7 +551,10 @@ func (s *service) Destroy(ctx context.Context, req *cubebox.DestroyCubeSandboxRe
 			stepLog.Infof("destroy cubebox success")
 		}
 		dealDestroyInnerMetric(rsp, destroyInfo)
+<<<<<<< HEAD
 		setDestroyVolumeRefEvents(rsp, destroyInfo)
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 		go s.reportTrace(CubeLog.GetTraceInfo(ctx), destroyInfo.GetMetric())
 	}()

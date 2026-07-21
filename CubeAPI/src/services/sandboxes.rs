@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
+<<<<<<< HEAD
 use std::collections::{HashMap, HashSet};
+=======
+use std::collections::HashMap;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 use uuid::Uuid;
 
 use super::validate_allow_out_domains_require_deny_all;
@@ -13,13 +17,20 @@ use crate::{
         CubeEgressRuleAction, CubeEgressRuleInject, CubeEgressRuleMatch, CubeMasterClient,
         CubeMasterError, CubeNetworkConfig, DeleteSandboxRequest, ListSandboxRequest, SandboxInfo,
         SandboxLogsRequest, SandboxRefreshRequest, SandboxStatus, SandboxTimeoutRequest,
+<<<<<<< HEAD
         SandboxUpdateRequest, VolumeMount, VolumeSpec,
+=======
+        SandboxUpdateRequest,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     },
     error::{AppError, AppResult},
     models::{
         EgressRule, LogLevel as ModelLogLevel, NewSandbox, Sandbox, SandboxDetail, SandboxLog,
         SandboxLogEntry, SandboxLogs, SandboxLogsV2Response, SandboxNetworkConfig, SandboxState,
+<<<<<<< HEAD
         SandboxVolumeMount,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     },
 };
 
@@ -158,15 +169,21 @@ impl SandboxService {
             metadata,
             distribution_scope,
             env_vars,
+<<<<<<< HEAD
             volume_mounts,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             ..
         } = body;
         if let Some(env_vars) = env_vars.as_ref() {
             validate_env_vars(env_vars)?;
         }
+<<<<<<< HEAD
         if let Some(mounts) = volume_mounts.as_ref() {
             validate_unique_volume_mount_names(mounts)?;
         }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         let mut annotations = HashMap::from([
             (
                 "cube.master.appsnapshot.template.id".to_string(),
@@ -202,6 +219,7 @@ impl SandboxService {
             })
             .unwrap_or((false, false));
 
+<<<<<<< HEAD
         // Convert e2b-style volumeMounts into the CubeMaster wire format.
         // Volumes (pod-level declarations) are passed in the volumes field;
         // VolumeSource is left None so CubeMaster resolves from the volume DB.
@@ -250,6 +268,8 @@ impl SandboxService {
         // from the annotation into the template's existing container spec.
         let containers = vec![];
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         let req = CreateSandboxRequest {
             request_id: new_request_id(),
             instance_type: self.instance_type.clone(),
@@ -261,8 +281,13 @@ impl SandboxService {
             labels,
             create_time_env_vars: env_vars,
             distribution_scope,
+<<<<<<< HEAD
             volumes,
             containers,
+=======
+            volumes: None,
+            containers: vec![],
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             exposed_ports: vec![],
             network_type: Some("tap".to_string()),
             cube_network_config,
@@ -677,6 +702,7 @@ fn validate_env_vars(env_vars: &HashMap<String, String>) -> AppResult<()> {
     Ok(())
 }
 
+<<<<<<< HEAD
 /// Each volume (`volumeMounts[].name`) may be mounted at most once per sandbox.
 fn validate_unique_volume_mount_names(mounts: &[SandboxVolumeMount]) -> AppResult<()> {
     let mut seen = HashSet::with_capacity(mounts.len());
@@ -691,6 +717,8 @@ fn validate_unique_volume_mount_names(mounts: &[SandboxVolumeMount]) -> AppResul
     Ok(())
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 fn internal_error(error: impl std::fmt::Display) -> AppError {
     AppError::Internal(anyhow::anyhow!(error.to_string()))
 }
@@ -1867,6 +1895,7 @@ mod tests {
         ]))
         .expect("valid env var names should be accepted");
     }
+<<<<<<< HEAD
 
     #[test]
     fn volume_mounts_reject_duplicate_names() {
@@ -1960,4 +1989,6 @@ mod tests {
         let has_mounts = !mounts.is_empty();
         assert!(!has_mounts, "no mounts → containers should stay empty");
     }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }

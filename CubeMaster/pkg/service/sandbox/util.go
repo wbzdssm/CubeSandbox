@@ -6,25 +6,37 @@ package sandbox
 
 import (
 	"context"
+<<<<<<< HEAD
 	"encoding/json"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/CubeDB/dao"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/cubebox/v1"
 	cubeboximages "github.com/tencentcloud/CubeSandbox/CubeMaster/api/services/images/v1"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
+<<<<<<< HEAD
 	dbmodels "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/node"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/ret"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/utils"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/scheduler/selctx"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+<<<<<<< HEAD
 	"gorm.io/gorm"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
@@ -181,6 +193,7 @@ func ConstructCubeletReq(ctx context.Context, req *types.CreateCubeSandboxReq) (
 	}
 	log.G(ctx).Infof("[hostdir] ConstructCubeletReq: volumes_after_inject=%d", len(req.Volumes))
 
+<<<<<<< HEAD
 	if err = injectPluginVolumeMounts(ctx, req); err != nil {
 		return nil, ret.Err(errorcode.ErrorCode_MasterParamsError, err.Error())
 	}
@@ -195,6 +208,11 @@ func ConstructCubeletReq(ctx context.Context, req *types.CreateCubeSandboxReq) (
 			out.Annotations[k] = v
 		}
 	}
+=======
+	if err = checkAndGetVolumes(req, out); err != nil {
+		return nil, ret.Err(errorcode.ErrorCode_MasterParamsError, err.Error())
+	}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	if err = checkAndGetContainers(req, out); err != nil {
 		return nil, ret.Err(errorcode.ErrorCode_MasterParamsError, err.Error())
@@ -628,6 +646,7 @@ func handlePrestop(dst **cubebox.PreStop, src *types.PreStop) {
 	}
 }
 func checkAndGetVolumes(req *types.CreateCubeSandboxReq, out *cubebox.RunCubeSandboxRequest) error {
+<<<<<<< HEAD
 	// Build a set of plugin volume names from the plugin-volume-mounts annotation.
 	pluginVolumeNames := map[string]bool{}
 	if raw := req.Annotations[AnnotationPluginVolumeMounts]; raw != "" {
@@ -646,12 +665,19 @@ func checkAndGetVolumes(req *types.CreateCubeSandboxReq, out *cubebox.RunCubeSan
 		for _, e := range req.Volumes {
 			if e.Name == "" {
 				return fmt.Errorf("volume name must not be empty")
+=======
+	if req.Volumes != nil {
+		for _, e := range req.Volumes {
+			if e.Name == "" || e.VolumeSource == nil {
+				return fmt.Errorf("volume [%s] source is nil", e.Name)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			}
 
 			v := &cubebox.Volume{
 				Name:         e.Name,
 				VolumeSource: &cubebox.VolumeSource{},
 			}
+<<<<<<< HEAD
 
 			// Identify plugin volumes by name appearing in plugin-volume-mounts
 			// annotation, or by having a nil VolumeSource.
@@ -670,6 +696,8 @@ func checkAndGetVolumes(req *types.CreateCubeSandboxReq, out *cubebox.RunCubeSan
 				continue
 			}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 			if e.VolumeSource.EmptyDir != nil {
 				v.VolumeSource.EmptyDir = &cubebox.EmptyDirVolumeSource{
 					SizeLimit: e.VolumeSource.EmptyDir.SizeLimit,
@@ -694,6 +722,7 @@ func checkAndGetVolumes(req *types.CreateCubeSandboxReq, out *cubebox.RunCubeSan
 	return nil
 }
 
+<<<<<<< HEAD
 // resolveVolumeRecord looks up a VolumeRecord by volumeID from the DB.
 func resolveVolumeRecord(volumeID string) (*dbmodels.VolumeRecord, error) {
 	var record dbmodels.VolumeRecord
@@ -709,6 +738,8 @@ func resolveVolumeRecord(volumeID string) (*dbmodels.VolumeRecord, error) {
 	return &record, nil
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func checkAndGetHostDirVolumeSource(src *types.HostDirVolumeSources, out *cubebox.Volume) error {
 	if src == nil {
 		return nil
@@ -995,6 +1026,7 @@ func checkAndGetContainerHooks(out *cubebox.ContainerConfig, in *types.Container
 	}
 	return nil
 }
+<<<<<<< HEAD
 
 // appendPluginVolumeSourceAnnotation records name+driver for a plugin volume
 // in the "plugin-volume-sources" annotation so Cubelet can call the right
@@ -1024,3 +1056,5 @@ func appendPluginVolumeSourceAnnotation(req *types.CreateCubeSandboxReq, name, d
 	req.Annotations[key] = string(b)
 	return nil
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

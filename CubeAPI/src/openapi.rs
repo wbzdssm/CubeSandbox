@@ -12,11 +12,21 @@ use utoipa::{
 use crate::{
     handlers,
     models::{
+<<<<<<< HEAD
         ApiError, CreateTemplateRequest, RebuildTemplateRequest, ResumedSandbox, Sandbox,
         SandboxDetail, SandboxLogEntry, SandboxLogsV2Response, SandboxState, SandboxVolumeMount,
         TemplateAliasLookupResponse, TemplateBuildJob, TemplateBuildStatus,
         TemplateCompatAdoptResponseView, TemplateCompatMatrixView, TemplateCompatRowView,
         TemplateCompatSummaryView, TemplateDetail, TemplateNodeCompatView, TemplateSummary,
+=======
+        ApiError, ClusterOverview, ComponentMatrixRowView, ComponentVersionGroupView,
+        ComponentVersionView, ControlPlaneVersionView, NodeComponentEntryView, NodeConditionView,
+        NodeResourcesView, NodeVersionRowView, NodeView, ResumedSandbox, Sandbox, SandboxDetail,
+        SandboxLogEntry, SandboxLogsV2Response, SandboxState, SandboxVolumeMount,
+        TemplateCompatAdoptResponseView, TemplateCompatMatrixView, TemplateCompatRowView,
+        TemplateCompatSummaryView, TemplateDetail, TemplateNodeCompatView, TemplateSummary,
+        VersionMatrixView,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     },
 };
 
@@ -46,6 +56,7 @@ impl Modify for SecurityAddon {
     info(
         title = "CubeAPI",
         version = "0.1.0",
+<<<<<<< HEAD
         description = "E2B-compatible sandbox API server."
     ),
     paths(
@@ -60,6 +71,18 @@ impl Modify for SecurityAddon {
         handlers::templates::start_template_build,
         handlers::templates::get_template_build_status,
         handlers::templates::get_template_build_logs,
+=======
+        description = "OpenAPI contract for the CubeSandbox dashboard surface."
+    ),
+    paths(
+        handlers::health::health,
+        handlers::cluster::cluster_overview,
+        handlers::cluster::cluster_versions,
+        handlers::cluster::list_nodes,
+        handlers::cluster::get_node,
+        handlers::templates::list_templates,
+        handlers::templates::get_template,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         handlers::templates::template_compat,
         handlers::templates::adopt_template_compat_baseline,
         handlers::sandboxes::list_sandboxes_v2,
@@ -72,6 +95,7 @@ impl Modify for SecurityAddon {
     components(schemas(
         ApiError,
         handlers::health::HealthResponse,
+<<<<<<< HEAD
         TemplateSummary,
         TemplateDetail,
         TemplateAliasLookupResponse,
@@ -79,6 +103,21 @@ impl Modify for SecurityAddon {
         TemplateBuildStatus,
         CreateTemplateRequest,
         RebuildTemplateRequest,
+=======
+        ClusterOverview,
+        NodeResourcesView,
+        NodeConditionView,
+        NodeView,
+        ComponentVersionView,
+        ControlPlaneVersionView,
+        ComponentVersionGroupView,
+        ComponentMatrixRowView,
+        NodeComponentEntryView,
+        NodeVersionRowView,
+        VersionMatrixView,
+        TemplateSummary,
+        TemplateDetail,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         TemplateCompatSummaryView,
         TemplateNodeCompatView,
         TemplateCompatRowView,
@@ -94,8 +133,17 @@ impl Modify for SecurityAddon {
         SandboxLogsV2Response
     )),
     modifiers(&SecurityAddon),
+<<<<<<< HEAD
     tags(
         (name = "health", description = "Health and liveness"),
+=======
+    servers(
+        (url = "/cubeapi/v1", description = "CubeAPI dashboard surface")
+    ),
+    tags(
+        (name = "health", description = "Health and liveness"),
+        (name = "cluster", description = "Cluster and node inventory"),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         (name = "templates", description = "Template catalog"),
         (name = "sandboxes", description = "Sandbox lifecycle and logs")
     )

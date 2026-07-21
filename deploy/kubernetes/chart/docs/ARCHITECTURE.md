@@ -1,11 +1,16 @@
 # CubeSandbox Chart 架构
 
+<<<<<<< HEAD
 本文描述 `deploy/kubernetes/chart` **当前**交付形态：组件分层、计算面 DaemonSet 的分工、安装与启动顺序、以及 DNS / Proxy / Egress 等运行期链路。升级操作见 [`UPGRADE.md`](UPGRADE.md)；排障见 [`FAQ.md`](FAQ.md)。
+=======
+本文描述 `deploy/kubernetes/chart` **当前**交付形态：组件分层、计算面三个 DaemonSet 的分工、安装与启动顺序、以及 DNS / Proxy / Egress 等运行期链路。升级操作见 [`UPGRADE.md`](UPGRADE.md)；排障见 [`FAQ.md`](FAQ.md)。
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ## 1. 总体分层
 
 | 层级 | 组件 | Kubernetes 形态 | 主要职责 |
 | --- | --- | --- | --- |
+<<<<<<< HEAD
 | 控制面 | CubeMaster | OpenKruise CloneSet + Service + Secret + PVC/hostPath | 节点注册、模板/rootfs artifact、内置 DB migration、调度/元数据 |
 | 控制面 API | CubeAPI | CloneSet + Service | 对外 E2B 兼容 HTTP API；读写 MySQL；访问 CubeMaster |
 | 运维后端 | CubeOps | CloneSet + Service | JWT 运维 API + WebUI SDK；监听 `0.0.0.0:3010`；读写 MySQL；访问 CubeMaster |
@@ -18,6 +23,18 @@
 | 计算面 · PVM 宿主机 | `cube-node-pvm` | 原生 `apps/v1` DaemonSet（仅 `placement.pvm`） | PVM host kernel 安装（可 reboot）；管理 L0 污点并写指纹 |
 | 数据面入口 | CubeProxy + 集群 DNS | CloneSet；可选改写 CoreDNS | HTTP/HTTPS sandbox 入口；`*.domain` 泛解析 |
 | 生命周期 | cube-lifecycle-manager | CloneSet + ClusterIP | sandbox pause/resume；经 Redis 发现 Proxy 副本 |
+=======
+| 控制面 | CubeMaster | Deployment + Service + Secret + PVC/hostPath | 节点注册、模板/rootfs artifact、内置 DB migration、调度/元数据 |
+| 控制面 API | CubeAPI | Deployment + Service | 对外 HTTP API；读写 MySQL；访问 CubeMaster |
+| 管理入口 | WebUI | Deployment + Service + ConfigMap | 静态控制台；`/cubeapi/` 反代到 CubeAPI |
+| 运维入口 | cubemastercli | Deployment | `kubectl exec` 用 CLI；注入本 Release 的 CubeMaster endpoint |
+| 依赖存储 | MySQL / Redis | 内置 StatefulSet 或第三方 | 业务数据 / Proxy 与 lifecycle 状态 |
+| 计算面 · 运行时 | `cube-node`（Big Pod） | OpenKruise Advanced DaemonSet（InPlaceIfPossible） | `wait-node-prep` + cubelet / network-agent + 可选 egress；**无 initContainers** |
+| 计算面 · 产物 | `cube-node-installer` | DaemonSet | 将 shim / kernel / guest 安装到宿主机 toolbox |
+| 计算面 · 节点引导 | `cube-node-bootstrap` | DaemonSet | PVM host kernel、`cube-node-init`、写 `node-prep-ready` |
+| 数据面入口 | CubeProxy + 集群 DNS | Deployment；可选改写 CoreDNS | HTTP/HTTPS sandbox 入口；`*.domain` 泛解析 |
+| 生命周期 | cube-lifecycle-manager | Deployment + ClusterIP | sandbox pause/resume；经 Redis 发现 Proxy 副本 |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 默认完整部署：
 
@@ -26,7 +43,10 @@ flowchart TB
   subgraph CP["Control Plane · placement.controlPlane"]
     CM["cube-master"]
     API["cube-api"]
+<<<<<<< HEAD
     OPS["cube-ops"]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     WEB["cube-webui"]
     CLI["cubemastercli"]
     MYSQL[("MySQL")]
@@ -38,6 +58,7 @@ flowchart TB
     KDNS["CoreDNS · *.cube.app → Proxy Service"]
   end
 
+<<<<<<< HEAD
   subgraph PVMN["PVM nodes · placement.pvm"]
     PVMDS["cube-node-pvm"]
     PVMREADY["pvm-host-ready fingerprint"]
@@ -46,6 +67,11 @@ flowchart TB
   subgraph COMPUTE["Compute · placement.compute"]
     subgraph BOOT["cube-node-bootstrap"]
       WAITPVM["init: wait-pvm-host"]
+=======
+  subgraph COMPUTE["Compute · placement.compute"]
+    subgraph BOOT["cube-node-bootstrap"]
+      PVM["init: pvm-host-bootstrap"]
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       NINIT["init: cube-node-init"]
       READY["write node-prep-ready"]
     end
@@ -59,11 +85,16 @@ flowchart TB
     end
   end
 
+<<<<<<< HEAD
   WEB -->|"/opsapi /cubeapi/v1"| OPS
   WEB -->|"/sandbox/"| PROXY
   CLI --> CM
   OPS --> CM
   OPS --> MYSQL
+=======
+  WEB --> API
+  CLI --> CM
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   API --> CM
   API --> MYSQL
   CM --> MYSQL
@@ -71,9 +102,13 @@ flowchart TB
   PROXY --> REDIS
   PROXY --> CM
   KDNS --> PROXY
+<<<<<<< HEAD
   PVMDS --> PVMREADY
   PVMREADY --> WAITPVM
   WAITPVM --> NINIT
+=======
+  PVM --> READY
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   NINIT --> READY
   READY --> WAIT
   WAIT --> RUN
@@ -91,10 +126,16 @@ flowchart TB
 | `cube-master` | `templates/master.yaml` | `images.master`；挂载 Chart 渲染的 `conf.yaml`；内置 schema migration |
 | `cube-master-config` | `templates/master-config-secret.yaml` | `files/cube-master/conf.yaml` 渲染结果 |
 | `cube-master-storage` | `master.yaml` / `master-pvc.yaml` | 默认 PVC；可选 existingClaim / hostPath / emptyDir |
+<<<<<<< HEAD
 | `cube-api` | `templates/api.yaml` | `images.api`（外部 E2B） |
 | `cube-ops` | `templates/ops.yaml` | `images.ops`；ClusterIP；bind `0.0.0.0:3010` |
 | `cubemastercli` | `templates/cubemastercli.yaml` | `images.cubemastercli` |
 | `cube-webui` | `templates/webui.yaml` | `images.webui` + nginx ConfigMap（上游 CubeOps） |
+=======
+| `cube-api` | `templates/api.yaml` | `images.api` |
+| `cubemastercli` | `templates/cubemastercli.yaml` | `images.cubemastercli` |
+| `cube-webui` | `templates/webui.yaml` | `images.webui` + nginx ConfigMap |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `cube-secret` | `templates/secret.yaml` | MySQL / Redis / Proxy 等密码 |
 
 ### 2.2 MySQL / Redis
@@ -106,11 +147,17 @@ flowchart TB
 | 内置 Redis | `redis.host=""` 且控制面或 Proxy 需要时安装 |
 | 第三方 Redis | `redis.host` 非空 → 不装内置 Redis |
 
+<<<<<<< HEAD
 ### 2.3 计算面：四个 DaemonSet
 
 `cube-node` / `cube-node-installer` / `cube-node-bootstrap` 用 `placement.compute`（**不含** `allow-pvm-bootstrap`）。`cube-node-pvm` 用 `placement.pvm`（含 `allow-pvm-bootstrap`），因此非 PVM 节点不会拉取 `cube-pvm-host-bootstrap` 大镜像。
 
 三条计算面（Big Pod / installer / bootstrap）为 OpenKruise Advanced DaemonSet：Big Pod 使用 `InPlaceIfPossible`，bootstrap/installer 使用 `Standard`。**PVM 为原生 `apps/v1` DaemonSet**（不依赖 kruise-manager 创建 Pod）。无状态控制面（master/api/ops/webui/proxy/lifecycle/cubemastercli）为 CloneSet；MySQL/Redis 继续使用原生 StatefulSet。
+=======
+### 2.3 计算面：三个 DaemonSet
+
+同节点、同 `placement.compute`，**selector 互斥**，各司其职。
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 #### Big Pod：`cube-node`
 
@@ -121,7 +168,11 @@ flowchart TB
 
 | 容器 | 镜像 | 职责 |
 | --- | --- | --- |
+<<<<<<< HEAD
 | `wait-node-prep` | `images.waitNodePrep` | Kruise 优先级 10 sidecar：只读 hostPath `node-prep-ready` 自描述指纹并持续复核，不接收可变 Chart 策略 env |
+=======
+| `wait-node-prep` | `images.waitNodePrep` | Kruise 优先级 10 sidecar：轮询 bootstrap 的 `node-prep-ready`，Ready 后 `sleep infinity` |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `network-agent` | `images.networkAgent` | self-stage 后启动；优先级 0 |
 | `cubelet` | `images.cubelet` | self-stage 后启动；优先级 0 |
 | `cube-slot-1`…`cube-slot-6` | `images.pause` | 冻结占位槽；挂载/特权与 cubelet 相同；日后只 InPlace 换镜像/资源 |
@@ -132,11 +183,16 @@ flowchart TB
 #### Installer：`cube-node-installer`
 
 - 容器：`cube-shim-install` / `cube-kernel-install` / `cube-guest-install`。
+<<<<<<< HEAD
 - 把镜像里的 shim / kernel / guest **整目录换到** 宿主机 toolbox；换目录期间版本矩阵会短暂标「未完成」，成功后恢复正常。
+=======
+- 从镜像 `/opt/cube-image` **原子 stage** 到 toolbox；`hostPID: false`，仅挂 toolbox 相关路径。
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 - 可独立 RollingUpdate；日常升产物 **只 bump Installer 镜像**。
 
 #### Bootstrap：`cube-node-bootstrap`
 
+<<<<<<< HEAD
 - init：`wait-pvm-host` → `cube-node-init`；主容器写 `node-prep-ready`。
 - `wait-pvm-host`：看节点有没有 `allow-pvm-bootstrap`——有则等 PVM 宿主机就绪并记「本节点用 PVM guest」；没有则记「本节点用 bm guest」。
 - 哨兵目录：`/var/lib/cube-node-bootstrap`（与 Big Pod 的 `wait-node-prep` / PVM DS 共享）。
@@ -168,6 +224,13 @@ flowchart TB
 Guest 选核最终结果：先看 `effective-pvm`；没有则尽量保持节点上一次已在用的内核；再没有才用 Chart 首次安装默认（`cubeNode.pvmGuestKernel.enabled`）。
 
 验收：PVM 换核期间依赖 Pod 在清闩前保持 Pending；故意残留错误指纹不得清闩；普通掉电且内核未变时可快速恢复。`scripts/test-big-pod-inplace-guard.sh` 保证 PVM/boot args/prepGeneration 变更不会改变 Big Pod Pod template。
+=======
+- init：`pvm-host-bootstrap` → `cube-node-init`；主容器写 `node-prep-ready`。
+- 哨兵目录：`/var/lib/cube-node-bootstrap`（与 Big Pod 的 `wait-node-prep` 共享）。
+- `hostPID: true`（`nsenter --target 1`）；低频变更；升引导 **只 bump Bootstrap 镜像**。
+
+为何拆成三个：Big Pod 保持 InPlace 友好（不因升 shim / 升 node-init 而 recreate）；产物安装与可 reboot 的节点引导分离，避免日常 artifact 升级触发 host kernel 路径。
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ### 2.4 数据面入口
 
@@ -216,9 +279,15 @@ flowchart TD
   C -- 否 --> X["fail render"]
   C -- 是 --> D["Secret / ConfigMap / 持久化"]
   D --> E["MySQL / Redis 或外部"]
+<<<<<<< HEAD
   E --> F["控制面 CloneSet"]
   F --> G["Proxy / cluster-dns"]
   G --> H["cube-node + installer + bootstrap + pvm"]
+=======
+  E --> F["控制面 Deployment"]
+  F --> G["Proxy / cluster-dns"]
+  G --> H["cube-node + installer + bootstrap"]
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ```
 
 主要校验：
@@ -226,10 +295,16 @@ flowchart TD
 - 启用控制面 / 计算面 / Proxy 时须配置对应 `placement.*.nodeSelector`。
 - `configureClusterDNS=true` 须配置 `cubeProxy.domain`。
 - compute-only 须配置 `externalControlPlane.masterEndpoint`。
+<<<<<<< HEAD
 - `pvmHostKernel.enabled=true` 时 `placement.pvm` 须含 `allow-pvm-bootstrap`，且 **不得** 写在 `placement.compute`。
 - 已移除 `security.hostNetwork`；cube-node 固定 Pod 网络。
 
 调度：控制面用 `placement.controlPlane`；`cube-node` / installer / bootstrap 用 `placement.compute`；`cube-node-pvm` 用 `placement.pvm`。Chart 管理的容器经 `global.timezone` 注入 `TZ`（默认 `Asia/Shanghai`）。
+=======
+- 已移除 `security.hostNetwork`；cube-node 固定 Pod 网络。
+
+调度：控制面组件（含 Proxy、lifecycle、内置 DB）用 `placement.controlPlane`；三个计算面 DaemonSet 用 `placement.compute`。Chart 管理的容器经 `global.timezone` 注入 `TZ`（默认 `Asia/Shanghai`）。
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ### 4.2 控制面启动
 
@@ -240,7 +315,10 @@ sequenceDiagram
   participant R as Redis
   participant CM as CubeMaster
   participant API as CubeAPI
+<<<<<<< HEAD
   participant OPS as CubeOps
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   participant WEB as WebUI
   participant CLI as cubemastercli
 
@@ -251,9 +329,13 @@ sequenceDiagram
   CM-->>H: /notify/health
   H->>API: CUBE_MASTER_ENDPOINT + MySQL
   API-->>H: /health
+<<<<<<< HEAD
   H->>OPS: CUBE_MASTER_ADDR + MySQL
   OPS-->>H: /health
   H->>WEB: nginx → CubeOps
+=======
+  H->>WEB: nginx → CubeAPI
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   H->>CLI: CUBEMASTERCLI_ADDRESS / PORT
 ```
 
@@ -263,19 +345,28 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
+<<<<<<< HEAD
   participant PVM as cube-node-pvm
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   participant Boot as cube-node-bootstrap
   participant Inst as cube-node-installer
   participant Wait as wait-node-prep
   participant CN as cube-node
   participant CM as CubeMaster
 
+<<<<<<< HEAD
   alt allow-pvm-bootstrap node
     PVM->>PVM: pvm-host-bootstrap may reboot
     Note over PVM: mutate 前删各类 ready
     PVM->>PVM: write pvm-host-ready fingerprint
   end
   Boot->>Boot: wait-pvm-host label + fingerprint gate
+=======
+  opt pvmHostKernel.enabled
+    Boot->>Boot: pvm-host-bootstrap
+  end
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   opt nodeInit.enabled
     Boot->>Boot: cube-node-init
   end
@@ -284,7 +375,11 @@ sequenceDiagram
   Wait->>Wait: poll fingerprint → Ready hold
   Note over Wait,CN: Kruise barrier → prio 0
   Wait-->>CN: wait Ready
+<<<<<<< HEAD
   CN->>CN: self-stage；按节点 PVM 决定选 guest 内核
+=======
+  CN->>CN: self-stage cubelet / network-agent
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   CN->>CM: register + heartbeat
 ```
 
@@ -298,24 +393,40 @@ sequenceDiagram
 
 ### 4.4 注册与验收关注点
 
+<<<<<<< HEAD
 - CubeMaster `/notify/health`、CubeOps `/health`、CubeAPI `/health`（若启用）。
 - CubeAPI（或经 CubeOps SDK）能查到 healthy node。
 - `cube-node` / installer / bootstrap ready 数等于命中 `placement.compute` 的节点数；`cube-node-pvm` ready 数等于命中 `placement.pvm` 的节点数。
+=======
+- CubeMaster `/notify/health`、CubeAPI `/health`。
+- CubeAPI 能查到 healthy node。
+- 三个计算面 DaemonSet ready 数等于命中 `placement.compute` 的节点数。
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 - egress 启用时 sidecar Ready。
 
 ## 5. 运行期数据流
 
+<<<<<<< HEAD
 ### 5.1 WebUI / CubeOps / CubeAPI / Master
+=======
+### 5.1 WebUI / API / Master
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 ```mermaid
 flowchart LR
   U["Browser / Operator"] --> WEB["cube-webui"]
+<<<<<<< HEAD
   WEB -->|"/opsapi/ /cubeapi/v1/"| OPS["cube-ops"]
   Ext["External E2B SDK"] --> API["cube-api"]
   OPS --> CM["cube-master"]
   OPS --> MYSQL[("MySQL")]
   API --> CM
   API --> MYSQL
+=======
+  WEB -->|/cubeapi/*| API["cube-api"]
+  API --> CM["cube-master"]
+  API --> MYSQL[("MySQL")]
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   CM --> MYSQL
   CM --> REDIS[("Redis")]
 ```
@@ -386,6 +497,7 @@ externalControlPlane:
 | `*.persistence.storageClassName` (master/mysql/redis) | `""` | 组件级覆盖;非空优先于顶层 `persistence.storageClassName` |
 | `controlPlane.enabled` | `true` | 内置控制面 |
 | `externalControlPlane.enabled` | `false` | 外部 CubeMaster |
+<<<<<<< HEAD
 | `placement.controlPlane.nodeSelector` | `cube-control=true` | 控制面调度 |
 | `placement.compute.nodeSelector` | `cube-node=true` | 计算面（不含 allow-pvm） |
 | `placement.pvm.nodeSelector` | 另含 `allow-pvm-bootstrap=true` | 仅 PVM 宿主机 DaemonSet |
@@ -395,21 +507,38 @@ externalControlPlane:
 | `cubeNode.pvmGuestKernel.enabled` | `true` | 首次安装默认是否倾向 PVM guest；**不能**单独用来关掉已在跑 PVM 的节点（应去掉 `allow-pvm-bootstrap`） |
 | `bootstrap.pvmHostKernel.enabled` | `true` | host kernel bootstrap（可能重启节点） |
 | `bootstrap.pvmHostKernel.startupGate.enabled` | `true` | PVM 未就绪时使用 Node NoSchedule 污点硬门闩 |
+=======
+| `placement.controlPlane.nodeSelector` | `cube.tencent.com/role=control` | 控制面调度 |
+| `placement.compute.nodeSelector` | 含 `allow-pvm-bootstrap=true` | 计算面调度；显式授权 PVM bootstrap |
+| `cubeProxy.domain` | `cube.app` | sandbox 域名 |
+| `cubeProxy.configureClusterDNS` | `true` | 是否写入集群 CoreDNS |
+| `cubeNode.dns.sandbox.followNodeDns` | `true` | guest 跟随节点 DNS |
+| `cubeNode.pvmGuestKernel.enabled` | `true` | PVM guest kernel；与 `kvm_pvm` 一致性由 node-init 校验 |
+| `bootstrap.pvmHostKernel.enabled` | `true` | host kernel bootstrap（可能重启节点） |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `bootstrap.pvmHostKernel.bootArgs` | `nopti pti=off` | 当前 `kvm_pvm` 不支持 host KPTI |
 | `bootstrap.nodeInit.*` | 多项 | 预检、XFS、KVM、CIDR |
 | `mysql.host` / `redis.host` | `""` | 非空则用第三方 |
 | `cubeProxy.enabled` / `ingress.enabled` | `true` | Proxy / Ingress |
 | `lifecycleManager.enabled` | `true` | Proxy 启用时必开 |
 | `cubeEgress.enabled` | `true` | Big Pod egress sidecar |
+<<<<<<< HEAD
 | `cubeOps.enabled` | `true` | CubeOps（JWT 运维 API；WebUI `/opsapi` / SDK 上游） |
 | `webui.enabled` | `true` | WebUI（要求 `cubeOps.enabled=true`） |
+=======
+| `webui.enabled` | `true` | WebUI |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `controlPlane.templateBuilder.enabled` | `false` | 模板构建 sidecar |
 
 ## 8. Helm test
 
 | Test Pod | 覆盖 |
 | --- | --- |
+<<<<<<< HEAD
 | `<release>-health-test` | Master / Ops / API / 节点注册 / WebUI / Proxy / 工作负载 Ready / Egress 存在性 |
+=======
+| `<release>-health-test` | Master / API / 节点注册 / WebUI / Proxy / 工作负载 Ready / Egress 存在性 |
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 | `<release>-mysql-test` / `redis-test` | 内置依赖连通性 |
 | `<release>-dns-test` | `cube.app` / wildcard → Proxy Service |
 | `<release>-node-image-test` | 镜像内 runtime 工具与 asset |

@@ -481,6 +481,7 @@ impl CubeMasterClient {
             .map_err(CubeMasterError::Http)?;
         parse_response(resp).await
     }
+<<<<<<< HEAD
 
     /// GET /cube/volume — list all volumes.
     pub async fn list_volumes(
@@ -542,6 +543,8 @@ impl CubeMasterClient {
             .map_err(CubeMasterError::Http)?;
         parse_response(resp).await
     }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // ─── Error ─────────────────────────────────────────────────────────────────
@@ -596,6 +599,7 @@ impl CubeMasterError {
             _ => false,
         }
     }
+<<<<<<< HEAD
 
     /// True when CubeMaster returned 130400 (params error — invalid client input).
     /// These are user-facing validation failures (bad alias, missing field, etc.)
@@ -609,6 +613,8 @@ impl CubeMasterError {
             }
         )
     }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 /// Restrict path segments to characters that CubeMaster's resource identifiers
@@ -641,6 +647,7 @@ pub(crate) fn validate_path_segment(
     }
 }
 
+<<<<<<< HEAD
 /// Volume IDs may include `_` (same alphabet as `NewVolume::name_is_valid` /
 /// CubeMaster `isValidVolumeName`). Unlike generic CubeMaster resource IDs,
 /// customer-supplied volume names are allowed to use underscores.
@@ -661,6 +668,8 @@ pub(crate) fn validate_volume_id(value: &str) -> Result<(), CubeMasterError> {
     }
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 // ─── Common response envelope ──────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -1753,8 +1762,11 @@ pub struct TemplateSummaryItem {
     #[serde(default)]
     pub last_error: String,
     #[serde(default)]
+<<<<<<< HEAD
     pub display_name: String,
     #[serde(default)]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     pub created_at: String,
     #[serde(default)]
     pub image_info: String,
@@ -1793,10 +1805,13 @@ pub struct TemplateResponse {
     pub last_error: String,
     #[serde(default)]
     pub job_id: String,
+<<<<<<< HEAD
     #[serde(default)]
     pub display_name: String,
     #[serde(default)]
     pub created_at: String,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     /// Opaque replica list (node placement). Left as raw JSON to avoid
     /// coupling to CubeMaster-internal types.
     #[serde(default)]
@@ -1920,9 +1935,12 @@ pub struct CreateTemplateFromImageReq {
     /// Writable layer size, e.g. "1G".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub writable_layer_size: Option<String>,
+<<<<<<< HEAD
     /// Human-readable stable template alias.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     /// Ports exposed by the container.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exposed_ports: Option<Vec<u16>>,
@@ -2280,8 +2298,12 @@ pub struct VersionMatrixResponse {
 #[cfg(test)]
 mod tests {
     use super::{
+<<<<<<< HEAD
         non_empty_str, validate_path_segment, validate_volume_id, CubeMasterError,
         GetSandboxResponse, SandboxInfo, TemplateResponse, TemplateSummaryItem,
+=======
+        non_empty_str, validate_path_segment, CubeMasterError, GetSandboxResponse, SandboxInfo,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     };
 
     #[test]
@@ -2330,6 +2352,7 @@ mod tests {
         }
     }
 
+<<<<<<< HEAD
     #[test]
     fn volume_id_accepts_underscore_like_create_name() {
         for value in ["my_data", "vol-1", "abc_123-x", "A"] {
@@ -2354,6 +2377,8 @@ mod tests {
         }
     }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     /// CubeMaster only emits IDs with `[A-Za-z0-9-]`; the wrapper rejects every
     /// other byte so that a stray `_`, `.`, or `:` in user input fails fast at
     /// the API boundary instead of corrupting downstream URLs (Bug 4).
@@ -2415,6 +2440,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn template_summary_item_deserializes_display_name() {
         let item: TemplateSummaryItem = serde_json::from_value(serde_json::json!({
             "template_id": "tpl-1",
@@ -2442,6 +2468,8 @@ mod tests {
     }
 
     #[test]
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     fn get_sandbox_prefers_sandbox_container_timestamps_and_host() {
         let payload = serde_json::json!({
             "requestID": "req-1",
@@ -2488,6 +2516,7 @@ mod tests {
         );
     }
 }
+<<<<<<< HEAD
 
 // ─── Volume APIs ─────────────────────────────────────────────────────────────
 //
@@ -2587,3 +2616,5 @@ pub struct VolumeSpecExt {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub volume_source: Option<VolumeSourceExt>,
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

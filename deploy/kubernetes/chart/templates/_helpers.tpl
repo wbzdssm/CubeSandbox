@@ -98,6 +98,7 @@ tolerations:
 {{- end }}
 {{- end -}}
 
+<<<<<<< HEAD
 {{- define "cube.pvmPlacement" -}}
 {{- $root := . -}}
 {{- $gateEnabled := eq (include "cube.startupGateEnabled" .) "true" -}}
@@ -153,6 +154,8 @@ tolerations:
   value: {{ .Values.bootstrap.pvmHostKernel.startupGate.effect | quote }}
 {{- end -}}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{/* Proxy Service FQDN and cluster-DNS enablement helpers. */}}
 
 {{- define "cube.nodeServiceAccountName" -}}
@@ -163,6 +166,7 @@ tolerations:
 {{- end -}}
 {{- end -}}
 
+<<<<<<< HEAD
 {{- define "cube.releaseIdentityHash" -}}
 {{- printf "%s/%s" .Release.Namespace .Release.Name | sha256sum | trunc 10 -}}
 {{- end -}}
@@ -172,6 +176,8 @@ tolerations:
 {{- printf "cube-node-%s-%s" $base (include "cube.releaseIdentityHash" .) -}}
 {{- end -}}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- define "cube.masterName" -}}
 {{- printf "%s-master" (include "cube.fullname" .) -}}
 {{- end -}}
@@ -188,6 +194,7 @@ tolerations:
 {{- printf "%s-webui" (include "cube.fullname" .) -}}
 {{- end -}}
 
+<<<<<<< HEAD
 {{- define "cube.opsName" -}}
 {{- printf "%s-ops" (include "cube.fullname" .) -}}
 {{- end -}}
@@ -346,6 +353,8 @@ http {
 }
 {{- end -}}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- define "cube.nodeName" -}}
 {{- printf "%s-node" (include "cube.fullname" .) -}}
 {{- end -}}
@@ -358,10 +367,13 @@ http {
 {{- printf "%s-node-bootstrap" (include "cube.fullname" .) -}}
 {{- end -}}
 
+<<<<<<< HEAD
 {{- define "cube.nodePvmName" -}}
 {{- printf "%s-node-pvm" (include "cube.fullname" .) -}}
 {{- end -}}
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- define "cube.proxyName" -}}
 {{- printf "%s-proxy" (include "cube.fullname" .) -}}
 {{- end -}}
@@ -555,7 +567,11 @@ iptables -t mangle -S "${chain}" | grep -q -- "--dport 443"
 {{- end -}}
 
 {{- define "cube.secretEnabled" -}}
+<<<<<<< HEAD
 {{- if or (and .Values.controlPlane.enabled (or .Values.controlPlane.master.enabled .Values.controlPlane.api.enabled (eq (include "cube.opsEnabled" .) "true"))) (eq (include "cube.proxyEnabled" .) "true") (eq (include "cube.mysqlBuiltinEnabled" .) "true") (eq (include "cube.redisBuiltinEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+=======
+{{- if or (and .Values.controlPlane.enabled (or .Values.controlPlane.master.enabled .Values.controlPlane.api.enabled)) (eq (include "cube.proxyEnabled" .) "true") (eq (include "cube.mysqlBuiltinEnabled" .) "true") (eq (include "cube.redisBuiltinEnabled" .) "true") -}}true{{- else -}}false{{- end -}}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- end -}}
 
 {{/*
@@ -582,15 +598,20 @@ change bind without editing multiple places.
 {{- end -}}
 
 {{/*
+<<<<<<< HEAD
 cube-node / installer / bootstrap always use OpenKruise Advanced DaemonSet
 (hard dependency). Do NOT change this to apps/v1 — that would break InPlace
 and the other compute-plane ADS workloads.
+=======
+cube-node always uses OpenKruise Advanced DaemonSet (hard dependency).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 */}}
 {{- define "cube.nodeDaemonSetAPIVersion" -}}
 apps.kruise.io/v1beta1
 {{- end -}}
 
 {{/*
+<<<<<<< HEAD
 cube-node-pvm uses a native apps/v1 DaemonSet so Pod creation does not depend
 on kruise-manager (see docs/PVM-NATIVE-DS-MIGRATION-PLAN.md).
 */}}
@@ -617,6 +638,8 @@ updateStrategy:
 {{- end -}}
 
 {{/*
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 Kubernetes API path prefix for the cube-node Advanced DaemonSet (health-test).
 */}}
 {{- define "cube.nodeDaemonSetAPIPath" -}}
@@ -653,8 +676,11 @@ Toolbox is mounted whole at the fixed path (InPlace-stable).
 
 {{- define "cube.nodeDataplaneVolumeMounts" -}}
 {{- include "cube.nodeToolboxVolumeMounts" . }}
+<<<<<<< HEAD
 - name: bootstrap-state
   mountPath: {{ .Values.hostPaths.bootstrapState }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 - name: dev
   mountPath: /dev
 - name: sys
@@ -686,8 +712,11 @@ Installer: toolbox only (no dataplane mounts).
 {{- define "cube.installerVolumeMounts" -}}
 - name: toolbox
   mountPath: /usr/local/services/cubetoolbox
+<<<<<<< HEAD
 - name: bootstrap-state
   mountPath: {{ .Values.hostPaths.bootstrapState }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- end -}}
 
 {{- define "cube.installerComponentEnv" -}}
@@ -696,10 +725,13 @@ Installer: toolbox only (no dataplane mounts).
   value: /usr/local/services/cubetoolbox
 - name: IMAGE_ROOT
   value: /opt/cube-image
+<<<<<<< HEAD
 - name: STATE_DIR
   value: {{ .Values.hostPaths.bootstrapState | quote }}
 - name: CUBE_PVM_ENABLE
   value: {{ ternary "1" "0" .Values.cubeNode.pvmGuestKernel.enabled | quote }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 {{- end -}}
 
 {{/*
@@ -782,8 +814,11 @@ Bootstrap: host mutation mounts for pvm / node-init.
   value: /opt/cube-image
 - name: CUBE_PID_DIR
   value: /run/cube-node
+<<<<<<< HEAD
 - name: STATE_DIR
   value: {{ .Values.hostPaths.bootstrapState | quote }}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 - name: CUBE_MASTER_ENDPOINT
   value: {{ include "cube.masterEndpoint" . | quote }}
 - name: CUBE_SANDBOX_NODE_ID

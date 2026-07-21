@@ -20,12 +20,21 @@ import (
 // registration Hash + heartbeat Sorted Set from Redis and keeps an in-memory
 // map of live endpoints.
 type RedisDiscovery struct {
+<<<<<<< HEAD
 	rdb     *redis.Client
 	log     *zap.Logger
 	ttl     time.Duration
 	refresh time.Duration
 	onJoin  func(Endpoint)
 	onLeave func(string)
+=======
+	rdb       *redis.Client
+	log       *zap.Logger
+	ttl       time.Duration
+	refresh   time.Duration
+	onJoin    func(Endpoint)
+	onLeave   func(string)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	mu    sync.RWMutex
 	state map[string]*live

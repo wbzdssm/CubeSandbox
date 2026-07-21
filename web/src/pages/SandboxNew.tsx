@@ -15,10 +15,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
 // ── Types ────────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
 interface MetaEntry {
   key: string;
   value: string;
 }
+=======
+interface MetaEntry { key: string; value: string }
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 interface FormState {
   templateID: string;
@@ -52,7 +56,13 @@ function TemplatePicker({
     staleTime: 15_000,
   });
   const staleTemplates = new Set(
+<<<<<<< HEAD
     (compat?.templates ?? []).filter((row) => row.overall === 'STALE').map((row) => row.templateID),
+=======
+    (compat?.templates ?? [])
+      .filter((row) => row.overall === 'STALE')
+      .map((row) => row.templateID),
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   );
 
   if (isLoading) {
@@ -89,6 +99,7 @@ function TemplatePicker({
             <div className="flex items-center justify-between gap-2">
               <span className="truncate font-mono text-sm font-medium">{tpl.templateID}</span>
               <Badge
+<<<<<<< HEAD
                 tone={
                   isStale
                     ? 'err'
@@ -98,6 +109,9 @@ function TemplatePicker({
                         ? 'warn'
                         : 'err'
                 }
+=======
+                tone={isStale ? 'err' : statusLower === 'ready' ? 'ok' : statusLower === 'building' ? 'warn' : 'err'}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 className="shrink-0 text-xs"
               >
                 {isStale ? t('compat.stale') : tpl.status}
@@ -168,6 +182,7 @@ function MetaEditor({
 }
 
 // ── Section wrapper ──────────────────────────────────────────────────────────
+<<<<<<< HEAD
 function Section({
   title,
   description,
@@ -177,6 +192,9 @@ function Section({
   description?: string;
   children: React.ReactNode;
 }) {
+=======
+function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return (
     <Card>
       <CardHeader>

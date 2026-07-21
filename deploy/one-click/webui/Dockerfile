@@ -58,12 +58,19 @@ RUN sed -i 's#https\?://dl-cdn.alpinelinux.org#http://mirrors.tencent.com#g' /et
 
 # Default upstreams baked into the image's nginx.conf — replace at build time.
 # Mount a custom nginx.conf at runtime to change these without rebuilding.
+<<<<<<< HEAD
 #   WEB_UI_UPSTREAM        → cubeops    (the /health backend, port 3010)
 #   SANDBOX_PROXY_UPSTREAM → cube-proxy (the /sandbox/ backend, port 80)
 #   CUBE_OPS_UPSTREAM      → cubeops    (the /opsapi/ + SDK backend, port 3010)
 ARG WEB_UI_UPSTREAM=http://host.docker.internal:3010
 ARG SANDBOX_PROXY_UPSTREAM=http://host.docker.internal:80
 ARG CUBE_OPS_UPSTREAM=http://host.docker.internal:3010
+=======
+#   WEB_UI_UPSTREAM        → cube-api   (the /cubeapi/ backend)
+#   SANDBOX_PROXY_UPSTREAM → cube-proxy (the /sandbox/ backend, port 80)
+ARG WEB_UI_UPSTREAM=http://host.docker.internal:3000
+ARG SANDBOX_PROXY_UPSTREAM=http://host.docker.internal:80
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY deploy/one-click/webui/nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
@@ -75,10 +82,15 @@ COPY deploy/one-click/webui/nginx.conf /usr/local/openresty/nginx/conf/nginx.con
 # build loudly if any placeholder is left behind.
 RUN upstream_escaped=$(printf '%s' "${WEB_UI_UPSTREAM}" | sed -e 's/[&#\\]/\\&/g') \
     && sandbox_upstream_escaped=$(printf '%s' "${SANDBOX_PROXY_UPSTREAM}" | sed -e 's/[&#\\]/\\&/g') \
+<<<<<<< HEAD
     && cube_ops_upstream_escaped=$(printf '%s' "${CUBE_OPS_UPSTREAM}" | sed -e 's/[&#\\]/\\&/g') \
     && sed -i "s#__WEB_UI_UPSTREAM__#${upstream_escaped}#g" /usr/local/openresty/nginx/conf/nginx.conf \
     && sed -i "s#__SANDBOX_PROXY_UPSTREAM__#${sandbox_upstream_escaped}#g" /usr/local/openresty/nginx/conf/nginx.conf \
     && sed -i "s#__CUBE_OPS_UPSTREAM__#${cube_ops_upstream_escaped}#g" /usr/local/openresty/nginx/conf/nginx.conf \
+=======
+    && sed -i "s#__WEB_UI_UPSTREAM__#${upstream_escaped}#g" /usr/local/openresty/nginx/conf/nginx.conf \
+    && sed -i "s#__SANDBOX_PROXY_UPSTREAM__#${sandbox_upstream_escaped}#g" /usr/local/openresty/nginx/conf/nginx.conf \
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     && if grep -Eq '__[A-Z_]+__' /usr/local/openresty/nginx/conf/nginx.conf; then \
            echo "FATAL: unsubstituted placeholder remains in nginx.conf" >&2; exit 1; \
        fi

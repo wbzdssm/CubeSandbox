@@ -20,12 +20,21 @@ WORKTREE_ROOT="${REPO_ROOT}"
 VERSION="${VERSION:-v0.5.1}"
 IMAGE_TAG="${IMAGE_TAG:-${VERSION}}"
 REGISTRY="${REGISTRY:-ccr.ccs.tencentyun.com/cubesandbox-chart}"
+<<<<<<< HEAD
 # SOURCE_REF pins the CubeMaster / CubeAPI / CubeOps / CubeDB / CubeProxy /
 # CubeEgress / cube-lifecycle-manager / web / deploy/one-click/webui source tree
 # used when building cube-api / cube-ops / cube-proxy / cube-egress /
 # cube-lifecycle-manager / cube-webui from repository source, ensuring the
 # delivered images match the release tag rather than the current worktree. Set
 # SOURCE_REF="" to build from the current worktree.
+=======
+# SOURCE_REF pins the CubeMaster / CubeAPI / CubeProxy / CubeEgress /
+# cube-lifecycle-manager / web / deploy/one-click/webui source tree used when
+# building cube-api / cube-proxy / cube-egress / cube-lifecycle-manager /
+# cube-webui from repository source, ensuring the delivered images match the
+# release tag rather than the current worktree. Set SOURCE_REF="" to build from
+# the current worktree.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 SOURCE_REF="${SOURCE_REF-${VERSION}}"
 PUSH="${PUSH:-0}"
 NO_CACHE="${NO_CACHE:-0}"
@@ -87,7 +96,10 @@ DOWNLOAD_CONNECT_TIMEOUT="${DOWNLOAD_CONNECT_TIMEOUT:-20}"
 ALL_IMAGES=(
   cube-master
   cube-api
+<<<<<<< HEAD
   cube-ops
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   cubemastercli
   cube-proxy
   cube-lifecycle-manager
@@ -120,7 +132,10 @@ PACKAGE_IMAGES=(
 SOURCE_IMAGES=(
   cube-master
   cube-api
+<<<<<<< HEAD
   cube-ops
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   cube-proxy
   cube-lifecycle-manager
   cube-egress
@@ -172,7 +187,10 @@ Examples:
 
   $0 --local cube-shim
   SOURCE_REF="" IMAGE_TAG=dev $0 cube-api
+<<<<<<< HEAD
   SOURCE_REF="" IMAGE_TAG=dev $0 cube-ops
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 Available images:
 $(printf '  %s\n' "${ALL_IMAGES[@]}")
@@ -344,12 +362,21 @@ ensure_source_tree() {
   SOURCE_READY=1
 
   # When SOURCE_REF is set (default: ${VERSION}), export the CubeMaster / CubeAPI /
+<<<<<<< HEAD
   # CubeOps / CubeDB / CubeProxy / CubeEgress / cube-lifecycle-manager / web /
   # deploy/one-click/webui trees at that ref into ${SOURCE_TREE_DIR} and point
   # REPO_ROOT there. This ensures cube-api, cube-ops, cube-proxy, cube-egress,
   # cube-lifecycle-manager, cube-webui and related contexts are compiled from the
   # release-tag source, not from whatever happens to be in the current worktree
   # (which may be ahead of the tag).
+=======
+  # CubeProxy / CubeEgress / cube-lifecycle-manager / web / deploy/one-click/webui
+  # trees at that ref into ${SOURCE_TREE_DIR} and point REPO_ROOT there. This
+  # ensures cube-api, cube-proxy, cube-egress, cube-lifecycle-manager,
+  # cube-webui and related contexts are compiled from the release-tag source, not
+  # from whatever happens to be in the current worktree (which may be ahead of
+  # the tag).
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   if [[ -z "${SOURCE_REF}" ]]; then
     REPO_ROOT="${WORKTREE_ROOT}"
     log "using current worktree source (SOURCE_REF empty)"
@@ -361,12 +388,16 @@ ensure_source_tree() {
     || fail "SOURCE_REF=${SOURCE_REF} is not a valid git ref in ${WORKTREE_ROOT}"
   SOURCE_REF_SHA="$(git -C "${WORKTREE_ROOT}" rev-parse "${SOURCE_REF}^{commit}")"
   SOURCE_TREE_STAMP="${SOURCE_TREE_DIR}/.exported-sha"
+<<<<<<< HEAD
   # CubeOps/CubeDB are post-v0.5.1; only export when building cube-ops so older
   # release tags still work for cube-api / cube-proxy / webui / etc.
   SOURCE_EXPORT_SET="CubeMaster CubeAPI CubeProxy CubeEgress cube-lifecycle-manager web deploy/one-click/webui"
   if should_build cube-ops; then
     SOURCE_EXPORT_SET="${SOURCE_EXPORT_SET} CubeOps CubeDB"
   fi
+=======
+  SOURCE_EXPORT_SET="CubeMaster CubeAPI CubeProxy CubeEgress cube-lifecycle-manager web deploy/one-click/webui"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   if [[ ! -f "${SOURCE_TREE_STAMP}" ]] \
     || [[ "$(cat "${SOURCE_TREE_STAMP}")" != "${SOURCE_REF_SHA}"$'\n'"${SOURCE_EXPORT_SET}" ]]; then
     log "exporting source tree at ${SOURCE_REF} (${SOURCE_REF_SHA:0:12}) into ${SOURCE_TREE_DIR}"
@@ -635,6 +666,7 @@ build_cube_api_image() {
   record_built cube-api
 }
 
+<<<<<<< HEAD
 # Same as .github/workflows/release-docker-images.yml for component "cube-ops":
 # context=., file=CubeOps/Dockerfile (needs sibling CubeDB via Dockerfile.dockerignore).
 build_cube_ops_image() {
@@ -644,6 +676,8 @@ build_cube_ops_image() {
   record_built cube-ops
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 build_cube_egress_openresty_base_image() {
   local image="cube-egress/openresty:1.29.2.5-tproxy"
   local docker_args=(
@@ -664,9 +698,15 @@ build_cube_egress_image() {
   local docker_args=(
     -f "${REPO_ROOT}/CubeEgress/Dockerfile"
     -t "${image}"
+<<<<<<< HEAD
     --build-arg "CUBE_VERSION=${IMAGE_TAG}"
     --build-arg "CUBE_COMMIT=$(git -C "${REPO_ROOT}" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
     --build-arg "CUBE_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+=======
+    --build-arg "CUBE_EGRESS_VERSION=${VERSION}"
+    --build-arg "CUBE_EGRESS_COMMIT=$(git -C "${REPO_ROOT}" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+    --build-arg "CUBE_EGRESS_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   )
   if [[ "${NO_CACHE}" == "1" ]]; then
     # Do not add --pull here: CubeEgress/Dockerfile uses a fixed FROM name.
@@ -731,10 +771,14 @@ build_component_image() {
   mkdir -p "${ctx}/package"
   cp -a "${PACKAGE_DIR}/${pkg_dir}" "${ctx}/package/${pkg_basename}"
   overlay_local_bins_for_component "${name}" "${ctx}" "${pkg_basename}"
+<<<<<<< HEAD
   build_image "${name}" "${ctx}" \
     --build-arg "CUBE_VERSION=${IMAGE_TAG}" \
     --build-arg "CUBE_KERNEL_BM_VERSION=${CUBE_KERNEL_BM_VERSION:-}" \
     --build-arg "CUBE_KERNEL_PVM_VERSION=${CUBE_KERNEL_PVM_VERSION:-}"
+=======
+  build_image "${name}" "${ctx}"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   record_built "${name}"
 }
 
@@ -755,11 +799,14 @@ run_selected_builds() {
     build_cube_api_image
   fi
 
+<<<<<<< HEAD
   if should_build cube-ops; then
     ensure_source_tree
     build_cube_ops_image
   fi
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   if should_build cubemastercli; then
     ensure_package_dir
     ctx="$(prepare_context cubemastercli)"
@@ -822,7 +869,11 @@ run_selected_builds() {
 
   if should_build cube-node-init; then
     ctx="$(prepare_context cube-node-init)"
+<<<<<<< HEAD
     copy_scripts "${ctx}" cube-node-init.sh wait-pvm-host.sh node-prep-lib.sh
+=======
+    copy_scripts "${ctx}" cube-node-init.sh node-prep-lib.sh
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     build_image cube-node-init "${ctx}"
     record_built cube-node-init
   fi
@@ -836,12 +887,16 @@ run_selected_builds() {
 
   if should_build cube-pvm-host-bootstrap; then
     ctx="$(prepare_context cube-pvm-host-bootstrap)"
+<<<<<<< HEAD
     copy_scripts "${ctx}" \
       pvm-host-bootstrap.sh \
       node-prep-lib.sh \
       pvm-startup-gate-lib.sh \
       pvm-startup-gate-reconcile.sh \
       pvm-startup-gate-preflight.sh
+=======
+    copy_scripts "${ctx}" pvm-host-bootstrap.sh node-prep-lib.sh
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     if [[ "${INCLUDE_PVM_KERNEL_RPM}" == "1" ]]; then
       log "downloading PVM host kernel rpm for bootstrap image"
       download_file "${PVM_KERNEL_RPM_URL}" "${PVM_KERNEL_RPM}" file "${PVM_KERNEL_RPM_SHA256}"

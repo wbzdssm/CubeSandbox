@@ -106,6 +106,7 @@ type InitInfo struct {
 	TapInitNum int
 }
 
+<<<<<<< HEAD
 // VolumeRefEvent records a node-level plugin_volume reference-state change that
 // must be reported back to CubeMaster so it can maintain a cross-node
 // ref-count in t_cube_volume.
@@ -119,6 +120,8 @@ type VolumeRefEvent struct {
 	Referenced int    `json:"referenced"`
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 type CreateContext struct {
 	BaseWorkflowInfo
 
@@ -140,11 +143,14 @@ type CreateContext struct {
 	NetFile        *netfile.CubeboxNetfile
 
 	LocalRunTemplate *templatetypes.LocalRunTemplate
+<<<<<<< HEAD
 
 	// VolumeRefEvents collects node-level plugin_volume ref-count transitions
 	// (0→1) observed during this create, to be reported to CubeMaster in the
 	// create response ext_info on success.
 	VolumeRefEvents []VolumeRefEvent
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func (b *CreateContext) GetInstanceType() string {
@@ -246,11 +252,14 @@ type DestroyContext struct {
 	BaseWorkflowInfo
 
 	DestroyInfo *cubebox.DestroyCubeSandboxRequest
+<<<<<<< HEAD
 
 	// VolumeRefEvents collects node-level plugin_volume ref-count transitions
 	// (1→0) observed during this destroy, to be reported to CubeMaster in the
 	// destroy response ext_info.
 	VolumeRefEvents []VolumeRefEvent
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 func (b *DestroyContext) GetInstanceType() string {

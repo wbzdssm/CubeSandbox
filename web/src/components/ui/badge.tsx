@@ -15,6 +15,7 @@ export function Badge({
     tone === 'ok'
       ? 'chip-ok'
       : tone === 'warn'
+<<<<<<< HEAD
         ? 'chip-warn'
         : tone === 'err'
           ? 'chip-err'
@@ -23,5 +24,15 @@ export function Badge({
             : tone === 'mute'
               ? 'chip-mute'
               : 'chip bg-secondary text-secondary-foreground';
+=======
+      ? 'chip-warn'
+      : tone === 'err'
+      ? 'chip-err'
+      : tone === 'info'
+      ? 'chip-info'
+      : tone === 'mute'
+      ? 'chip-mute'
+      : 'chip bg-secondary text-secondary-foreground';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return <span className={cn(toneClass, className)} {...props} />;
 }

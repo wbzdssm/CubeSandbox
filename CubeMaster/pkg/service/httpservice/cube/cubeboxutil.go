@@ -442,6 +442,7 @@ func dealCubeboxCreateReqWithTemplate(ctx context.Context, reqInOut *types.Creat
 	}
 
 	if constants.GetAppSnapshotVersion(reqInOut.Annotations) == templatecenter.DefaultTemplateVersion {
+<<<<<<< HEAD
 		// Alias resolution: only on the template-center / v2 path. Resolving
 		// before the version split would break non-v2 requests that carry a
 		// non-prefixed legacy identifier — they'd hit the DB for alias lookup,
@@ -454,6 +455,8 @@ func dealCubeboxCreateReqWithTemplate(ctx context.Context, reqInOut *types.Creat
 				reqInOut.Annotations[constants.CubeAnnotationAppSnapshotTemplateID] = templateID
 			}
 		}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		return dealCubeboxCreateReqWithTemplateCenter(ctx, templateID, reqInOut)
 	}
 

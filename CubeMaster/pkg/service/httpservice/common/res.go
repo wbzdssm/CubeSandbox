@@ -18,8 +18,13 @@ import (
 )
 
 func WriteResponse(w http.ResponseWriter, code int, data interface{}) {
+<<<<<<< HEAD
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
+=======
+	w.WriteHeader(code)
+	w.Header().Set("Content-Type", "application/json")
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	d, _ := FastestJsoniter.Marshal(data)
 	w.Write(d)
 }
@@ -42,8 +47,13 @@ func WriteListResponse(w http.ResponseWriter, code int, data interface{}) {
 		})
 		return
 	}
+<<<<<<< HEAD
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
+=======
+	w.WriteHeader(code)
+	w.Header().Set("Content-Type", "application/json")
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	w.Write(buffer.Bytes())
 }
 

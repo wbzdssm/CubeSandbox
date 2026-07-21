@@ -1,7 +1,12 @@
 oom_score = 0
 root = "/data/cubelet/root"
+<<<<<<< HEAD
 # Dedicated space for metadata.
 #mount -t tmpfs -o size=1024m none /data/cubelet/state/
+=======
+#独立空间 存放元数据
+#mount -t tmpfs -o size=500m none /data/cubelet/state/
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 state = "/data/cubelet/state"
 version = 3
 pid_file = "/run/cube-let.pid"
@@ -42,11 +47,19 @@ dynamic_config_path = "/usr/local/services/cubetoolbox/Cubelet/dynamicconf/conf.
 
   [plugins."io.cubelet.internal.v1.volume"]
   [plugins."io.cubelet.internal.v1.shimlog"]
+<<<<<<< HEAD
     # Dedicated space.
     #mount -t tmpfs -o size=100m none /data/cubelet/shimlog
     root_path = "/data/cubelet/shimlog"
   [plugins."io.cubelet.internal.v1.cleanup"]
     # Dedicated space.
+=======
+    #独立空间
+    #mount -t tmpfs -o size=100m none /data/cubelet/shimlog
+    root_path = "/data/cubelet/shimlog"
+  [plugins."io.cubelet.internal.v1.cleanup"]
+    #独立空间
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     #mount -t tmpfs -o size=100m none /data/cubelet/cleanup
     root_path = "/data/cubelet/cleanup"
   [plugins."io.cubelet.internal.v1.cgroup"]
@@ -99,6 +112,7 @@ dynamic_config_path = "/usr/local/services/cubetoolbox/Cubelet/dynamicconf/conf.
     # FICLONE (e.g. xfs with `-m reflink=1` or btrfs).
     data_path = "/data/cubelet/storage"
 
+<<<<<<< HEAD
     # Parent directory for volume plugin host_path mounts (Attach --volume-base-dir).
     volume_plugin_base_dir = "/data/volume"
 
@@ -107,6 +121,8 @@ dynamic_config_path = "/usr/local/services/cubetoolbox/Cubelet/dynamicconf/conf.
       type        = "binary"
       binary_path = "/usr/local/services/cubetoolbox/Cubelet/plugin/cube-volume-cos"
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
     [plugins."io.cubelet.internal.v1.storage".cow.log]
     level = "info,h2=warn,hyper=warn,tower=warn"
@@ -170,6 +186,7 @@ dynamic_config_path = "/usr/local/services/cubetoolbox/Cubelet/dynamicconf/conf.
     startup_delay = "5s"
 
   [plugins."io.containerd.snapshotter.v1.overlayfs"]
+<<<<<<< HEAD
     # Dedicated space for metadata.
     #mount -t tmpfs -o size=300m none /data/cubelet/state/
     root_path = "/data/cubelet/state"
@@ -178,6 +195,16 @@ dynamic_config_path = "/usr/local/services/cubetoolbox/Cubelet/dynamicconf/conf.
 
   [plugins."io.containerd.metadata.v1.bolt"]
     # Dedicated space.
+=======
+    #独立空间 存放metada
+    #mount -t tmpfs -o size=300m none /data/cubelet/state/
+    root_path = "/data/cubelet/state"
+    #独立空间 存放镜像unpack数据和snashot数据
+    data_path = "/data/cubelet/root"
+
+  [plugins."io.containerd.metadata.v1.bolt"]
+    #独立空间
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     #mount -t tmpfs -o size=300m none /data/cubelet/state/
     root_path = "/data/cubelet/state"
     content_sharing_policy = "shared"

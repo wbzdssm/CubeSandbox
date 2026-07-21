@@ -17,7 +17,12 @@ import (
 	"github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
+<<<<<<< HEAD
 func deleteSandbox(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+=======
+func deleteSandbox(w http.ResponseWriter, r *http.Request, rt *CubeLog.RequestTrace) interface{} {
+	_ = w
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	req := &types.DeleteCubeSandboxReq{}
 	if err := utils.DecodeHttpBody(r.Body, req); err != nil {
 		rt.RetCode = int64(errorcode.ErrorCode_MasterParamsError)

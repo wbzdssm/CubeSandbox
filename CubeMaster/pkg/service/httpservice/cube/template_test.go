@@ -64,7 +64,11 @@ func TestDeleteTemplateMapsAttemptInProgressToConflict(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/cube/template", strings.NewReader(`{"RequestID":"req-1","template_id":"tpl-1"}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := deleteTemplate(req, rt)
+=======
+	resp := deleteTemplate(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*templateResponse)
 	if !ok {
@@ -86,7 +90,11 @@ func TestDeleteTemplateMapsCleanupLocatorMissingToNotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/cube/template", strings.NewReader(`{"RequestID":"req-2","template_id":"tpl-2"}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := deleteTemplate(req, rt)
+=======
+	resp := deleteTemplate(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*templateResponse)
 	if !ok {
@@ -108,7 +116,11 @@ func TestDeleteTemplateSuccessResponse(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodDelete, "/cube/template", strings.NewReader(`{"RequestID":"req-3","template_id":"tpl-3","instance_type":"cubebox"}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := deleteTemplate(req, rt)
+=======
+	resp := deleteTemplate(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*templateResponse)
 	if !ok {
@@ -128,7 +140,11 @@ func fmtWrapped(base error, msg string) error {
 func TestDeleteTemplateRejectsMissingTemplateID(t *testing.T) {
 	req := httptest.NewRequest(http.MethodDelete, "/cube/template", strings.NewReader(`{"RequestID":"req-4"}`))
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := deleteTemplate(req, rt)
+=======
+	resp := deleteTemplate(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*templateResponse)
 	if !ok {
@@ -154,6 +170,7 @@ func TestDeleteTemplateRequestBodyUsesTemplateDeleteRequestSchema(t *testing.T) 
 func TestGetTemplateIncludeRequest(t *testing.T) {
 	origGetTemplateInfoFn := getTemplateInfoFn
 	origGetTemplateRequestFn := getTemplateRequestFn
+<<<<<<< HEAD
 	origResolveTemplateIdentifierFn := resolveTemplateIdentifierFn
 	t.Cleanup(func() {
 		getTemplateInfoFn = origGetTemplateInfoFn
@@ -163,6 +180,12 @@ func TestGetTemplateIncludeRequest(t *testing.T) {
 	resolveTemplateIdentifierFn = func(ctx context.Context, identifier string) (string, error) {
 		return identifier, nil
 	}
+=======
+	t.Cleanup(func() {
+		getTemplateInfoFn = origGetTemplateInfoFn
+		getTemplateRequestFn = origGetTemplateRequestFn
+	})
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	getTemplateInfoFn = func(ctx context.Context, templateID string) (*templatecenter.TemplateInfo, error) {
 		return &templatecenter.TemplateInfo{
 			TemplateID:   templateID,
@@ -182,7 +205,11 @@ func TestGetTemplateIncludeRequest(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/cube/template?template_id=tpl-include&include_request=true", nil)
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := getTemplate(req, rt)
+=======
+	resp := getTemplate(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*templateResponse)
 	if !ok {
@@ -195,6 +222,7 @@ func TestGetTemplateIncludeRequest(t *testing.T) {
 	assert.Equal(t, int64(errorcode.ErrorCode_Success), rt.RetCode)
 }
 
+<<<<<<< HEAD
 func TestGetTemplateResolvesAliasBeforeLookup(t *testing.T) {
 	origGetTemplateInfoFn := getTemplateInfoFn
 	origGetTemplateRequestFn := getTemplateRequestFn
@@ -255,6 +283,13 @@ func TestGetTemplateIncludesDisplayMetadata(t *testing.T) {
 	resolveTemplateIdentifierFn = func(ctx context.Context, identifier string) (string, error) {
 		return identifier, nil
 	}
+=======
+func TestGetTemplateIncludesDisplayMetadata(t *testing.T) {
+	origGetTemplateInfoFn := getTemplateInfoFn
+	t.Cleanup(func() {
+		getTemplateInfoFn = origGetTemplateInfoFn
+	})
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	getTemplateInfoFn = func(ctx context.Context, templateID string) (*templatecenter.TemplateInfo, error) {
 		return &templatecenter.TemplateInfo{
 			TemplateID:   templateID,
@@ -269,7 +304,11 @@ func TestGetTemplateIncludesDisplayMetadata(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/cube/template?template_id=tpl-metadata", nil)
 	rt := &CubeLog.RequestTrace{}
+<<<<<<< HEAD
 	resp := getTemplate(req, rt)
+=======
+	resp := getTemplate(httptest.NewRecorder(), req, rt)
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 	got, ok := resp.(*templateResponse)
 	if !ok {

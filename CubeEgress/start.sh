@@ -7,7 +7,10 @@
 #   3. Assert placeholder cert/key exist (host pre-generates them)
 #   4. Assert audit log dir is writable as the cube-proxy worker uid
 #   5. nginx -t (config validity)
+<<<<<<< HEAD
 #   5b. Optional: write cube-egress/version.json for inventory (best-effort)
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 #   6. exec openresty as PID 1
 
 set -euo pipefail
@@ -144,6 +147,7 @@ pre-generate on host: openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:pr
 [[ -f "${PLACEHOLDER_KEY}"  ]] || fatal "placeholder key missing: ${PLACEHOLDER_KEY}"
 
 # -------- 4. Audit dir writable as worker uid --------
+<<<<<<< HEAD
 # Parent /data/log is typically bind-mounted from the host. Create the
 # cube-egress subdirectory if node init has not already done so (K8s path
 # only mkdir's /data/log). We deliberately do NOT create access.jsonl:
@@ -156,6 +160,14 @@ if [[ ! -d "${AUDIT_DIR}" ]]; then
     mkdir -p "${AUDIT_DIR}" \
         || fatal "cannot create audit dir: ${AUDIT_DIR} (is /data/log mounted writable?)"
 fi
+=======
+# We chown the directory to uid 8049 here, but we deliberately do NOT
+# create access.jsonl: once the dir is owned by 8049, the in-container
+# root has no DAC_OVERRIDE under --cap-drop=ALL and cannot create files
+# inside it. The cube-proxy worker creates the file itself in
+# init_worker_by_lua (audit.lua: open with O_APPEND|O_CREAT).
+[[ -d "${AUDIT_DIR}" ]] || fatal "audit dir missing: ${AUDIT_DIR} (bind-mount missing?)"
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
 audit_uid="$(stat -c '%u' "${AUDIT_DIR}")"
 if [[ "${audit_uid}" != "8049" ]]; then
@@ -177,6 +189,7 @@ configure_listen_ip
 log "Running nginx -t"
 "${NGINX_BIN}" -t
 
+<<<<<<< HEAD
 # -------- 5b. Version marker for inventory (optional) --------
 # Write TOOLBOX/cube-egress/version.json when toolbox is mounted and writable.
 # Skip when toolbox is absent (e.g. one-click without that mount).
@@ -229,6 +242,8 @@ publish_version_json() {
 }
 publish_version_json
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 # -------- 6. exec openresty (becomes PID 1) --------
 log "Starting openresty (PID 1)"
 exec "${NGINX_BIN}" -g "daemon off;"

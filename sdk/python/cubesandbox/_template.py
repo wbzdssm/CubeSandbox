@@ -210,7 +210,11 @@ class Template:
         cls,
         *,
         template_id: str | None = None,  # Deprecated: server always auto-generates template IDs with "tpl-" prefix.
+<<<<<<< HEAD
         name: str | None = None,  # E2B template name → forwarded as stable alias.
+=======
+        name: str | None = None,  # Deprecated alias for template_id.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         image: str | None = None,
         dockerfile: str | None = None,
         start_cmd: str | None = None,
@@ -246,9 +250,13 @@ class Template:
             template_id: Template ID. Deprecated: the server always auto-generates template IDs
                 with the "tpl-" prefix. This parameter is accepted for backward compatibility
                 but its value is ignored.
+<<<<<<< HEAD
             name: E2B-compatible template name. Forwarded as ``"name"`` in the request body;
                 CubeAPI derives a stable alias from it so sandboxes can reference the template
                 by this name instead of the auto-generated ``tpl-*`` ID.
+=======
+            name: Deprecated alias for ``template_id``.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             image: Base container image URI (e.g. ``"python:3.11-slim"``).
             dockerfile: Not supported by CubeAPI's current template endpoint.
             start_cmd: Not supported by CubeAPI's current template endpoint.
@@ -295,8 +303,11 @@ class Template:
 
         cfg = config or Config()
         payload: dict = {"image": image.strip()}
+<<<<<<< HEAD
         if name is not None:
             payload["name"] = name
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         if instance_type is not None:
             payload["instanceType"] = instance_type
         if writable_layer_size is not None:

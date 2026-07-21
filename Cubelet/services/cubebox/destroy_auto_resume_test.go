@@ -17,7 +17,10 @@ import (
 
 	"github.com/tencentcloud/CubeSandbox/Cubelet/api/services/cubebox/v1"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/api/services/errorcode/v1"
+<<<<<<< HEAD
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/config"
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/semaphore"
 	cubeboxstore "github.com/tencentcloud/CubeSandbox/Cubelet/pkg/store/cubebox"
 	"github.com/tencentcloud/CubeSandbox/Cubelet/pkg/utils"
@@ -369,6 +372,7 @@ func TestDestroyReturnsLongRetryWhenResponseReserveIsExhausted(t *testing.T) {
 	assert.Nil(t, sb.UserMarkDeletedTime)
 }
 
+<<<<<<< HEAD
 func TestDestroyPausedSandboxSucceedsWhenCapacityWouldRejectResume(t *testing.T) {
 	sb := sandboxWithResourceForTest("paused-delete-overcommit", cubeboxstore.Status{
 		PausedAt: time.Now().Add(-time.Minute).UnixNano(),
@@ -403,6 +407,8 @@ func TestDestroyPausedSandboxSucceedsWhenCapacityWouldRejectResume(t *testing.T)
 	assert.Len(t, manager.syncIDs, 2)
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 func TestDestroyDebugCleanupPreservesDeleteMarker(t *testing.T) {
 	sb := newCubeboxWithStatusForTest("debug-cleanup", cubeboxstore.Status{
 		StartedAt: time.Now().Add(-time.Minute).UnixNano(),

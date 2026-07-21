@@ -163,7 +163,11 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 		})
 		return
 	}
+<<<<<<< HEAD
 	if _, err := ensureTemplateDefinitionWithOptions(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, constants.GetAppSnapshotVersion(generatedReq.Annotations), definitionCreateOptions{}); err != nil {
+=======
+	if _, err := ensureTemplateDefinition(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, constants.GetAppSnapshotVersion(generatedReq.Annotations)); err != nil {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 		_ = updateTemplateImageJob(ctx, jobID, map[string]any{
 			"status":          JobStatusFailed,
 			"phase":           JobPhaseCreatingTemplate,
@@ -197,6 +201,7 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 		})
 		return
 	}
+<<<<<<< HEAD
 	// Claim alias after READY via the shared helper.
 	claimWarning := ""
 	if info.Status != StatusFailed {
@@ -206,6 +211,8 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 			info.DisplayName = displayName
 		}
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	resultPayload, _ := json.Marshal(info)
 	jobStatus := JobStatusReady
 	jobPhase := JobPhaseReady
@@ -218,17 +225,24 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 		jobStatus = JobStatusFailed
 		jobPhase = JobPhaseCreatingTemplate
 	}
+<<<<<<< HEAD
 	errorMessage := info.LastError
 	if errorMessage == "" && claimWarning != "" {
 		errorMessage = claimWarning
 	}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	_ = updateTemplateImageJob(ctx, jobID, map[string]any{
 		"status":          jobStatus,
 		"phase":           jobPhase,
 		"progress":        100,
 		"template_status": info.Status,
 		"result_json":     string(resultPayload),
+<<<<<<< HEAD
 		"error_message":   errorMessage,
+=======
+		"error_message":   info.LastError,
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 	})
 }
 

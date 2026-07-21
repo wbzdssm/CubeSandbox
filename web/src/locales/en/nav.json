@@ -6,7 +6,15 @@
   "versions": "Versions",
   "network": "Network",
   "observability": "Observability",
+<<<<<<< HEAD
   "settings": "Settings",
   "store": "Template Store",
   "agentHub": "AgentHub"
 }
+=======
+  "apiKeys": "API Keys",
+  "settings": "Settings",
+  "store": "Template Store",
+  "agentHub": "AgentHub"
+}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)

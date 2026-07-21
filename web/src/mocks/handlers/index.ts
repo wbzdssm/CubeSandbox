@@ -71,9 +71,13 @@ export const handlers = [
   http.get('/cubeapi/v1/templates/:templateID', async ({ params }) => {
     await mockDelay();
     const template = getTemplate(String(params.templateID));
+<<<<<<< HEAD
     return template
       ? HttpResponse.json(template)
       : notFound(`template ${params.templateID} not found`);
+=======
+    return template ? HttpResponse.json(template) : notFound(`template ${params.templateID} not found`);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   }),
 
   http.get('/cubeapi/v1/v2/sandboxes', async ({ request }) => {
@@ -123,7 +127,11 @@ export const handlers = [
 
   http.post('/cubeapi/v1/sandboxes', async ({ request }) => {
     await mockDelay();
+<<<<<<< HEAD
     const body = (await request.json()) as {
+=======
+    const body = await request.json() as {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       templateID: string;
       timeout?: number;
       alias?: string;

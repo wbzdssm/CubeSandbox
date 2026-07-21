@@ -4,7 +4,20 @@
 import { Command } from 'cmdk';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+<<<<<<< HEAD
 import { Boxes, Package, Server, LayoutDashboard, Activity, Settings, Plus } from 'lucide-react';
+=======
+import {
+  Boxes,
+  Package,
+  Server,
+  LayoutDashboard,
+  Activity,
+  KeyRound,
+  Settings,
+  Plus,
+} from 'lucide-react';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import { useCommandPaletteStore } from '@/store/ui';
 
 export function CommandPalette() {
@@ -41,6 +54,7 @@ export function CommandPalette() {
               {t('noResults')}
             </Command.Empty>
 
+<<<<<<< HEAD
             <Command.Group
               heading={t('groupNavigate')}
               className="px-2 pb-2 pt-1 text-xs uppercase tracking-wider font-medium text-muted-foreground"
@@ -86,6 +100,20 @@ export function CommandPalette() {
                 label={t('createSandbox')}
                 onSelect={() => go('/sandboxes/new')}
               />
+=======
+            <Command.Group heading={t('groupNavigate')} className="px-2 pb-2 pt-1 text-xs uppercase tracking-wider font-medium text-muted-foreground">
+              <Item icon={<LayoutDashboard size={14} />} label={tNav('overview')} onSelect={() => go('/')} />
+              <Item icon={<Boxes size={14} />} label={tNav('sandboxes')} onSelect={() => go('/sandboxes')} />
+              <Item icon={<Package size={14} />} label={tNav('templates')} onSelect={() => go('/templates')} />
+              <Item icon={<Server size={14} />} label={tNav('nodes')} onSelect={() => go('/nodes')} />
+              <Item icon={<Activity size={14} />} label={tNav('observability')} onSelect={() => go('/observability')} />
+              <Item icon={<KeyRound size={14} />} label={tNav('apiKeys')} onSelect={() => go('/keys')} />
+              <Item icon={<Settings size={14} />} label={tNav('settings')} onSelect={() => go('/settings')} />
+            </Command.Group>
+
+            <Command.Group heading={t('groupActions')} className="px-2 pb-2 pt-1 text-xs uppercase tracking-wider font-medium text-muted-foreground">
+              <Item icon={<Plus size={14} />} label={t('createSandbox')} onSelect={() => go('/sandboxes/new')} />
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
             </Command.Group>
           </Command.List>
         </Command>
@@ -94,6 +122,7 @@ export function CommandPalette() {
   );
 }
 
+<<<<<<< HEAD
 function Item({
   icon,
   label,
@@ -103,6 +132,9 @@ function Item({
   label: string;
   onSelect: () => void;
 }) {
+=======
+function Item({ icon, label, onSelect }: { icon: React.ReactNode; label: string; onSelect: () => void }) {
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   return (
     <Command.Item
       onSelect={onSelect}

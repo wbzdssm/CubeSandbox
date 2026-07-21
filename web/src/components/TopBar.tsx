@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Tencent. All rights reserved.
 
+<<<<<<< HEAD
 import {
   Search,
   Command as CmdIcon,
@@ -11,6 +12,9 @@ import {
   Github,
   BookOpen,
 } from 'lucide-react';
+=======
+import { Search, Command as CmdIcon, Bell, Sparkles, FlaskConical, ExternalLink, Github, BookOpen } from 'lucide-react';
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 import { useTranslation } from 'react-i18next';
 import { Button } from './ui/button';
 import { LanguageSwitcher } from './LanguageSwitcher';

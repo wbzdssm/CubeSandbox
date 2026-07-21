@@ -26,8 +26,12 @@ export function useGlobalHotkeys() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
+<<<<<<< HEAD
       const isInput =
         tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+=======
+      const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable;
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
       // ── ⌘K / Ctrl+K → Command Palette ──────────────────────────────
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -49,9 +53,13 @@ export function useGlobalHotkeys() {
       if (e.key.toLowerCase() === 'r') {
         e.preventDefault();
         void qc.refetchQueries({ type: 'active' });
+<<<<<<< HEAD
         window.dispatchEvent(
           new CustomEvent('cube:toast', { detail: { message: t('refreshed') } }),
         );
+=======
+        window.dispatchEvent(new CustomEvent('cube:toast', { detail: { message: t('refreshed') } }));
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         return;
       }
 

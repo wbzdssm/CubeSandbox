@@ -315,6 +315,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+<<<<<<< HEAD
     post:
       tags:
       - handlers::templates
@@ -381,6 +382,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   /templates/compat:
     get:
       tags:
@@ -461,6 +464,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+<<<<<<< HEAD
     post:
       tags:
       - handlers::templates
@@ -660,6 +664,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   /v2/sandboxes:
     get:
       tags:
@@ -863,6 +869,7 @@ components:
           type: string
         version:
           type: string
+<<<<<<< HEAD
     CreateTemplateRequest:
       type: object
       description: Body for POST /templates (create from image).
@@ -1009,6 +1016,8 @@ components:
           - string
           - 'null'
           description: Writable layer size for the rootfs, e.g. "1G".
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     HashMap:
       type: object
       additionalProperties:
@@ -1217,10 +1226,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ComponentVersionView'
+<<<<<<< HEAD
     RebuildTemplateRequest:
       type: object
       description: Body for POST /templates/:id (rebuild).
       additionalProperties: {}
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     ResumedSandbox:
       type: object
       description: Request body for POST /sandboxes/{id}/resume (deprecated).
@@ -1378,6 +1390,7 @@ components:
           type: string
         path:
           type: string
+<<<<<<< HEAD
     TemplateAliasLookupResponse:
       type: object
       required:
@@ -1432,6 +1445,8 @@ components:
           type: string
         templateID:
           type: string
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     TemplateCompatAdoptResponseView:
       type: object
       required:
@@ -1500,6 +1515,7 @@ components:
       description: Detailed template response (GET /templates/:id).
       required:
       - templateID
+<<<<<<< HEAD
       - public
       - status
       - replicas
@@ -1512,12 +1528,18 @@ components:
           description: |-
             E2B template aliases. CubeSandbox has no namespace model, so this
             mirrors the stable alias when one is configured.
+=======
+      - status
+      - replicas
+      properties:
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         allowInternetAccess:
           type:
           - boolean
           - 'null'
           description: Whether public internet access is allowed for sandboxes from this template.
         createRequest: {}
+<<<<<<< HEAD
         createdAt:
           type:
           - string
@@ -1526,11 +1548,20 @@ components:
           type:
           - string
           - 'null'
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         jobID:
           type:
           - string
           - 'null'
           description: Latest create/rebuild job id for the template.
+<<<<<<< HEAD
+=======
+        instanceType:
+          type:
+          - string
+          - 'null'
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         lastError:
           type:
           - string
@@ -1540,8 +1571,11 @@ components:
           - string
           - 'null'
           description: Network type used when the template was created, e.g. "tap".
+<<<<<<< HEAD
         public:
           type: boolean
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         replicas:
           type: array
           items: {}
@@ -1596,6 +1630,7 @@ components:
       description: Summary row returned by GET /templates.
       required:
       - templateID
+<<<<<<< HEAD
       - public
       - status
       - aliases
@@ -1607,6 +1642,10 @@ components:
           description: |-
             E2B template aliases. CubeSandbox has no namespace model, so this
             mirrors the stable alias when one is configured.
+=======
+      - status
+      properties:
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         createdAt:
           type:
           - string
@@ -1619,17 +1658,23 @@ components:
           type:
           - string
           - 'null'
+<<<<<<< HEAD
         jobID:
           type:
           - string
           - 'null'
           description: Latest create/rebuild job id for the template.
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         lastError:
           type:
           - string
           - 'null'
+<<<<<<< HEAD
         public:
           type: boolean
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
         status:
           type: string
         templateID:
@@ -1638,6 +1683,14 @@ components:
           type:
           - string
           - 'null'
+<<<<<<< HEAD
+=======
+        jobID:
+          type:
+          - string
+          - 'null'
+          description: Latest create/rebuild job id for the template.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     VersionMatrixView:
       type: object
       description: Full node x component version matrix.

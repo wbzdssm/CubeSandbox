@@ -49,15 +49,24 @@ fn extract_credential(request: &Request) -> Option<AuthCredential> {
 
 /// Unified auth middleware.
 ///
+<<<<<<< HEAD
 /// Behavior (priority order):
 ///
 /// 1. **Callback mode** (`auth_callback_url` set):
 ///    - Extract a Bearer token or X-API-Key from the request headers (Bearer takes priority).
 ///    - Forward a POST to the callback URL with:
+=======
+/// Behavior:
+/// - If `config.auth_callback_url` is not set (`None`), all requests are allowed through.
+/// - If set:
+///   1. Extract a Bearer token or X-API-Key from the request headers (Bearer takes priority).
+///   2. Forward a POST to the callback URL with:
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ///      - `Authorization: Bearer <token>`  (when the client used Bearer auth)
 ///      - `X-API-Key: <key>`              (when the client used API Key auth)
 ///      - `X-Request-Path: <original path>` (the path the client requested)
 ///      - `X-Request-Method: <HTTP method>` (the HTTP method the client used, e.g. GET/DELETE)
+<<<<<<< HEAD
 ///    - HTTP 200 from callback → allow; any other status → 401 Unauthorized.
 ///
 /// 2. **Simple key mode** (`cube_api_key` set, callback unset):
@@ -66,6 +75,9 @@ fn extract_credential(request: &Request) -> Option<AuthCredential> {
 ///    - Match → allow; mismatch or missing → 401 Unauthorized.
 ///
 /// 3. **No auth** (both unset): all requests are allowed through.
+=======
+///   3. HTTP 200 from callback → allow; any other status → 401 Unauthorized.
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 ///
 /// The two credential headers are mutually exclusive; the callback receives whichever
 /// one the client sent. No extra type discriminator is needed.
@@ -81,6 +93,7 @@ pub async fn unified_auth(
     request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+<<<<<<< HEAD
     // Mode 1: callback auth — if a callback URL is configured, forward the
     // credential and let the external system decide.
     let callback_url = match state.config.auth_callback_url.as_deref() {
@@ -121,6 +134,14 @@ pub async fn unified_auth(
 
     // ── Callback mode continuation ──────────────────────────────────────
 
+=======
+    // No callback configured — pass through immediately.
+    let callback_url = match state.config.auth_callback_url.as_deref() {
+        Some(url) if !url.is_empty() => url.to_string(),
+        _ => return Ok(next.run(request).await),
+    };
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     // Capture the request path and HTTP method to forward to the callback.
     let request_path = request.uri().path().to_string();
     let request_method = request.method().to_string();
@@ -386,6 +407,7 @@ mod tests {
         assert!(methods.contains(&"POST"), "should see POST");
         assert!(methods.contains(&"PATCH"), "should see PATCH");
     }
+<<<<<<< HEAD
 
     // ── Simple key mode (CUBE_API_KEY) ───────────────────────────────────
 
@@ -461,4 +483,6 @@ mod tests {
         let server = build_test_server_with_api_key("").await;
         server.get("/sandboxes/abc").await.assert_status_ok();
     }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }

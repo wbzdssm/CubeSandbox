@@ -25,6 +25,7 @@ export default function SandboxesPage() {
   const qc = useQueryClient();
   const { t } = useTranslation('sandboxes');
 
+<<<<<<< HEAD
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['sandboxes'],
     queryFn: () => sandboxApi.list(),
@@ -37,6 +38,15 @@ export default function SandboxesPage() {
     void refetch();
   };
 
+=======
+  const { data, isLoading } = useQuery({
+    queryKey: ['sandboxes', stateFilter],
+    queryFn: () =>
+      sandboxApi.list({ state: stateFilter === 'all' ? undefined : stateFilter }),
+    refetchInterval: 5_000,
+  });
+
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -45,6 +55,7 @@ export default function SandboxesPage() {
   };
 
   const killMut = useMutation({
+<<<<<<< HEAD
     mutationFn: (id: string) => {
       setPendingId(id);
       return sandboxApi.kill(id);
@@ -79,20 +90,48 @@ export default function SandboxesPage() {
       setPendingId(null);
       qc.invalidateQueries({ queryKey: ['sandboxes'] });
     },
+=======
+    mutationFn: (id: string) => { setPendingId(id); return sandboxApi.kill(id); },
+    onMutate: () => setActionError(null),
+    onError: onLifecycleError,
+    onSettled: () => { setPendingId(null); qc.invalidateQueries({ queryKey: ['sandboxes'] }); },
+  });
+  const pauseMut = useMutation({
+    mutationFn: (id: string) => { setPendingId(id); return sandboxApi.pause(id); },
+    onMutate: () => setActionError(null),
+    onError: onLifecycleError,
+    onSettled: () => { setPendingId(null); qc.invalidateQueries({ queryKey: ['sandboxes'] }); },
+  });
+  const resumeMut = useMutation({
+    mutationFn: (id: string) => { setPendingId(id); return sandboxApi.resume(id); },
+    onMutate: () => setActionError(null),
+    onError: onLifecycleError,
+    onSettled: () => { setPendingId(null); qc.invalidateQueries({ queryKey: ['sandboxes'] }); },
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
   });
 
   const filtered = useMemo(() => {
     if (!data) return [];
+<<<<<<< HEAD
     const stateFiltered =
       stateFilter === 'all' ? data : data.filter((sb) => (sb.state ?? 'running') === stateFilter);
     if (!q.trim()) return stateFiltered;
     const needle = q.toLowerCase();
     return stateFiltered.filter((sb) =>
+=======
+    if (!q.trim()) return data;
+    const needle = q.toLowerCase();
+    return data.filter((sb) =>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       [sb.sandboxID, sb.templateID, sb.alias, sb.clientID]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(needle)),
     );
+<<<<<<< HEAD
   }, [data, q, stateFilter]);
+=======
+  }, [data, q]);
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 
   const STATE_TABS: { key: StateFilter; label: string }[] = [
     { key: 'all', label: t('filter.all') },
@@ -135,7 +174,11 @@ export default function SandboxesPage() {
             {STATE_TABS.map(({ key, label }) => (
               <button
                 key={key}
+<<<<<<< HEAD
                 onClick={() => onStateFilterChange(key)}
+=======
+                onClick={() => setStateFilter(key)}
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
                 className={cn(
                   'rounded-md px-3 py-1 text-xs font-medium transition-all',
                   stateFilter === key
@@ -231,12 +274,19 @@ function Row({
         )}
       </div>
       <div className="truncate text-xs text-muted-foreground">{sb.templateID ?? '—'}</div>
+<<<<<<< HEAD
       <div className="text-xs text-muted-foreground text-num">{sb.cpuCount ?? '—'}</div>
+=======
+      <div className="text-xs text-muted-foreground text-num">
+        {sb.cpuCount != null ? t('vcpu', { count: sb.cpuCount }) : '—'}
+      </div>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
       <div className="text-xs text-muted-foreground text-num">{formatBytes(sb.memoryMB)}</div>
       <div className="text-xs text-muted-foreground/80 text-num">{sb.clientID || '—'}</div>
       <div className="text-xs text-muted-foreground">{formatRelative(sb.startedAt)}</div>
       <div className="flex justify-end gap-1">
         {state === 'paused' ? (
+<<<<<<< HEAD
           <Button
             size="icon"
             variant="ghost"
@@ -264,6 +314,17 @@ function Row({
           onClick={onKill}
           disabled={busy}
         >
+=======
+          <Button size="icon" variant="ghost" title={t('actions.resume')} onClick={onResume} disabled={busy}>
+            <Play size={14} />
+          </Button>
+        ) : (
+          <Button size="icon" variant="ghost" title={t('actions.pause')} onClick={onPause} disabled={busy}>
+            <Pause size={14} />
+          </Button>
+        )}
+        <Button size="icon" variant="ghost" title={t('actions.kill')} onClick={onKill} disabled={busy}>
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
           <Trash2 size={14} className="text-cube-err" />
         </Button>
       </div>

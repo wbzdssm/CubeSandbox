@@ -535,10 +535,14 @@ fn default_page_limit() -> i32 {
 
 #[cfg(test)]
 mod tests {
+<<<<<<< HEAD
     use super::{
         CreateTemplateRequest, NewSandbox, SandboxNetworkConfig, SetTimeoutRequest,
         TemplateAliasLookupResponse,
     };
+=======
+    use super::{NewSandbox, SandboxNetworkConfig, SetTimeoutRequest};
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     use validator::Validate;
 
     #[test]
@@ -602,6 +606,7 @@ mod tests {
             Some("value")
         );
     }
+<<<<<<< HEAD
 
     #[test]
     fn create_template_request_accepts_name_and_alias() {
@@ -627,6 +632,8 @@ mod tests {
         assert_eq!(json["templateID"], "tpl-abc");
         assert_eq!(json["public"], true);
     }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 // ─── Templates ─────────────────────────────────────────────────────────────
@@ -646,7 +653,10 @@ pub struct ListTemplatesQuery {
 pub struct TemplateSummary {
     #[serde(rename = "templateID")]
     pub template_id: String,
+<<<<<<< HEAD
     pub public: bool,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     #[serde(rename = "instanceType", skip_serializing_if = "Option::is_none")]
     pub instance_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -661,9 +671,12 @@ pub struct TemplateSummary {
     /// Latest create/rebuild job id for the template.
     #[serde(rename = "jobID", skip_serializing_if = "Option::is_none")]
     pub job_id: Option<String>,
+<<<<<<< HEAD
     /// E2B template aliases. CubeSandbox has no namespace model, so this
     /// mirrors the stable alias when one is configured.
     pub aliases: Vec<String>,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 /// Detailed template response (GET /templates/:id).
@@ -671,7 +684,10 @@ pub struct TemplateSummary {
 pub struct TemplateDetail {
     #[serde(rename = "templateID")]
     pub template_id: String,
+<<<<<<< HEAD
     pub public: bool,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     #[serde(rename = "instanceType", skip_serializing_if = "Option::is_none")]
     pub instance_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -679,8 +695,11 @@ pub struct TemplateDetail {
     pub status: String,
     #[serde(rename = "lastError", skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+<<<<<<< HEAD
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     pub replicas: Vec<serde_json::Value>,
     #[serde(rename = "createRequest", skip_serializing_if = "Option::is_none")]
     pub create_request: Option<serde_json::Value>,
@@ -696,9 +715,12 @@ pub struct TemplateDetail {
     /// Latest create/rebuild job id for the template.
     #[serde(rename = "jobID", skip_serializing_if = "Option::is_none")]
     pub job_id: Option<String>,
+<<<<<<< HEAD
     /// E2B template aliases. CubeSandbox has no namespace model, so this
     /// mirrors the stable alias when one is configured.
     pub aliases: Vec<String>,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 }
 
 /// Body for POST /templates (create from image).
@@ -709,6 +731,7 @@ pub struct CreateTemplateRequest {
     #[serde(rename = "templateID", default)]
     #[allow(dead_code)]
     pub template_id: String,
+<<<<<<< HEAD
     /// E2B v3 template name. A tag suffix after ':' is accepted by CubeAPI but
     /// only the name portion is forwarded as the CubeMaster alias.
     #[serde(default)]
@@ -716,6 +739,8 @@ pub struct CreateTemplateRequest {
     /// Deprecated E2B template alias. Used when `name` is absent or blank.
     #[serde(default)]
     pub alias: Option<String>,
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
     #[serde(rename = "instanceType", default)]
     pub instance_type: Option<String>,
     /// Container image reference, e.g. `registry.example.com/code:latest`.
@@ -788,6 +813,7 @@ pub struct RebuildTemplateRequest {
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
+<<<<<<< HEAD
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TemplateAliasLookupResponse {
     #[serde(rename = "templateID")]
@@ -795,6 +821,8 @@ pub struct TemplateAliasLookupResponse {
     pub public: bool,
 }
 
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
 /// Job envelope returned by create / rebuild.
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TemplateBuildJob {
@@ -1043,6 +1071,7 @@ pub struct VersionMatrixView {
     pub components: Vec<ComponentMatrixRowView>,
     pub nodes: Vec<NodeVersionRowView>,
 }
+<<<<<<< HEAD
 
 // ─── Volume API models ──────────────────────────────────────────────────────
 
@@ -1099,3 +1128,5 @@ pub struct VolumeAndToken {
     #[serde(default)]
     pub token: String,
 }
+=======
+>>>>>>> e47b8a2 (fix(sdk/python): address review on Volume API)
