@@ -1,0 +1,126 @@
+name: Publish Go SDK
+
+# 当 go-sdk-v* 标签被推送时，为嵌套的 Go 模块
+# 补打 sdk/go/v* 标签（Go 约定格式），并运行测试验证。
+#
+# 用法:
+#   git tag go-sdk-v0.6.0
+#   git push origin go-sdk-v0.6.0
+#
+# 会自动创建 sdk/go/v0.6.0 标签，解决 Issue #1016。
+# 与 python-sdk-v* 标签模式保持一致。
+
+on:
+  push:
+    tags:
+      - 'go-sdk-v*'
+
+concurrency:
+  group: go-sdk-publish-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  create-go-sdk-tag:
+    name: Create Go SDK tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout (full history, blobless)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: 'blob:none'
+
+      - name: Extract version from tag
+        id: extract
+        run: |
+          # go-sdk-v0.6.0 → 0.6.0
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#go-sdk-v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Extracted version: $VERSION"
+
+      - name: Check if sdk/go/ changed since last tag
+        id: check_changes
+        run: |
+          CURRENT_TAG="${{ github.ref_name }}"
+          GO_SDK_TAG="sdk/go/${{ steps.extract.outputs.version }}"
+
+          # Go SDK tag 已存在则跳过
+          if git rev-parse -q --verify "refs/tags/$GO_SDK_TAG" > /dev/null 2>&1; then
+            echo "Go SDK tag $GO_SDK_TAG already exists, skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 找前一个 go-sdk-v* 标签
+          PREV_TAG=$(git describe --tags --first-parent --match 'go-sdk-v*' --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || true)
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous go-sdk tag found — first release, proceeding."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Comparing $PREV_TAG -> $CURRENT_TAG for sdk/go/ changes"
+            CHANGED=$(git diff --name-only "$PREV_TAG" "$CURRENT_TAG" -- sdk/go/)
+            if [ -n "$CHANGED" ]; then
+              echo "sdk/go/ has changes:"
+              echo "$CHANGED"
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "No changes in sdk/go/ since $PREV_TAG — skipping."
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Create and push Go SDK tag
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          GO_SDK_TAG="sdk/go/${{ steps.extract.outputs.version }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$GO_SDK_TAG" -m "Go SDK ${{ steps.extract.outputs.version }} — auto-generated from ${{ github.ref_name }}"
+          git push origin "$GO_SDK_TAG"
+
+          echo "Created and pushed: $GO_SDK_TAG"
+
+      - name: Set up Go
+        if: steps.check_changes.outputs.changed == 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          check-latest: true
+          cache-dependency-path: sdk/go/go.sum
+
+      - name: Verify go.mod module path
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          echo "Module: $(head -1 sdk/go/go.mod)"
+          echo "Version: ${{ steps.extract.outputs.version }}"
+
+      - name: Build Go SDK
+        if: steps.check_changes.outputs.changed == 'true'
+        working-directory: sdk/go
+        run: go build ./...
+
+      - name: Run Go SDK unit tests
+        if: steps.check_changes.outputs.changed == 'true'
+        working-directory: sdk/go
+        run: go test -v -short -count=1 ./...
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Go SDK Publish Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger tag**: \`${{ github.ref_name }}\` → version \`${{ steps.extract.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.check_changes.outputs.skip }}" == "true" ]]; then
+            echo "- **Result**: Go SDK tag \`sdk/go/${{ steps.extract.outputs.version }}\` already exists" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.check_changes.outputs.changed }}" == "false" ]]; then
+            echo "- **Result**: Skipped (no changes in sdk/go/)" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.check_changes.outputs.changed }}" == "true" ]]; then
+            echo "- **Result**: ✅ \`sdk/go/${{ steps.extract.outputs.version }}\` created, build + tests passed" >> "$GITHUB_STEP_SUMMARY"
+          fi
