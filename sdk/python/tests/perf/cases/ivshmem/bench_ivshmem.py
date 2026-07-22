@@ -41,7 +41,11 @@ def bench_ivshmem(cfg: Config) -> None:
         try:
             path = wait_for_shm_file(sb.sandbox_id)
         except FileNotFoundError as exc:
-            skip("ivshmem shared-memory", str(exc))
+            skip(
+                "ivshmem shared-memory",
+                f"{exc} — annotation may not be merged into the OCI spec by "
+                f"CubeMaster; metadata-only injection is unsupported on this version",
+            )
             return
 
         results = run_probe(path, iterations)
