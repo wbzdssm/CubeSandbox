@@ -86,7 +86,7 @@ def _auto_register_raw_benchmarks() -> None:
     framework default).  The module docstring's first line becomes the report
     section title.
     """
-    from framework.registry import (  # late import to avoid circularity at init
+    from ..framework.registry import (  # late import to avoid circularity at init
         BENCHMARK_REGISTRY,
         auto,
         ReportGroup,
@@ -139,7 +139,7 @@ def _register_external_scripts() -> None:
     import re
     from pathlib import Path
 
-    from framework.registry import BENCHMARK_REGISTRY, register_external  # noqa: PLC0415
+    from ..framework.registry import BENCHMARK_REGISTRY, register_external  # noqa: PLC0415
 
     # --- Collect script paths ---
     candidates: list[Path] = []
@@ -153,7 +153,7 @@ def _register_external_scripts() -> None:
                 candidates.append(Path(p).expanduser().resolve())
 
     # 2) Default: examples/snapshot-rollback-clone/bench_*.py
-    _sdk_root = Path(__file__).resolve().parents[5]  # sdk/python/
+    _sdk_root = Path(__file__).resolve().parents[3]  # sdk/python/
     _examples_dir = _sdk_root / "examples" / "snapshot-rollback-clone"
     if _examples_dir.is_dir():
         for pf in sorted(_examples_dir.glob("bench_*.py")):
