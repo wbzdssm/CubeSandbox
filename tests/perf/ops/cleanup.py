@@ -26,7 +26,7 @@ _DEFAULT_SCRIPTS = [
 
 def register_default_scripts():
     """自动注册内置默认脚本（若 CUBE_EXTERNAL_SCRIPTS 未设置）。"""
-    from .framework import registry
+    from ..framework import registry
 
     if not os.environ.get("CUBE_EXTERNAL_SCRIPTS"):
         os.environ["CUBE_EXTERNAL_SCRIPTS"] = ",".join(_DEFAULT_SCRIPTS)
