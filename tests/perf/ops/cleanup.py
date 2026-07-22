@@ -73,7 +73,7 @@ def delete_snapshots(ids: list[str]) -> tuple[int, int]:
 # ── 清理钩子 ──────────────────────────────────────────────────────────
 
 def _auto_cleanup_enabled() -> bool:
-    return os.environ.get("CUBE_PERF_AUTO_CLEANUP") == "1"
+    return os.environ.get("CUBE_PERF_AUTO_CLEANUP", "1") != "0"
 
 
 def _cleanup_wait_seconds() -> float:
@@ -83,7 +83,7 @@ def _cleanup_wait_seconds() -> float:
 def cleanup_all_snapshots(label: str = "") -> None:
     """删除当前所有 snap-* 快照（可重入，每并发档跑完后调一次）。
 
-    在 ``CUBE_PERF_AUTO_CLEANUP=1`` 时激活。*label* 用于日志区分。
+    默认激活；设 ``CUBE_PERF_AUTO_CLEANUP=0`` 可关闭。*label* 用于日志区分。
     """
     import sys
 

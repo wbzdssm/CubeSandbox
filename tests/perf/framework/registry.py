@@ -856,7 +856,7 @@ def _post_concurrency_cleanup(name: str, concurrency: int) -> None:
 
 
 def _is_auto_cleanup_enabled() -> bool:
-    return os.environ.get("CUBE_PERF_AUTO_CLEANUP") == "1"
+    return os.environ.get("CUBE_PERF_AUTO_CLEANUP", "1") != "0"
 
 
 def _resolve_levels(
