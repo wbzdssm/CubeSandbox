@@ -628,16 +628,22 @@ def discover_external_scripts() -> None:
 
     # sdk/python/ from tests/perf/framework/registry.py
     _script_dir = _Path(__file__).resolve()
+    # parents: framework → perf → tests → repo-root
     _sdk_root = _script_dir.parents[3] / "sdk" / "python"
 
     candidates: list[_Path] = []
 
     # 1) Default examples
     _examples_dir = _sdk_root / "examples" / "snapshot-rollback-clone"
+    print(f"[perf] scanning examples: {_examples_dir}")
     if _examples_dir.is_dir():
-        for pf in sorted(_examples_dir.glob("bench_*.py")):
+        found = sorted(_examples_dir.glob("bench_*.py"))
+        print(f"[perf]   found {len(found)} bench_*.py file(s)")
+        for pf in found:
             if pf.is_file():
                 candidates.append(pf)
+    else:
+        print(f"[perf]   directory not found — skipping default examples")
 
     # 2) CUBE_EXTERNAL_SCRIPTS
     raw = _os.environ.get("CUBE_EXTERNAL_SCRIPTS", "").strip()
@@ -678,6 +684,11 @@ def discover_external_scripts() -> None:
 
         register_external(key, str(p), title=title, levels=levels)
         registered_keys.add(key)
+
+    if candidates:
+        print(f"[perf] registered {len(candidates)} external script(s)")
+    else:
+        print("[perf] no external scripts found — nothing registered")
 
 
 def register_external(
