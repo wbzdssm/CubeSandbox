@@ -7,7 +7,7 @@
 ## 快速开始
 
 ```bash
-cd sdk/python/tests
+cd tests
 
 # 打本地后端（默认 http://127.0.0.1:3000），直接跑
 python3 -m perf

@@ -24,10 +24,10 @@ from __future__ import annotations
 import os
 import sys
 
-# tests/perf/__init__.py -> tests/perf -> tests -> sdk/python
+# tests/perf/__init__.py -> tests/perf -> tests -> repo-root -> sdk/python
 _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 _TESTS_DIR = os.path.abspath(os.path.join(_PKG_DIR, ".."))
-_SDK_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, ".."))
+_SDK_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, "..", "sdk", "python"))
 if _SDK_ROOT not in sys.path:
     sys.path.insert(0, _SDK_ROOT)
 
