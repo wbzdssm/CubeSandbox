@@ -153,8 +153,8 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     print(f"  {len(PERF_RESULTS)} performance scenarios collected")
     print(f"{'='*60}")
 
-    from .ops.cleanup import cleanup_after_benchmark
-    cleanup_after_benchmark()
+    # Per-concurrency-level cleanup is handled inside registry._bench()
+    # via _post_concurrency_cleanup(). A final sweep here is a no-op.
 
     return json_path
 
