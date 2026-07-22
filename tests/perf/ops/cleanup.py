@@ -80,8 +80,10 @@ def delete_snapshots(ids: list[str]) -> tuple[int, int]:
                               f"in {backoff}s...", file=sys.stderr)
                         time.sleep(backoff)
                         continue
+                    # exhausted all retries — fall through to error reporting
                 fail += 1
                 print(f"[cleanup] {tid}: {exc}", file=sys.stderr)
+                last_err = None  # already counted, prevent double-count
                 break
         if last_err:
             fail += 1
