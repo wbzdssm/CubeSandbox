@@ -72,11 +72,11 @@ _TUNABLE_ENV_KEYS = (
 )
 
 _DOTENV_HEADER = (
-    "# CubeSandbox perf suite — data-flow (connection) settings.\n"
-    "# Auto-generated on first run; the values a run actually uses (incl. any\n"
-    "# concurrency/rounds/density tunables you exported to dodge a resource\n"
-    "# error) are written back here, so later runs just need: python3 -m perf\n"
-    "# See .env.example for the full list of optional tunables/scenarios.\n"
+    "# CubeSandbox perf suite — auto-generated .env (data-flow + tunables + scenarios).\n"
+    "# First run: all keys are commented placeholders; after a successful run the\n"
+    "# values actually used (concurrency ladders, rounds, template id, …) are\n"
+    "# written back here, so later runs just need: python3 -m perf\n"
+    "# Copy .env.example for even more detail (report layout, customisation, …).\n"
     "\n"
 )
 
@@ -107,21 +107,26 @@ def _dotenv_path() -> str:
 
 
 def _ensure_dotenv() -> None:
-    """Scaffold a minimal data-flow ``tests/perf/.env`` on first run.
+    """Scaffold a ``.env`` on first run with the most useful knobs.
 
-    When no ``.env`` exists in any search location (and ``CUBE_DOTENV`` is not
-    set), write a small file containing only the data-flow variables
-    (:data:`_DATAFLOW_ENV_KEYS`). Keys already set in the real environment are
-    written uncommented; the rest are left as commented placeholders so their
-    SDK defaults apply. Existing ``.env`` files are never touched, and any
-    failure is swallowed silently.
+    Writes data-flow keys, run tunables, scenario toggles, and external-script
+    path — all as commented‑out placeholders (except keys already set in the
+    environment, which are written uncommented).  Existing ``.env`` files are
+    never touched.
     """
     if os.environ.get("CUBE_DOTENV"):
         return
     if any(os.path.isfile(p) for p in _dotenv_candidates()):
         return
 
+    def _banner(title: str) -> list[str]:
+        hr = "# " + "=" * 73 + "\n"
+        return ["\n\n", hr, f"# {title}\n", hr]
+
     out: list[str] = [_DOTENV_HEADER]
+
+    # -- Data-flow (connection) --
+    out.extend(_banner("目标环境与鉴权"))
     for key in _DATAFLOW_ENV_KEYS:
         value = os.environ.get(key)
         if value:
@@ -133,6 +138,53 @@ def _ensure_dotenv() -> None:
         else:
             out.append(f"# {key}=\n")
 
+    # -- Scenario toggles --
+    out.extend(_banner("跑哪些场景（开启 / 关闭）"))
+    _scenario_placeholders = {
+        "CUBE_RUN_IVSHMEM": "设为 1 启用 ivshmem 共享内存场景（需在节点 host 上运行）",
+        "CUBE_RUN_VOLUME": "设为 1 启用 Volume 相关场景",
+        "CUBE_SKIP_DENSITY": "设为 1 跳过部署密度测试",
+        "CUBE_SKIP_SNAPSHOT_DIRTY": "设为 1 跳过「快照耗时 vs 脏页规模」测试",
+        "CUBE_IVSHMEM_TEMPLATE_ID": "ivshmem 专用模板（留空回落 CUBE_TEMPLATE_ID）",
+        "CUBE_IVSHMEM_ITERATIONS": "ivshmem mmap 读写迭代次数（默认 10000）",
+    }
+    for key, hint in _scenario_placeholders.items():
+        value = os.environ.get(key)
+        out.append(f"{key}={value}\n" if value else f"# {key}=   # {hint}\n")
+
+    # -- Run tunables --
+    out.extend(_banner("运行参数"))
+    _tunable_placeholders = {
+        "CUBE_PERF_ROUNDS": "每个场景压测轮数（默认 10）",
+        "CUBE_PERF_CONCURRENCY": "轻量场景并发梯度（snapshot-create/rollback/pause-resume，默认 1,5,10）",
+        "CUBE_CREATE_CONCURRENCY": "重量场景并发梯度（template-create/from-snapshot/clone，默认 1,10,20,50）",
+        "CUBE_PERF_WARMUP": "计时前丢弃的预热轮数（默认 1）",
+        "CUBE_PERF_SETTLE": "并发档位之间的静默秒数（默认 0）",
+        "CUBE_DENSITY_COUNT": "部署密度测试最大沙箱数（默认 100）",
+        "CUBE_PERF_CLEANUP": "轮次间清理残留 micro-VM：设为 0 关闭（默认开启）",
+    }
+    for key, hint in _tunable_placeholders.items():
+        value = os.environ.get(key)
+        out.append(f"{key}={value}\n" if value else f"# {key}=   # {hint}\n")
+
+    # -- External scripts --
+    out.extend(_banner("外部压测脚本（逗号分隔的 .py 路径，-c -n 约定）"))
+    ext = os.environ.get("CUBE_EXTERNAL_SCRIPTS", "")
+    out.append(
+        f"CUBE_EXTERNAL_SCRIPTS={ext}\n"
+        if ext
+        else "# CUBE_EXTERNAL_SCRIPTS=/path/to/bench_xxx.py\n"
+    )
+
+    # -- Output --
+    out.extend(_banner("输出"))
+    html = os.environ.get("CUBE_HTML_OUTPUT", "")
+    out.append(
+        f"CUBE_HTML_OUTPUT={html}\n"
+        if html
+        else "# CUBE_HTML_OUTPUT=perf_report.html\n"
+    )
+
     target = os.path.join(_TESTS_DIR, ".env")
     try:
         with open(target, "w", encoding="utf-8") as f:
@@ -140,8 +192,8 @@ def _ensure_dotenv() -> None:
     except OSError:
         return
     sys.stderr.write(
-        f"[perf] created {target} — local backend by default "
-        "(http://127.0.0.1:3000); set CUBE_API_URL for a remote one\n"
+        f"[perf] created {target}\n"
+        "  set CUBE_API_URL for a remote backend, then run python3 -m perf\n"
     )
 
 
