@@ -19,6 +19,7 @@ import functools
 import inspect
 import os
 import platform
+import re
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -816,12 +817,13 @@ def register_external(
                 continue
 
             wall = (_time.time() - t0) * 1000
+            per_ms = wall / _rounds if _rounds else 0
             scenario_key = f"{key}-c{c}"
             if proc.returncode != 0:
                 err = (proc.stderr or "").strip()[:1000]
                 result = PerfResult(
                     scenario=scenario_key,
-                    samples=[PerfSample(label="", latency_ms=wall)],
+                    samples=[PerfSample(label="", latency_ms=wall, extra={"wall_ms": wall, "per_ms": per_ms})],
                 )
                 result.samples[0].extra["error"] = f"rc={proc.returncode}: {(proc.stderr or '').strip()[:1000]}"
                 PERF_RESULTS.append(result)
@@ -833,14 +835,43 @@ def register_external(
                     for line in err.split("\n"):
                         print(f"    {red(line)}")
             else:
-                result = PerfResult(
-                    scenario=scenario_key,
-                    samples=[PerfSample(label="", latency_ms=wall)],
-                )
+                # Parse script stdout for detailed metrics.
+                # Format: "avg=Xms min=Xms p95=Xms max=Xms wall=Xms per=Xms"
+                stdout = (proc.stdout or "").strip()
+                parsed = _parse_bench_stdout(stdout) if stdout else {}
+                extra = {"wall_ms": wall, "per_ms": per_ms}
+                extra.update({k: v for k, v in parsed.items() if k not in ("wall_ms", "per_ms")})
+
+                sample = PerfSample(label="", latency_ms=parsed.get("avg_ms", wall), extra=extra)
+                result = PerfResult(scenario=scenario_key, samples=[sample])
                 PERF_RESULTS.append(result)
-                print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
+
+                if parsed:
+                    print(f"  concurrency={c:>2}: avg={parsed['avg_ms']:.1f}ms "
+                          f"p95={parsed['p95_ms']:.1f}ms max={parsed['max_ms']:.1f}ms")
+                else:
+                    print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
             _post_concurrency_cleanup(scenario_key, c)
         print(f"{'=' * 60}\n")
+
+
+_STDOUT_PARSE_RE = re.compile(
+    r"avg=(?P<avg>[0-9.]+)ms\s+min=(?P<min>[0-9.]+)ms\s+p95=(?P<p95>[0-9.]+)ms\s+max=(?P<max>[0-9.]+)ms"
+)
+
+
+def _parse_bench_stdout(stdout: str) -> dict[str, float]:
+    """Parse bench script stdout. Returns ``{}`` when the output format
+    is not recognised (fallback: wall-clock measurement)."""
+    m = _STDOUT_PARSE_RE.search(stdout)
+    if not m:
+        return {}
+    return {
+        "avg_ms": float(m.group("avg")),
+        "min_ms": float(m.group("min")),
+        "p95_ms": float(m.group("p95")),
+        "max_ms": float(m.group("max")),
+    }
 
 
 def _post_concurrency_cleanup(name: str, concurrency: int) -> None:
