@@ -17,7 +17,7 @@ on:
 
 concurrency:
   group: go-sdk-publish-${{ github.ref_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   create-go-sdk-tag:
@@ -90,7 +90,7 @@ jobs:
           EXPECTED_MODULE="module github.com/tencentcloud/CubeSandbox/sdk/go"
 
           # Assert go.mod module path matches the canonical path for this SDK
-          MODULE=$(head -1 go.mod)
+          MODULE=$(head -1 go.mod | tr -d '\r')
           if [ "$MODULE" != "$EXPECTED_MODULE" ]; then
             echo "::error::go.mod module path mismatch: expected '$EXPECTED_MODULE', got '$MODULE'"
             exit 1
@@ -98,7 +98,7 @@ jobs:
           echo "go.mod module path OK: $MODULE"
 
           # Assert version is valid semver (prevent malformed tag names)
-          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'; then
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$'; then
             echo "::error::Tag version '$VERSION' is not valid semver"
             exit 1
           fi
@@ -114,13 +114,18 @@ jobs:
         working-directory: sdk/go
         run: go vet ./...
 
+      - name: Check Go formatting
+        if: steps.check_changes.outputs.changed == 'true'
+        working-directory: sdk/go
+        run: test -z "$(gofmt -l .)"
+
       - name: Run Go SDK unit tests
         if: steps.check_changes.outputs.changed == 'true'
         working-directory: sdk/go
         run: go test -v -short -count=1 ./...
 
       - name: Create and push Go SDK tag
-        if: steps.check_changes.outputs.changed == 'true'
+        if: success() && steps.check_changes.outputs.changed == 'true'
         run: |
           GO_SDK_TAG="sdk/go/${{ steps.extract.outputs.version }}"
 
@@ -138,7 +143,9 @@ jobs:
           echo "### Go SDK Publish Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Trigger tag**: \`${{ github.ref_name }}\` → version \`${{ steps.extract.outputs.version }}\`" >> "$GITHUB_STEP_SUMMARY"
-          if [[ "${{ steps.check_changes.outputs.skip }}" == "true" ]]; then
+          if [[ "${{ job.status }}" == "failure" ]]; then
+            echo "- **Result**: ❌ Job failed — check logs above" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.check_changes.outputs.skip }}" == "true" ]]; then
             echo "- **Result**: Go SDK tag \`sdk/go/${{ steps.extract.outputs.version }}\` already exists" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "${{ steps.check_changes.outputs.changed }}" == "false" ]]; then
             echo "- **Result**: Skipped (no changes in sdk/go/)" >> "$GITHUB_STEP_SUMMARY"
