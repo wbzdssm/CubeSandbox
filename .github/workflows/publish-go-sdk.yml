@@ -1,14 +1,14 @@
 name: Publish Go SDK
 
-# 当 go-sdk-v* 标签被推送时，为嵌套的 Go 模块
-# 补打 sdk/go/v* 标签（Go 约定格式），并运行测试验证。
+# When a go-sdk-v* tag is pushed, auto-create the nested
+# sdk/go/v* tag (Go convention) and run validation tests.
 #
-# 用法:
+# Usage:
 #   git tag go-sdk-v0.6.0
 #   git push origin go-sdk-v0.6.0
 #
-# 会自动创建 sdk/go/v0.6.0 标签，解决 Issue #1016。
-# 与 python-sdk-v* 标签模式保持一致。
+# Automatically creates the sdk/go/v0.6.0 tag. Fixes Issue #1016.
+# Follows the same tag convention as python-sdk-v*.
 
 on:
   push:
@@ -48,14 +48,14 @@ jobs:
           CURRENT_TAG="${{ github.ref_name }}"
           GO_SDK_TAG="sdk/go/${{ steps.extract.outputs.version }}"
 
-          # Go SDK tag 已存在则跳过
+          # Skip if Go SDK tag already exists
           if git rev-parse -q --verify "refs/tags/$GO_SDK_TAG" > /dev/null 2>&1; then
             echo "Go SDK tag $GO_SDK_TAG already exists, skipping."
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # 找前一个 go-sdk-v* 标签
+          # Find the previous go-sdk-v* tag
           PREV_TAG=$(git describe --tags --first-parent --match 'go-sdk-v*' --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || true)
 
           if [ -z "$PREV_TAG" ]; then
