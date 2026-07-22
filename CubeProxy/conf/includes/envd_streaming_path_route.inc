@@ -1,4 +1,8 @@
 proxy_buffering off;
+# Prevent nginx gzip-compressing the Connect stream response. httpx
+# iter_raw() does not decompress Content-Encoding, so gzip magic bytes
+# would be misinterpreted as a Connect frame header (2.17 GiB crash).
+gzip off;
 # Streaming envd errors must pass through verbatim; intercepting them here
 # would replace protocol-native error frames with nginx error pages and break
 # client-side parsing.
