@@ -41,9 +41,6 @@ _BYTES_RE = re.compile(
 def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("-c", "--concurrency", type=int, default=1,
-                   help="concurrency (accepted for framework compat; ignored — "
-                        "this script measures one dirty size per invocation)")
     p.add_argument("-d", "--dirty-mb", type=int, default=10,
                    help="dirty-page size in MB written before snapshot (default: 10)")
     p.add_argument("-n", "--rounds", type=int, default=3,

@@ -668,7 +668,15 @@ def discover_external_scripts() -> None:
         except Exception:
             pass
 
-        register_external(key, str(p), title=title, levels=levels)
+        # Detect scripts that don't accept -c / --concurrency (e.g.
+        # bench_snapshot_dirty.py which uses -d DIRTY_MB instead).
+        has_concurrency = bool(
+            re.search(r'add_argument\("?-c"', source)
+            or re.search(r'add_argument\("?--concurrency"', source)
+        )
+
+        register_external(key, str(p), title=title, levels=levels,
+                          no_concurrency=not has_concurrency)
         registered_keys.add(key)
 
     if candidates:
@@ -686,6 +694,7 @@ def register_external(
     rounds: int = 5,
     metrics: "tuple[str, ...] | None" = None,
     timeout: int = 300,
+    no_concurrency: bool = False,  # True → run once without -c / -n
 ) -> None:
     """Register a decoupled external ``.py`` script as a perf scenario.
 
@@ -738,6 +747,52 @@ def register_external(
         print(f"\n{'=' * 60}")
         print(f"{header:^60}")
         print(f"{'=' * 60}")
+
+        if no_concurrency:
+            # Single run — the script manages its own parameters
+            # (e.g. bench_snapshot_dirty.py with -d DIRTY_MB).
+            cmd = [_sys.executable, _script_path, "--no-header"]
+            t0 = _time.time()
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=timeout,
+                )
+            except subprocess.TimeoutExpired:
+                wall = (_time.time() - t0) * 1000
+                result = PerfResult(
+                    scenario=key,
+                    samples=[PerfSample(label="", latency_ms=wall)],
+                )
+                result.samples[0].extra["error"] = "TIMEOUT"
+                PERF_RESULTS.append(result)
+                print(f"  TIMEOUT after {wall:.0f}ms")
+                return
+
+            wall = (_time.time() - t0) * 1000
+            if proc.returncode != 0:
+                err = (proc.stderr or "").strip()[:1000]
+                result = PerfResult(
+                    scenario=key,
+                    samples=[PerfSample(label="", latency_ms=wall)],
+                )
+                result.samples[0].extra["error"] = f"rc={proc.returncode}: {err}"
+                PERF_RESULTS.append(result)
+                print(f"  wall={wall:.0f}ms {yellow(f'ERR(rc={proc.returncode})')}")
+                if err:
+                    for line in err.split("\n"):
+                        print(f"    {red(line)}")
+            else:
+                result = PerfResult(
+                    scenario=key,
+                    samples=[PerfSample(label="", latency_ms=wall)],
+                )
+                PERF_RESULTS.append(result)
+                print(f"  wall={wall:.0f}ms")
+            _post_concurrency_cleanup(meta.name, 1)
+            print(f"{'=' * 60}\n")
+            return
+
+        # Concurrency-sweep path
         for c in _levels:
             cmd = [
                 _sys.executable, _script_path,
@@ -783,8 +838,6 @@ def register_external(
                 )
                 PERF_RESULTS.append(result)
                 print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
-            # Cleanup residual snapshots after this concurrency level so
-            # the next level starts from a clean state.
             _post_concurrency_cleanup(meta.name, c)
         print(f"{'=' * 60}\n")
 
