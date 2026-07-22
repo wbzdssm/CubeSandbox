@@ -673,6 +673,7 @@ def discover_external_scripts() -> None:
 
     if candidates:
         print(f"[perf] registered {len(candidates)} external script(s)")
+        print(f"[perf] BENCHMARK_REGISTRY now has {len(BENCHMARK_REGISTRY)} entries: {list(BENCHMARK_REGISTRY.keys())}")
     else:
         print("[perf] no external scripts found — nothing registered")
 
