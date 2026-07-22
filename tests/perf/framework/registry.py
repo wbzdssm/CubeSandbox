@@ -169,7 +169,6 @@ def benchmark(
     def deco(fn: "Callable[[Config], None]") -> "Callable[[Config], None]":
         if key in BENCHMARK_REGISTRY:
             raise ValueError(f"duplicate benchmark key: {key}")
-        print(f"DEBUG benchmark.deco: registering key={key!r}")
 
         # Wrap only when a gate is declared, so plain scenarios stay zero-cost.
         if not available or opt_in_env or opt_out_env:
@@ -674,7 +673,6 @@ def discover_external_scripts() -> None:
 
     if candidates:
         print(f"[perf] registered {len(candidates)} external script(s)")
-        print(f"[perf] BENCHMARK_REGISTRY now has {len(BENCHMARK_REGISTRY)} entries: {list(BENCHMARK_REGISTRY.keys())}")
     else:
         print("[perf] no external scripts found — nothing registered")
 
@@ -735,7 +733,6 @@ def register_external(
     header = f" [Perf] {title or key.capitalize()}"
     _metrics = metrics or ("avg", "min", "p95", "max")
 
-    print(f"DEBUG register_external: about to @benchmark(key={key!r}, report={report is not None})")
     @benchmark(key, aliases=None, report=report)
     def _bench(cfg: Config) -> None:
         print(f"\n{'=' * 60}")
@@ -755,7 +752,7 @@ def register_external(
             except subprocess.TimeoutExpired:
                 wall = (_time.time() - t0) * 1000
                 result = PerfResult(
-                    scenario=key, count=0, concurrency=c,
+                    scenario=key,
                     samples=[PerfSample(label="", latency_ms=wall)],
                 )
                 result.samples[0].extra["error"] = "TIMEOUT"
@@ -767,7 +764,7 @@ def register_external(
             if proc.returncode != 0:
                 err = (proc.stderr or "").strip()[:200]
                 result = PerfResult(
-                    scenario=key, count=0, concurrency=c,
+                    scenario=key,
                     samples=[PerfSample(label="", latency_ms=wall)],
                 )
                 result.samples[0].extra["error"] = f"rc={proc.returncode}: {err}"
@@ -780,7 +777,7 @@ def register_external(
                     print(f"    stderr: {err}")
             else:
                 result = PerfResult(
-                    scenario=key, count=1, concurrency=c,
+                    scenario=key,
                     samples=[PerfSample(label="", latency_ms=wall)],
                 )
                 PERF_RESULTS.append(result)

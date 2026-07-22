@@ -409,7 +409,6 @@ Examples:
 
     # --list-scenarios: print available scenario keys/aliases and exit.
     if args.list_scenarios:
-        print(f"DEBUG registry size: {len(registry.BENCHMARK_REGISTRY)} -> {list(registry.BENCHMARK_REGISTRY.keys())}")
         print("Available scenarios (canonical keys):")
         for key in registry.BENCHMARK_REGISTRY:
             print(f"  {key}")
