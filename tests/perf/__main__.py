@@ -42,7 +42,7 @@ from .framework.runner import PERF_RESULTS, reset
 
 from .framework import registry
 
-from .business.cleanup import register_default_scripts
+from .ops.cleanup import register_default_scripts
 register_default_scripts()
 
 # NOTE: the HTML report plugin is intentionally *not* imported at module level.
@@ -153,7 +153,7 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     print(f"  {len(PERF_RESULTS)} performance scenarios collected")
     print(f"{'='*60}")
 
-    from .business.cleanup import cleanup_after_benchmark
+    from .ops.cleanup import cleanup_after_benchmark
     cleanup_after_benchmark()
 
     return json_path
@@ -452,7 +452,7 @@ Examples:
 
     # --cleanup-dry-run: list snapshots only, then exit
     if args.cleanup_dry_run or args.cleanup:
-        from .business.cleanup import list_snapshots, delete_snapshots
+        from .ops.cleanup import list_snapshots, delete_snapshots
 
         snaps = list_snapshots()
         if not snaps:
