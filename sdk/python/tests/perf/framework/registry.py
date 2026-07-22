@@ -628,9 +628,10 @@ def register_external(
 
     **Convention for script authors**
         The script MUST accept ``-c <N>`` (concurrency) and ``-n <N>``
-        (number of operations).  That's the entire contract — the script
-        owns its business logic; the framework only handles execution
-        scheduling and statistics collection.
+        (op count).  ``--rounds <N>`` and ``--no-header`` are passed
+        additionally — add them as optional flags.  That's the entire
+        contract — the script owns its business logic; the framework only
+        handles execution scheduling and statistics collection.
 
         Example::
 
@@ -641,6 +642,8 @@ def register_external(
             ap = argparse.ArgumentParser()
             ap.add_argument("-c", type=int, default=1)
             ap.add_argument("-n", type=int, default=5)
+            ap.add_argument("--rounds", type=int, default=3)
+            ap.add_argument("--no-header", action="store_true")
             args = ap.parse_args()
 
             from cubesandbox import Sandbox
@@ -650,7 +653,7 @@ def register_external(
 
     The framework sweeps *levels*, calling the script once per level::
 
-        python bench_xxx.py -c <level> -n <rounds>
+        python bench_xxx.py -c <level> -n <rounds> --rounds <rounds> --no-header
 
     Each invocation's wall‑clock time is recorded as a single data point.
     """
@@ -673,7 +676,11 @@ def register_external(
         print(f"{header:^60}")
         print(f"{'=' * 60}")
         for c in _levels:
-            cmd = [_sys.executable, _script_path, "-c", str(c), "-n", str(_rounds)]
+            cmd = [
+                _sys.executable, _script_path,
+                "-c", str(c), "-n", str(_rounds),
+                "--rounds", str(_rounds), "--no-header",
+            ]
             t0 = _time.time()
             try:
                 proc = subprocess.run(
