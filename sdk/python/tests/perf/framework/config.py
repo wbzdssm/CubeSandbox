@@ -66,7 +66,7 @@ def resolve_config() -> Config:
     READY template if `CUBE_TEMPLATE_ID` is not set.
     """
     # CUBE_API_URL is optional: when unset the SDK Config defaults to the
-    # local CubeAPI at http://127.0.0.1:3000, so `python3 -m e2e_perf` works
+    # local CubeAPI at http://127.0.0.1:3000, so `python3 -m perf` works
     # out of the box against a local backend. Point it elsewhere via
     # CUBE_API_URL (env or .env) to hit a remote deployment.
     cfg = Config()

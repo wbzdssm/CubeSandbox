@@ -1,4 +1,4 @@
-# `e2e_perf` — CubeSandbox Python SDK 性能压测套件
+# `perf` — CubeSandbox Python SDK 性能压测套件
 
 [English](./README.md) · 架构细节见 [DESIGN.zh.md](./DESIGN.zh.md)
 
@@ -10,10 +10,10 @@
 cd sdk/python/tests
 
 # 打本地后端（默认 http://127.0.0.1:3000），直接跑
-python3 -m e2e_perf
+python3 -m perf
 
 # 打远端后端
-CUBE_API_URL=http://9.135.79.34:3000 python3 -m e2e_perf
+CUBE_API_URL=http://9.135.79.34:3000 python3 -m perf
 ```
 
 不指定场景即跑全部。`CUBE_TEMPLATE_ID` 留空自动发现 READY 模板。
@@ -21,16 +21,16 @@ CUBE_API_URL=http://9.135.79.34:3000 python3 -m e2e_perf
 需要 HTML 可视化报告时加 `--html`：
 
 ```bash
-python3 -m e2e_perf --html
+python3 -m perf --html
 ```
 
 ## 指定场景
 
 ```bash
-python3 -m e2e_perf --only snapshot rollback       # 只跑部分
-python3 -m e2e_perf --only ivshmem                 # 显式点名默认关闭的场景
-python3 -m e2e_perf --scenarios all no-density     # 全部默认开启但排除 density
-python3 -m e2e_perf --list-scenarios               # 列出全部场景
+python3 -m perf --only snapshot rollback       # 只跑部分
+python3 -m perf --only ivshmem                 # 显式点名默认关闭的场景
+python3 -m perf --scenarios all no-density     # 全部默认开启但排除 density
+python3 -m perf --list-scenarios               # 列出全部场景
 ```
 
 ## 并发阶梯
@@ -50,7 +50,7 @@ python3 -m e2e_perf --list-scenarios               # 列出全部场景
 | 外部脚本 | `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` |
 
 ```bash
-CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m e2e_perf --html
+CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m perf --html
 ```
 
 高并发超资源的档位自动标记 `errors=N/total`（红色），不影响其他档位和报告。
@@ -93,9 +93,9 @@ CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m e2e_perf --
 
 ```bash
 # 从已有 JSON 重渲染（不连后端）
-python3 -m e2e_perf --md-only report_xxx.json
-python3 -m e2e_perf --html-only report_xxx.json
-python3 -m e2e_perf --compare run1.json run2.json --output diff.html
+python3 -m perf --md-only report_xxx.json
+python3 -m perf --html-only report_xxx.json
+python3 -m perf --compare run1.json run2.json --output diff.html
 ```
 
 ## CLI 选项
@@ -146,11 +146,11 @@ python3 -m e2e_perf --compare run1.json run2.json --output diff.html
 
 ## `.env` 配置
 
-首次启动无 `.env` 时自动在 `tests/` 下生成（含所有常用注释占位），跑完后实际用到的值二次写回，下次直接 `python3 -m e2e_perf` 复用。CLI 参数和真实环境变量始终优先。
+首次启动无 `.env` 时自动在 `tests/` 下生成（含所有常用注释占位），跑完后实际用到的值二次写回，下次直接 `python3 -m perf` 复用。CLI 参数和真实环境变量始终优先。
 
 ```bash
 # 调小并发跑通后会自动固化，之后无需再 export
-CUBE_CREATE_CONCURRENCY=1,3,5 python3 -m e2e_perf
+CUBE_CREATE_CONCURRENCY=1,3,5 python3 -m perf
 
 # 手动改 tests/.env 固化场景开关
 CUBE_RUN_IVSHMEM=1
@@ -185,9 +185,9 @@ python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
 CUBE_EXTERNAL_SCRIPTS=/root/my_benchmarks/bench_clone.py,/path/to/bench_create.py
 ```
 
-跑完后自动写回 `.env`，下次直接 `python3 -m e2e_perf` 复用。
+跑完后自动写回 `.env`，下次直接 `python3 -m perf` 复用。
 
-也可以用 CLI 直接跑一个目录：`python3 -m e2e_perf --scripts /root/my_benchmarks/`
+也可以用 CLI 直接跑一个目录：`python3 -m perf --scripts /root/my_benchmarks/`
 
 > `examples/snapshot-rollback-clone/bench_*.py` 已默认纳入，无需额外配置。
 

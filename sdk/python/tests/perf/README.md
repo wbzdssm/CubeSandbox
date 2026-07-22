@@ -16,7 +16,7 @@ Run from the `tests/` directory:
 
 ```bash
 # Run all scenarios, produce JSON + Markdown
-CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m e2e_perf
+CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
 ```
 
 Not specifying scenarios means **run everything**. When `CUBE_TEMPLATE_ID` is
@@ -26,21 +26,21 @@ unset, a READY template is auto-discovered.
 
 ```bash
 # Run all default-on scenarios (default behavior, no args needed)
-python3 -m e2e_perf
+python3 -m perf
 
 # Run only a subset (keys or aliases, comma/space separated; --only == --scenarios)
-python3 -m e2e_perf --only snapshot rollback
-python3 -m e2e_perf --scenarios snapshot-create-from
+python3 -m perf --only snapshot rollback
+python3 -m perf --scenarios snapshot-create-from
 
 # Run all default-on scenarios, then exclude a few (exclusion only makes sense for default-on)
-python3 -m e2e_perf --scenarios all no-density no-clone
+python3 -m perf --scenarios all no-density no-clone
 
 # Explicitly name a default-off scenario — auto-enables it, no opt-in env var needed
-python3 -m e2e_perf --only ivshmem
-python3 -m e2e_perf --only volume
+python3 -m perf --only ivshmem
+python3 -m perf --only volume
 
 # List all scenario keys / aliases and exit (no benchmarks, no backend)
-python3 -m e2e_perf --list-scenarios
+python3 -m perf --list-scenarios
 ```
 
 **Selection syntax**
@@ -64,7 +64,7 @@ All canonical keys, aliases and default gates are in [Scenario reference](#scena
 Scenario toggles are all `CUBE_*` environment variables, and the suite
 **auto-loads `.env`** on startup (zero-dependency, see `__init__.py`). So you can
 write "which to run / which to enable / which to disable" into `.env` once, then
-just run `python3 -m e2e_perf`. Real environment variables and CLI args always win;
+just run `python3 -m perf`. Real environment variables and CLI args always win;
 `.env` only fills the gaps.
 
 **Auto-scaffold + write-back**: if no `.env` is found on startup, the suite
@@ -77,7 +77,7 @@ run knobs are written (defaults apply). **Against a local backend (the default
 `CUBE_TEMPLATE_ID` empty to auto-discover a READY one. After each run, the
 data-flow values the run actually used (**including an auto-discovered template
 id**) are **written back** to that `.env`, so the 2nd/3rd run just needs
-`python3 -m e2e_perf` — no re-exporting. An existing `.env` is only updated in place
+`python3 -m perf` — no re-exporting. An existing `.env` is only updated in place
 for those keys; every other line (your comments, scenario toggles) is preserved.
 To tune scenarios/run params, copy the relevant lines from `.env.example` into
 your `.env`.
@@ -91,20 +91,20 @@ re-export or hand-edit `.env`.
 
 ```bash
 # Local backend (defaults to http://127.0.0.1:3000): nothing to set, just run.
-python3 -m e2e_perf
+python3 -m perf
 
 # Remote backend: set CUBE_API_URL (and CUBE_API_KEY); they get written back to .env.
-CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m e2e_perf
+CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
 
 # Small node hitting "no more resource"? Trim the concurrency ladders once —
 # they're written back to .env, so later runs keep using the smaller ladder.
-CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m e2e_perf
+CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m perf
 
 # To freeze scenario toggles, edit tests/perf/.env (see .env.example), e.g.:
 #   CUBE_PERF_SCENARIOS=snapshot rollback   # run only these two (== --only)
 #   CUBE_RUN_IVSHMEM=1                        # enable default-off ivshmem
 #   CUBE_SKIP_DENSITY=1                       # skip default-on density
-python3 -m e2e_perf
+python3 -m perf
 ```
 
 | Goal | Write in `.env` | Equivalent CLI |
@@ -192,7 +192,7 @@ The raw JSON is the complete input to report rendering, so you can **regenerate
 Markdown + JSON summaries from existing JSON** without a backend:
 
 ```bash
-python3 -m e2e_perf --md-only report_20260720T120000Z.json
+python3 -m perf --md-only report_20260720T120000Z.json
 ```
 
 ## Scenario reference
@@ -285,7 +285,7 @@ corresponding env var to run.
 
 | Path | Responsibility |
 |---|---|
-| `__main__.py` | CLI entry point (`python3 -m e2e_perf`) |
+| `__main__.py` | CLI entry point (`python3 -m perf`) |
 | `__init__.py` | `sys.path` bootstrap + zero-dependency `.env` loading |
 | `framework/` | Framework core: `config` (configuration), `env` (environment collection), `runner` (timing/stats/cleanup primitives), `registry` (`@benchmark` registry + `ReportSection`/`ReportChart` report declarations + scenario selection + `run_all`) |
 | `cases/` | Concrete benchmark scenarios, **auto-discovered** by the `bench_*.py` convention; each declares its own `ReportSection` in the decorator |
@@ -364,14 +364,14 @@ interactive single-page report:
 
 ```bash
 # Also generate HTML after the run
-python3 -m e2e_perf --html
+python3 -m perf --html
 
 # No benchmarks, generate HTML from existing JSON
-python3 -m e2e_perf --html-only report_20260720T120000Z.json
+python3 -m perf --html-only report_20260720T120000Z.json
 
 # Multi-machine merge / regression comparison (pass multiple JSON files)
-python3 -m e2e_perf --html-only machine1.json machine2.json --output merged.html
-python3 -m e2e_perf --compare before.json after.json --output diff.html
+python3 -m perf --html-only machine1.json machine2.json --output merged.html
+python3 -m perf --compare before.json after.json --output diff.html
 ```
 
 The HTML is a self-contained, zero-dependency single page with an environment
