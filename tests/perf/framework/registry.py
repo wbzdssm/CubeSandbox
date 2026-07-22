@@ -816,10 +816,11 @@ def register_external(
                 continue
 
             wall = (_time.time() - t0) * 1000
+            scenario_key = f"{key}-c{c}"
             if proc.returncode != 0:
                 err = (proc.stderr or "").strip()[:1000]
                 result = PerfResult(
-                    scenario=key,
+                    scenario=scenario_key,
                     samples=[PerfSample(label="", latency_ms=wall)],
                 )
                 result.samples[0].extra["error"] = f"rc={proc.returncode}: {(proc.stderr or '').strip()[:1000]}"
@@ -833,12 +834,12 @@ def register_external(
                         print(f"    {red(line)}")
             else:
                 result = PerfResult(
-                    scenario=key,
+                    scenario=scenario_key,
                     samples=[PerfSample(label="", latency_ms=wall)],
                 )
                 PERF_RESULTS.append(result)
                 print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
-            _post_concurrency_cleanup(key, c)
+            _post_concurrency_cleanup(scenario_key, c)
         print(f"{'=' * 60}\n")
 
 

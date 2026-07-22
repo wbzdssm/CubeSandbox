@@ -166,12 +166,12 @@ try:
     _DEFAULT_SCENARIOS: list[dict[str, Any]] = _default_report_scenarios()
 except Exception:  # pragma: no cover - defensive fallback
     _DEFAULT_SCENARIOS = [
-        {"id": "coldstart", "title": "基于模板创建沙箱（冷启动）", "prefix": "template-create", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-        {"id": "snapshot", "title": "创建快照（并发）", "prefix": "snapshot-create", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-        {"id": "createfrom", "title": "基于快照启动沙箱", "prefix": "snapshot-create-from", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-        {"id": "rollback", "title": "回滚（Rollback）", "prefix": "rollback", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-        {"id": "pause", "title": "暂停（Pause）", "prefix": "pause", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
-        {"id": "resume", "title": "恢复（Resume）", "prefix": "resume", "xKey": "c", "fallback": [1, 2, 4], "xLabel": "并发数"},
+        {"id": "create", "title": "基于模板创建沙箱（冷启动）", "prefix": "create-concurrency", "xKey": "c", "fallback": [1, 10, 50], "xLabel": "并发数"},
+        {"id": "snapshot", "title": "创建快照（并发）", "prefix": "snapshot-concurrency", "xKey": "c", "fallback": [1, 10, 50], "xLabel": "并发数"},
+        {"id": "clone", "title": "克隆（Clone）", "prefix": "clone-concurrency", "xKey": "c", "fallback": [1, 10, 50], "xLabel": "并发数"},
+        {"id": "rollback", "title": "回滚（Rollback）", "prefix": "rollback-concurrency", "xKey": "c", "fallback": [1, 10, 50], "xLabel": "并发数"},
+        {"id": "pause-resume", "title": "暂停 & 恢复（Pause & Resume）", "prefix": "pause-resume-concurrency", "xKey": "c", "fallback": [1, 10, 50], "xLabel": "并发数"},
+        {"id": "snapshot-dirty", "title": "快照脏页影响", "prefix": "snapshot-dirty", "xKey": "c", "fallback": [1], "xLabel": "脏页MB"},
     ]
 
 # Summary-table metric columns (env-var customizable)

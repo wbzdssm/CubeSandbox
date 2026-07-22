@@ -246,7 +246,7 @@ def collect_env_info(cfg: Config) -> EnvInfo:
 
         # Memory
         mem_kb = run_cmd(["sh", "-c", "grep MemTotal /proc/meminfo | awk '{print $2}'"])
-        info.memory_total_gb = round(int(mem_kb) / (1024 * 1024), 1) if mem_kb.isdigit() else 0
+        info.memory_total_gb = round(int(mem_kb) / (1024 * 1024)) if mem_kb.isdigit() else 0
 
         # Memory type (DDR). Match the standalone "Type:" line only; the
         # "Error Correction Type:" line also contains "Type:" and would win a
