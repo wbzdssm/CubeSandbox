@@ -62,11 +62,27 @@ def percentile(data: list, p: float) -> float:
 
 
 def _pause_one(sb):
-    sb.pause()
+    """Pause a sandbox with retry — freshly-created sandboxes may briefly
+    report 'not running' before the hypervisor fully starts."""
+    for attempt in range(3):
+        try:
+            sb.pause()
+            return
+        except Exception:
+            if attempt < 2:
+                time.sleep(1)
+    raise  # re-raise after 3 attempts
 
 
 def _resume_one(sb):
-    sb.resume()
+    for attempt in range(3):
+        try:
+            sb.resume()
+            return
+        except Exception:
+            if attempt < 2:
+                time.sleep(1)
+    raise
 
 
 def cleanup_sandboxes(sandboxes):
@@ -148,13 +164,16 @@ def main():
         print("  ".join(hdr_fields))
         print("-" * 130)
 
-    # warm-up (result discarded)
+    # warm-up (result discarded; non-fatal)
     try:
         run_round(args.concurrency)
     except Exception as e:
         print(f"[warn] warm-up failed: {e}, retrying once...", file=sys.stderr)
         time.sleep(3)
-        run_round(args.concurrency)
+        try:
+            run_round(args.concurrency)
+        except Exception as e2:
+            print(f"[warn] warm-up failed again: {e2}, continuing anyway", file=sys.stderr)
     time.sleep(args.settle_secs)
 
     pause_walls, resume_walls = [], []
