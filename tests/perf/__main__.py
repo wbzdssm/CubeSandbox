@@ -45,15 +45,14 @@ from .framework import registry
 # Auto-discover and register external scripts on import.
 registry.discover_external_scripts()
 
-# NOTE: ``report_html`` is intentionally *not* imported at module level. The
-# default run path only produces Markdown + JSON reports, so the heavier HTML
-# report chain is imported lazily (see ``_generate_html``) and only when
-# ``--html`` / ``--html-only`` / ``--compare`` is requested.
+# NOTE: the HTML report plugin is intentionally *not* imported at module level.
+# It lives under ``plugins/`` and is loaded lazily (see ``_generate_html``) only
+# when ``--html`` / ``--html-only`` / ``--compare`` is requested.
 
 
 def _generate_html(*args, **kwargs) -> None:
-    """Lazily import and call the HTML report generator (opt-in only)."""
-    from .reporting.report_html import generate_html
+    """Lazily load and call the HTML report plugin (opt-in only)."""
+    from .plugins.html_report import generate_html  # noqa: PLC0415
 
     generate_html(*args, **kwargs)
 
