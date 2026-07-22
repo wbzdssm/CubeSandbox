@@ -42,8 +42,7 @@ from .framework.runner import PERF_RESULTS, reset
 
 from .framework import registry
 
-# Register default external scripts on import (business layer).
-from .business.scenarios import register_default_scripts
+from .cubesandbox_clean import register_default_scripts
 register_default_scripts()
 
 # NOTE: the HTML report plugin is intentionally *not* imported at module level.
@@ -154,8 +153,7 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     print(f"  {len(PERF_RESULTS)} performance scenarios collected")
     print(f"{'='*60}")
 
-    # Auto-cleanup after benchmarks finish (business layer, opt-in via env).
-    from .business.scenarios import cleanup_after_benchmark
+    from .cubesandbox_clean import cleanup_after_benchmark
     cleanup_after_benchmark()
 
     return json_path
@@ -454,9 +452,9 @@ Examples:
 
     # --cleanup-dry-run: list snapshots only, then exit
     if args.cleanup_dry_run or args.cleanup:
-        from .business import snapshot as _snap
+        from .cubesandbox_clean import list_snapshots, delete_snapshots
 
-        snaps = _snap.list_snaps()
+        snaps = list_snapshots()
         if not snaps:
             print("No snap-* snapshot templates found.")
         else:
@@ -468,7 +466,7 @@ Examples:
             else:
                 ids = [s["templateID"] for s in snaps]
                 print(f"\nDeleting {len(ids)} snapshots ...")
-                ok, fail = _snap.delete_snaps(ids)
+                ok, fail = delete_snapshots(ids)
                 print(f"Done: {ok} deleted, {fail} failed.\n")
         if args.cleanup_dry_run:
             return
