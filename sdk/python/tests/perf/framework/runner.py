@@ -290,10 +290,20 @@ def print_parallel_stats(result: PerfResult, metrics: "tuple[str, ...] | None" =
     )
     suffix = ""
     if result.errored:
-        suffix = yellow(f"  errors={result.errored}/{result.count}")
+        suffix = red(f"  errors={result.errored}/{result.count}")
     print(f"  concurrency={result.concurrency:>2}: {stats}  "
           f"wall={extra.get('wall_ms', 0):.0f}ms "
           f"per={extra.get('per_ms', 0):.1f}ms{suffix}")
+    if result.errored:
+        # Print up to 3 unique error messages so the user sees the root cause.
+        seen: set[str] = set()
+        for s in result.samples:
+            err = s.extra.get("error", "")
+            if err and err not in seen:
+                seen.add(err)
+                print(f"         {red(err[:120])}")
+            if len(seen) >= 3:
+                break
 
 
 # ===========================================================================
