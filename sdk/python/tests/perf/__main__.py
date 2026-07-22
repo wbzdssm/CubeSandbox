@@ -155,6 +155,133 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     return json_path
 
 
+def _run_external_scripts(
+    scripts_dir: str,
+    rounds: int,
+    concurrency_levels: "tuple[int, ...] | None" = None,
+) -> None:
+    """Run every ``.py`` file in *scripts_dir* N times via subprocess.
+
+    For each concurrency level in *concurrency_levels* the scripts are
+    invoked in parallel threads (each thread spawns its own subprocess);
+    wall‑clock time is measured per invocation and aggregated into the
+    same avg / min / p95 / max stats the main suite uses.
+
+    Zero‑coupling: scripts don't import anything from the framework — they
+    just need to exit 0 on success.
+    """
+    import subprocess
+    import time
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from pathlib import Path
+
+    levels = concurrency_levels or (1,)
+
+    sd = Path(scripts_dir).expanduser().resolve()
+    if not sd.is_dir():
+        sys.exit(f"Error: '{sd}' is not a directory")
+
+    py_files = sorted(sd.glob("*.py"))
+    if not py_files:
+        sys.exit(f"No .py files found in '{sd}'")
+
+    print(f"Scripts dir     : {sd}")
+    print(f"Files           : {len(py_files)}")
+    print(f"Rounds          : {rounds}")
+    print(f"Concurrency     : {', '.join(str(c) for c in levels)}")
+    print(f"{'='*60}")
+
+    all_results: list[dict] = []
+
+    for pf in py_files:
+        name = pf.stem
+        print(f"\n [Run] {name}")
+        for concurrency in levels:
+            times: list[float] = []
+            errors = 0
+            wall_start = time.time()
+
+            def _invoke():
+                t0 = time.time()
+                try:
+                    proc = subprocess.run(
+                        [sys.executable, str(pf)],
+                        capture_output=True, text=True, timeout=300,
+                        cwd=str(sd),
+                    )
+                except subprocess.TimeoutExpired:
+                    return (time.time() - t0) * 1000, None, "TIMEOUT"
+                elapsed = (time.time() - t0) * 1000
+                if proc.returncode != 0:
+                    err = (proc.stderr or "").strip()
+                    return elapsed, proc.returncode, err[:200] if err else "ERR"
+                return elapsed, 0, None
+
+            with ThreadPoolExecutor(max_workers=concurrency) as ex:
+                futs = [ex.submit(_invoke) for _ in range(rounds)]
+                for i, fut in enumerate(as_completed(futs), 1):
+                    elapsed, rc, err = fut.result()
+                    if rc is None:  # timeout
+                        errors += 1
+                        print(f"  c={concurrency:>2} run {i:>2}/{rounds}: {elapsed:.0f}ms TIMEOUT")
+                    elif rc != 0:
+                        errors += 1
+                        print(f"  c={concurrency:>2} run {i:>2}/{rounds}: {elapsed:.1f}ms ERR(rc={rc})")
+                        if err:
+                            print(f"       stderr: {err}")
+                    else:
+                        times.append(elapsed)
+
+            wall_ms = (time.time() - wall_start) * 1000
+            if times:
+                times.sort()
+                n = len(times)
+                avg = sum(times) / n
+                p50_val = times[int(n * 0.5)]
+                p95_val = times[min(int(n * 0.95), n - 1)]
+                per_ms = wall_ms / n if n > 0 else 0
+                print(f"  concurrency={concurrency:>2}: avg={avg:.1f}ms "
+                      f"min={times[0]:.1f}ms p95={p95_val:.1f}ms "
+                      f"max={times[-1]:.1f}ms "
+                      f"wall={wall_ms:.0f}ms per={per_ms:.1f}ms"
+                      + (f"  errors={errors}" if errors else ""))
+                all_results.append({
+                    "name": name, "file": str(pf),
+                    "concurrency": concurrency,
+                    "avg_ms": round(avg, 2),
+                    "p50_ms": round(p50_val, 2),
+                    "p95_ms": round(p95_val, 2),
+                    "min_ms": round(times[0], 2),
+                    "max_ms": round(times[-1], 2),
+                    "wall_ms": round(wall_ms, 2),
+                    "per_ms": round(per_ms, 2),
+                    "rounds": n, "errors": errors,
+                })
+            else:
+                print(f"  concurrency={concurrency:>2}: ALL FAILED (errors={errors})")
+
+    # Summary
+    print(f"\n{'='*72}")
+    header_fmt = f"{'Script':<30} {'c':>3} {'avg':>8} {'min':>8} {'p95':>8} {'max':>8} {'wall':>8} {'per':>8}"
+    print(header_fmt)
+    print(f"{'-'*30} {'-'*3} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8} {'-'*8}")
+    for r in all_results:
+        print(f"{r['name']:<30} {r['concurrency']:>3} "
+              f"{r['avg_ms']:>8.1f} {r['min_ms']:>8.1f} {r['p95_ms']:>8.1f} "
+              f"{r['max_ms']:>8.1f} {r['wall_ms']:>8.0f} {r['per_ms']:>8.1f}")
+    if all_results:
+        errors_total = sum(r.get("errors", 0) for r in all_results)
+        if errors_total:
+            print(f"\n  {errors_total} error(s) total")
+    print(f"{'='*72}")
+
+    if all_results:
+        out = sd / "perf_scripts.json"
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, ensure_ascii=False, indent=2)
+        print(f"Results saved to: {out}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="CubeSandbox Python SDK Performance Benchmark Suite",
@@ -237,6 +364,14 @@ Examples:
         help="with --cleanup, only delete snapshots older than N minutes",
     )
     parser.add_argument(
+        "--scripts",
+        metavar="DIR",
+        default=None,
+        help="run all .py files in DIR as standalone scripts, measuring "
+        "wall-clock time of each invocation (no concurrency, pure "
+        "subprocess), then print stats — zero framework coupling",
+    )
+    parser.add_argument(
         "--list-scenarios",
         action="store_true",
         help="list available benchmark scenario keys/aliases and exit",
@@ -255,6 +390,21 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    # --scripts DIR: run raw .py files as-is and collect timing stats.
+    if args.scripts:
+        c_str = os.environ.get("CUBE_CREATE_CONCURRENCY") \
+            or os.environ.get("CUBE_PERF_CONCURRENCY", "1")
+        try:
+            levels = tuple(int(x.strip()) for x in c_str.split(","))
+        except Exception:
+            levels = (1,)
+        _run_external_scripts(
+            args.scripts,
+            rounds=args.rounds or PERF_ROUNDS,
+            concurrency_levels=levels,
+        )
+        return
 
     # --list-scenarios: print available scenario keys/aliases and exit.
     if args.list_scenarios:

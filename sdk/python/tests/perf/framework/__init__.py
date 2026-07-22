@@ -10,9 +10,11 @@
 """
 
 from .registry import (
+    auto,
     benchmark,
     parallel_sweep,
     perf_test,
+    register_external,
     sandbox_benchmark,
     ReportGroup,
 )

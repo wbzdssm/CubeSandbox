@@ -549,6 +549,172 @@ def perf_test(
     return deco
 
 
+# ---------------------------------------------------------------------------
+# Auto‑register a bare ``def run():`` (no decorator needed)
+# ---------------------------------------------------------------------------
+
+
+def auto(
+    fn: "Callable[[], Any]",
+    *,
+    key: str,
+    title: str = "",
+    levels: "tuple[int, ...] | None" = None,
+    warmup: int = 1,
+    metrics: "tuple[str, ...] | None" = None,
+    header: "str | None" = None,
+) -> None:
+    """Wrap a plain ``run()`` function so the framework does all the timing.
+
+    Called automatically by ``perf.cases`` discovery when a ``bench_*.py``
+    module exposes a callable named ``run`` and does *not* use ``@benchmark``.
+    You never need to call this yourself — just write::
+
+        # bench_my.py
+        '''My benchmark.'''       # docstring line 1 → report title
+        LEVELS = (1, 5, 10)      # optional concurrency ladder
+
+        def run():
+            ...
+
+    Under the hood this registers a ``@benchmark`` + ``@parallel_sweep`` entry
+    so the scenario appears in ``--list-scenarios`` and participates in
+    reports just like any other benchmark.
+    """
+    from .runner import PERF_RESULTS, measure_parallel, print_parallel_stats  # noqa: PLC0415
+    from .config import CONCURRENCY_LEVELS  # noqa: PLC0415
+
+    _levels = levels or CONCURRENCY_LEVELS
+    report = ReportGroup(title) if title else None
+    header = header or f" [Perf] {title or key.capitalize()}"
+    _metrics = metrics or ("avg", "min", "p95", "max")
+
+    @benchmark(key, aliases=None, report=report)
+    @parallel_sweep(key, header=header, levels=_levels, warmup=warmup, metrics=_metrics)
+    def _auto_bench(
+        cfg: Config, concurrency: int, n: int,
+        _fn: "Callable[[], Any]" = fn,
+    ) -> None:
+        # warmup
+        for _ in range(warmup):
+            try:
+                _fn()
+            except Exception:
+                pass
+        # measure
+        result = measure_parallel(
+            f"{key}-c{concurrency}", _fn, n=n, concurrency=concurrency,
+        )
+        PERF_RESULTS.append(result)
+        print_parallel_stats(result, _metrics)
+
+
+# ---------------------------------------------------------------------------
+# External-script registration (CUBE_EXTERNAL_SCRIPTS in .env)
+# ---------------------------------------------------------------------------
+
+
+def register_external(
+    key: str,
+    path: str,
+    *,
+    title: str = "",
+    levels: "tuple[int, ...] | None" = None,
+    rounds: int = 5,
+    metrics: "tuple[str, ...] | None" = None,
+    timeout: int = 300,
+) -> None:
+    """Register a decoupled external ``.py`` script as a perf scenario.
+
+    **Convention for script authors**
+        The script MUST accept ``-c <N>`` (concurrency) and ``-n <N>``
+        (number of operations).  That's the entire contract — the script
+        owns its business logic; the framework only handles execution
+        scheduling and statistics collection.
+
+        Example::
+
+            # bench_clone.py
+            '''Clone concurrency benchmark.'''
+
+            import argparse
+            ap = argparse.ArgumentParser()
+            ap.add_argument("-c", type=int, default=1)
+            ap.add_argument("-n", type=int, default=5)
+            args = ap.parse_args()
+
+            from cubesandbox import Sandbox
+            sb = Sandbox.create("tpl-xxx")
+            sb.clone(n=args.n, concurrency=args.c)
+            sb.kill()
+
+    The framework sweeps *levels*, calling the script once per level::
+
+        python bench_xxx.py -c <level> -n <rounds>
+
+    Each invocation's wall‑clock time is recorded as a single data point.
+    """
+    import subprocess
+    import sys as _sys
+    import time as _time
+
+    from .runner import PerfSample, PerfResult, PERF_RESULTS, print_parallel_stats, yellow
+
+    _script_path = path
+    _levels = levels or CONCURRENCY_LEVELS
+    _rounds = rounds or PERF_ROUNDS
+    report = ReportGroup(title) if title else None
+    header = f" [Perf] {title or key.capitalize()}"
+    _metrics = metrics or ("avg", "min", "p95", "max")
+
+    @benchmark(key, aliases=None, report=report)
+    def _bench(cfg: Config) -> None:
+        print(f"\n{'=' * 60}")
+        print(f"{header:^60}")
+        print(f"{'=' * 60}")
+        for c in _levels:
+            cmd = [_sys.executable, _script_path, "-c", str(c), "-n", str(_rounds)]
+            t0 = _time.time()
+            try:
+                proc = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=timeout,
+                )
+            except subprocess.TimeoutExpired:
+                wall = (_time.time() - t0) * 1000
+                result = PerfResult(
+                    scenario=key, count=0, concurrency=c,
+                    samples=[PerfSample(label="", latency_ms=wall)],
+                )
+                result.samples[0].extra["error"] = "TIMEOUT"
+                PERF_RESULTS.append(result)
+                print(f"  concurrency={c:>2}: TIMEOUT after {wall:.0f}ms")
+                continue
+
+            wall = (_time.time() - t0) * 1000
+            if proc.returncode != 0:
+                err = (proc.stderr or "").strip()[:200]
+                result = PerfResult(
+                    scenario=key, count=0, concurrency=c,
+                    samples=[PerfSample(label="", latency_ms=wall)],
+                )
+                result.samples[0].extra["error"] = f"rc={proc.returncode}: {err}"
+                PERF_RESULTS.append(result)
+                print(
+                    f"  concurrency={c:>2}: wall={wall:.0f}ms "
+                    f"{yellow(f'ERR(rc={proc.returncode})')}"
+                )
+                if err:
+                    print(f"    stderr: {err}")
+            else:
+                result = PerfResult(
+                    scenario=key, count=1, concurrency=c,
+                    samples=[PerfSample(label="", latency_ms=wall)],
+                )
+                PERF_RESULTS.append(result)
+                print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
+        print(f"{'=' * 60}\n")
+
+
 def _open_pool(factory: "Callable[..., Any]", cfg: Config) -> Any:
     """Open a pool context manager, passing *cfg* only if the factory takes it.
 
