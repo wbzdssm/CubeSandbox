@@ -154,7 +154,7 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     print(f"{'='*60}")
 
     # Auto-cleanup snapshots after benchmarks finish (opt-in via env).
-    from .cleanup_snapshots import auto_cleanup_if_enabled
+    from .business.snapshot import auto_cleanup_if_enabled
     auto_cleanup_if_enabled()
 
     return json_path
@@ -453,9 +453,9 @@ Examples:
 
     # --cleanup-dry-run: list snapshots only, then exit
     if args.cleanup_dry_run or args.cleanup:
-        from . import cleanup_snapshots as _cleanup
+        from .business import snapshot as _snap
 
-        snaps = _cleanup.list_snaps()
+        snaps = _snap.list_snaps()
         if not snaps:
             print("No snap-* snapshot templates found.")
         else:
@@ -467,7 +467,7 @@ Examples:
             else:
                 ids = [s["templateID"] for s in snaps]
                 print(f"\nDeleting {len(ids)} snapshots ...")
-                ok, fail = _cleanup.delete_snaps(ids)
+                ok, fail = _snap.delete_snaps(ids)
                 print(f"Done: {ok} deleted, {fail} failed.\n")
         if args.cleanup_dry_run:
             return
