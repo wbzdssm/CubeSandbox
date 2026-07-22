@@ -169,17 +169,17 @@ def _ensure_dotenv() -> None:
         out.append(f"{key}={value}\n" if value else f"# {key}=   # {hint}\n")
 
     # -- External scripts --
-    out.extend(_banner("外部压测脚本（逗号分隔的 .py 路径，约定 -c -n --rounds --no-header）"))
-    ext = os.environ.get("CUBE_EXTERNAL_SCRIPTS", "")
-    out.append(
-        f"CUBE_EXTERNAL_SCRIPTS={ext}\n"
-        if ext
-        else (
-            "# CUBE_EXTERNAL_SCRIPTS=\n"
-            "#   取消下行注释接入你自己的压测脚本：\n"
-            "# CUBE_EXTERNAL_SCRIPTS=/path/to/bench_clone.py,/path/to/bench_create.py\n"
-        )
+    out.extend(_banner("外部压测脚本（逗号分隔 .py 路径，约定 -c -n --rounds --no-header）"))
+    _default_ext = (
+        "../examples/snapshot-rollback-clone/bench_clone_concurrency.py,"
+        "../examples/snapshot-rollback-clone/bench_create_concurrency.py,"
+        "../examples/snapshot-rollback-clone/bench_snapshot_concurrency.py,"
+        "../examples/snapshot-rollback-clone/bench_rollback_concurrency.py,"
+        "../examples/snapshot-rollback-clone/bench_pause_resume_concurrency.py,"
+        "../examples/snapshot-rollback-clone/bench_snapshot_dirty.py"
     )
+    ext = os.environ.get("CUBE_EXTERNAL_SCRIPTS", _default_ext)
+    out.append(f"CUBE_EXTERNAL_SCRIPTS={ext}\n")
 
     # -- Output --
     out.extend(_banner("输出"))
