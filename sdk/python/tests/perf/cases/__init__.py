@@ -92,7 +92,7 @@ def _auto_register_raw_benchmarks() -> None:
         ReportGroup,
     )
 
-    registered_keys = {s.key for s in BENCHMARK_REGISTRY}
+    registered_keys = set(BENCHMARK_REGISTRY)
     for modname in _discover_benchmark_modules():
         mod = sys.modules.get(modname)
         if mod is None:
@@ -161,7 +161,7 @@ def _register_external_scripts() -> None:
                 candidates.append(pf)
 
     # --- Register each ---
-    registered_keys = {s.key for s in BENCHMARK_REGISTRY}
+    registered_keys = set(BENCHMARK_REGISTRY)
 
     for p in candidates:
         if not p.is_file():
