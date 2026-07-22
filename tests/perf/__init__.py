@@ -175,8 +175,8 @@ def _ensure_dotenv() -> None:
         out.append(f"CUBE_EXTERNAL_SCRIPTS={ext}\n")
     else:
         out.append(
-            "# 默认接入 sdk/python/examples/ 下的 6 个内置场景：\n"
-            "CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_snapshot_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_rollback_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_pause_resume_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_snapshot_dirty.py\n"
+            "# 默认接入 examples/snapshot-rollback-clone/ 下的 6 个内置场景：\n"
+            "CUBE_EXTERNAL_SCRIPTS=../examples/snapshot-rollback-clone/bench_clone_concurrency.py,../examples/snapshot-rollback-clone/bench_create_concurrency.py,../examples/snapshot-rollback-clone/bench_snapshot_concurrency.py,../examples/snapshot-rollback-clone/bench_rollback_concurrency.py,../examples/snapshot-rollback-clone/bench_pause_resume_concurrency.py,../examples/snapshot-rollback-clone/bench_snapshot_dirty.py\n"
         )
 
     # -- Output --

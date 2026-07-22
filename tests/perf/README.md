@@ -17,8 +17,8 @@ All scenarios are external scripts, configured via `CUBE_EXTERNAL_SCRIPTS` in `.
 
 ```bash
 # tests/perf/.env
-CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
-                      ../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py
+CUBE_EXTERNAL_SCRIPTS=../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+                      ../examples/snapshot-rollback-clone/bench_create_concurrency.py
 ```
 
 Or one-off via CLI:

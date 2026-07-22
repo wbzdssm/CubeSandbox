@@ -19,8 +19,8 @@ python3 -m perf --html              # 加 HTML 报告
 
 ```bash
 # tests/perf/.env
-CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
-                      ../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py
+CUBE_EXTERNAL_SCRIPTS=../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+                      ../examples/snapshot-rollback-clone/bench_create_concurrency.py
 ```
 
 也可 CLI 一次性跑目录：
