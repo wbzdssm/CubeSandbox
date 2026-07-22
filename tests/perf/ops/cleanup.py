@@ -56,17 +56,35 @@ def list_snapshots():
 
 
 def delete_snapshots(ids: list[str]) -> tuple[int, int]:
-    """批量删除快照（Template.delete），返回 (ok, fail)。"""
+    """批量删除快照，遇到 "already in progress" 自动重试，返回 (ok, fail)。"""
     import sys
     from cubesandbox import Template
+
+    retries = int(os.environ.get("CUBE_PERF_CLEANUP_RETRIES", "3"))
     ok = fail = 0
     for tid in ids:
-        try:
-            Template.delete(tid)
-            ok += 1
-        except Exception as exc:
+        last_err = None
+        for attempt in range(1, retries + 1):
+            try:
+                Template.delete(tid)
+                ok += 1
+                last_err = None
+                break
+            except Exception as exc:
+                last_err = exc
+                msg = str(exc)
+                if "130409" in msg or "already in progress" in msg.lower():
+                    if attempt < retries:
+                        backoff = attempt * 2
+                        print(f"[cleanup] {tid}: in progress, retry {attempt}/{retries} "
+                              f"in {backoff}s...", file=sys.stderr)
+                        time.sleep(backoff)
+                        continue
+                fail += 1
+                print(f"[cleanup] {tid}: {exc}", file=sys.stderr)
+                break
+        if last_err:
             fail += 1
-            print(f"[cleanup] {tid}: {exc}", file=sys.stderr)
     return ok, fail
 
 
@@ -77,7 +95,7 @@ def _auto_cleanup_enabled() -> bool:
 
 
 def _cleanup_wait_seconds() -> float:
-    return float(os.environ.get("CUBE_PERF_AUTO_CLEANUP_WAIT", "3"))
+    return float(os.environ.get("CUBE_PERF_AUTO_CLEANUP_WAIT", "5"))
 
 
 def cleanup_all_snapshots(label: str = "") -> None:
