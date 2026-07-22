@@ -169,6 +169,7 @@ def benchmark(
     def deco(fn: "Callable[[Config], None]") -> "Callable[[Config], None]":
         if key in BENCHMARK_REGISTRY:
             raise ValueError(f"duplicate benchmark key: {key}")
+        print(f"DEBUG benchmark.deco: registering key={key!r}")
 
         # Wrap only when a gate is declared, so plain scenarios stay zero-cost.
         if not available or opt_in_env or opt_out_env:
@@ -734,6 +735,7 @@ def register_external(
     header = f" [Perf] {title or key.capitalize()}"
     _metrics = metrics or ("avg", "min", "p95", "max")
 
+    print(f"DEBUG register_external: about to @benchmark(key={key!r}, report={report is not None})")
     @benchmark(key, aliases=None, report=report)
     def _bench(cfg: Config) -> None:
         print(f"\n{'=' * 60}")
