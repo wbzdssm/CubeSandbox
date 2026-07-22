@@ -60,6 +60,8 @@ _TUNABLE_ENV_KEYS = (
     "CUBE_DIRTY_SWEEP",
     "CUBE_DENSITY_COUNT",
     "CUBE_PERF_CLEANUP",
+    "CUBE_PERF_AUTO_CLEANUP",
+    "CUBE_PERF_AUTO_CLEANUP_WAIT",
     "CUBE_CLEANUP_CMD",
     # Scenario toggles — persisted so subsequent runs reuse the same set
     # without re-exporting CUBE_RUN_IVSHMEM=1 / CUBE_SKIP_DENSITY=1 etc.

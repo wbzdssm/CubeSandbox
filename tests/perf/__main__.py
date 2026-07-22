@@ -153,6 +153,10 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     print(f"  {len(PERF_RESULTS)} performance scenarios collected")
     print(f"{'='*60}")
 
+    # Auto-cleanup snapshots after benchmarks finish (opt-in via env).
+    from .cleanup_snapshots import auto_cleanup_if_enabled
+    auto_cleanup_if_enabled()
+
     return json_path
 
 

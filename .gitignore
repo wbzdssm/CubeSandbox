@@ -54,6 +54,7 @@ __pycache__
 !/tests/e2e/
 /tests/e2e/*
 !/tests/e2e/sdk_compat/
+!/tests/perf/
 !/tests/e2e/sdk_compat/**
 /tests/e2e/sdk_compat/.pytest_cache/
 
