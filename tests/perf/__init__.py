@@ -175,15 +175,8 @@ def _ensure_dotenv() -> None:
         out.append(f"CUBE_EXTERNAL_SCRIPTS={ext}\n")
     else:
         out.append(
-            "# 取消注释并修改为你脚本的实际路径，逗号分隔：\n"
-            "# CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py\n"
-            "# 可选 6 个内置场景（复制粘贴到上面那行）：\n"
-            "#   bench_clone_concurrency.py\n"
-            "#   bench_create_concurrency.py\n"
-            "#   bench_snapshot_concurrency.py\n"
-            "#   bench_rollback_concurrency.py\n"
-            "#   bench_pause_resume_concurrency.py\n"
-            "#   bench_snapshot_dirty.py\n"
+            "# 默认接入 sdk/python/examples/ 下的 6 个内置场景：\n"
+            "CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_snapshot_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_rollback_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_pause_resume_concurrency.py,../sdk/python/examples/snapshot-rollback-clone/bench_snapshot_dirty.py\n"
         )
 
     # -- Output --
