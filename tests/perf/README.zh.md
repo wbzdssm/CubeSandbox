@@ -15,15 +15,21 @@ python3 -m perf --html              # 加 HTML 报告
 
 ## 场景来源
 
-所有压测场景来自外部脚本，框架零内置场景：
+所有压测场景来自外部脚本，在 `.env` 中配置 `CUBE_EXTERNAL_SCRIPTS`（逗号分隔）：
 
-| 来源 | 说明 |
-|------|------|
-| `examples/snapshot-rollback-clone/bench_*.py` | 默认自动纳入，无需配置 |
-| `CUBE_EXTERNAL_SCRIPTS=path/a.py,path/b.py` | `.env` 中逗号分隔 |
-| `python3 -m perf --scripts /my/dir/` | CLI 一次性跑目录 |
+```bash
+# tests/.env
+CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+                      ../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py
+```
 
-每个脚本按场景名独立注册，`--list-scenarios` 看全部，`--only X Y` 只跑指定。
+也可 CLI 一次性跑目录：
+
+```bash
+python3 -m perf --scripts /my/dir/
+```
+
+每个脚本按文件名独立注册，`--list-scenarios` 看全部，`--only X Y` 只跑指定。
 
 ## 并发阶梯
 

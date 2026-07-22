@@ -13,13 +13,19 @@ python3 -m perf --html           # with HTML report
 
 ## Scenarios
 
-All scenarios are external scripts. Zero built-in cases.
+All scenarios are external scripts, configured via `CUBE_EXTERNAL_SCRIPTS` in `.env` (comma-separated):
 
-| Source | Description |
-|--------|-------------|
-| `examples/snapshot-rollback-clone/bench_*.py` | Auto-discovered by default |
-| `CUBE_EXTERNAL_SCRIPTS=path/a.py,path/b.py` | Comma-separated in `.env` |
-| `python3 -m perf --scripts /my/dir/` | One-off CLI directory scan |
+```bash
+# tests/.env
+CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+                      ../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py
+```
+
+Or one-off via CLI:
+
+```bash
+python3 -m perf --scripts /my/dir/
+```
 
 ```bash
 python3 -m perf --list-scenarios    # list all registered

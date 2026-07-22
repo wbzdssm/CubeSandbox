@@ -617,41 +617,27 @@ def auto(
 
 
 def discover_external_scripts() -> None:
-    """Auto-discover and register all external scripts.
+    """Auto-discover and register external scripts.
 
-    1) ``examples/snapshot-rollback-clone/bench_*.py`` (default, always on).
-    2) Paths listed in ``CUBE_EXTERNAL_SCRIPTS`` (comma-separated in .env).
+    Paths listed in ``CUBE_EXTERNAL_SCRIPTS`` (comma-separated in .env).
     """
     import os as _os
     import re
     from pathlib import Path as _Path
 
-    # sdk/python/ from tests/perf/framework/registry.py
-    _script_dir = _Path(__file__).resolve()
-    # parents: framework → perf → tests → repo-root
-    _sdk_root = _script_dir.parents[3] / "sdk" / "python"
-
     candidates: list[_Path] = []
 
-    # 1) Default examples
-    _examples_dir = _sdk_root / "examples" / "snapshot-rollback-clone"
-    print(f"[perf] scanning examples: {_examples_dir}")
-    if _examples_dir.is_dir():
-        found = sorted(_examples_dir.glob("bench_*.py"))
-        print(f"[perf]   found {len(found)} bench_*.py file(s)")
-        for pf in found:
-            if pf.is_file():
-                candidates.append(pf)
-    else:
-        print(f"[perf]   directory not found — skipping default examples")
-
-    # 2) CUBE_EXTERNAL_SCRIPTS
     raw = _os.environ.get("CUBE_EXTERNAL_SCRIPTS", "").strip()
-    if raw:
-        for p in raw.split(","):
-            p = p.strip()
-            if p:
-                candidates.append(_Path(p).expanduser().resolve())
+    if not raw:
+        print("[perf] CUBE_EXTERNAL_SCRIPTS is not set — no external scripts to register")
+        print("[perf]   edit tests/.env and set:")
+        print("[perf]   CUBE_EXTERNAL_SCRIPTS=/path/to/bench_a.py,/path/to/bench_b.py")
+        return
+
+    for p in raw.split(","):
+        p = p.strip()
+        if p:
+            candidates.append(_Path(p).expanduser().resolve())
 
     registered_keys = set(BENCHMARK_REGISTRY)
 
