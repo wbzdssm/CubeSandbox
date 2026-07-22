@@ -724,7 +724,7 @@ def register_external(
     import sys as _sys
     import time as _time
 
-    from .runner import PerfSample, PerfResult, PERF_RESULTS, print_parallel_stats, yellow
+    from .runner import PerfSample, PerfResult, PERF_RESULTS, print_parallel_stats, red, yellow
 
     _script_path = path
     _levels = _resolve_levels(key, levels or CONCURRENCY_LEVELS)
@@ -774,7 +774,7 @@ def register_external(
                     f"{yellow(f'ERR(rc={proc.returncode})')}"
                 )
                 if err:
-                    print(f"    stderr: {err}")
+                    print(f"    {red(f'stderr: {err}')}")
             else:
                 result = PerfResult(
                     scenario=key,
