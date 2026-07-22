@@ -16,7 +16,7 @@ python3 -m perf --html           # with HTML report
 All scenarios are external scripts, configured via `CUBE_EXTERNAL_SCRIPTS` in `.env` (comma-separated):
 
 ```bash
-# tests/.env
+# tests/perf/.env
 CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
                       ../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py
 ```

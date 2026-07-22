@@ -96,15 +96,15 @@ def _dotenv_candidates() -> "list[str]":
 
 
 def _dotenv_path() -> str:
-    """The ``.env`` file to read/write: the first existing candidate, else the
-    default ``tests/.env`` (so ``cd tests && python3 -m perf`` just works)."""
+    """The ``.env`` file to read/write: the first existing candidate, else
+    ``tests/perf/.env``."""
     explicit = os.environ.get("CUBE_DOTENV")
     if explicit:
         return explicit
     for p in _dotenv_candidates():
         if os.path.isfile(p):
             return p
-    return os.path.join(_TESTS_DIR, ".env")
+    return os.path.join(_PKG_DIR, ".env")
 
 
 def _ensure_dotenv() -> None:
@@ -195,7 +195,7 @@ def _ensure_dotenv() -> None:
         else "# CUBE_HTML_OUTPUT=perf_report.html\n"
     )
 
-    target = os.path.join(_TESTS_DIR, ".env")
+    target = os.path.join(_PKG_DIR, ".env")
     try:
         with open(target, "w", encoding="utf-8") as f:
             f.writelines(out)

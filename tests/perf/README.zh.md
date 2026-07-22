@@ -18,7 +18,7 @@ python3 -m perf --html              # 加 HTML 报告
 所有压测场景来自外部脚本，在 `.env` 中配置 `CUBE_EXTERNAL_SCRIPTS`（逗号分隔）：
 
 ```bash
-# tests/.env
+# tests/perf/.env
 CUBE_EXTERNAL_SCRIPTS=../sdk/python/examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
                       ../sdk/python/examples/snapshot-rollback-clone/bench_create_concurrency.py
 ```
