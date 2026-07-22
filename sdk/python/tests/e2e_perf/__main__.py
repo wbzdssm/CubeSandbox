@@ -3,16 +3,16 @@
 """CLI entry point for the standalone performance benchmark suite.
 
 Usage:
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf              # run benchmarks, produce JSON + HTML
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --html       # also generate HTML report
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --rounds 20  # run 20 rounds per scenario
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios snapshot-create-from  # only cold-start-from-snapshot
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback           # only selected scenarios
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only ivshmem                      # default-off scenario, no extra env needed
-    python3 -m perf --list-scenarios                              # list scenario keys/aliases
-    python3 -m perf --md-only report.json                          # re-render md + json from existing data (no backend)
-    python3 -m perf --html-only data/*.json                        # generate HTML from existing data files
-    python3 -m perf --compare data/run1.json data/run2.json        # compare two runs (HTML)
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf              # run benchmarks, produce JSON + HTML
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --html       # also generate HTML report
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --rounds 20  # run 20 rounds per scenario
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --scenarios snapshot-create-from  # only cold-start-from-snapshot
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --only snapshot rollback           # only selected scenarios
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --only ivshmem                      # default-off scenario, no extra env needed
+    python3 -m e2e_perf --list-scenarios                              # list scenario keys/aliases
+    python3 -m e2e_perf --md-only report.json                          # re-render md + json from existing data (no backend)
+    python3 -m e2e_perf --html-only data/*.json                        # generate HTML from existing data files
+    python3 -m e2e_perf --compare data/run1.json data/run2.json        # compare two runs (HTML)
 
 Optional env vars:
     CUBE_TEMPLATE_ID         - skip auto-discovery
@@ -87,7 +87,7 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
 
     # Write back the data-flow settings this run actually used (incl. an
     # auto-discovered template id) so the 2nd/3rd run reuses them without any
-    # re-exporting — just `python3 -m perf`.
+    # re-exporting — just `python3 -m e2e_perf`.
     from . import _persist_dotenv, _TUNABLE_ENV_KEYS
 
     persisted = {
@@ -288,16 +288,16 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --html
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --rounds 20
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios snapshot-create-from
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios all no-ivshmem
-  python3 -m perf --list-scenarios
-  python3 -m perf --md-only report.json
-  python3 -m perf --html-only report_20260717T120000Z.json
-  python3 -m perf --compare run1.json run2.json
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --html
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --rounds 20
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --scenarios snapshot-create-from
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --only snapshot rollback
+  CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf --scenarios all no-ivshmem
+  python3 -m e2e_perf --list-scenarios
+  python3 -m e2e_perf --md-only report.json
+  python3 -m e2e_perf --html-only report_20260717T120000Z.json
+  python3 -m e2e_perf --compare run1.json run2.json
         """,
     )
     parser.add_argument(

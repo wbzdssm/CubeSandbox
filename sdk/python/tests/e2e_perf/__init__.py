@@ -7,8 +7,8 @@ included within the `perf/` directory.  No external `e2e/` import needed.
 
 Run it via the CLI entry point (from the ``tests/`` directory)::
 
-    python3 -m perf                                   # local backend (default)
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf  # remote backend
+    python3 -m e2e_perf                                   # local backend (default)
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m e2e_perf  # remote backend
 
 Modules:
     benchmarks  - 13 benchmark scenarios + run_all()
@@ -24,7 +24,7 @@ from __future__ import annotations
 import os
 import sys
 
-# tests/perf/__init__.py -> tests/perf -> tests -> sdk/python
+# tests/e2e_perf/__init__.py -> tests/e2e_perf -> tests -> sdk/python
 _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 _TESTS_DIR = os.path.abspath(os.path.join(_PKG_DIR, ".."))
 _SDK_ROOT = os.path.abspath(os.path.join(_TESTS_DIR, ".."))
@@ -36,7 +36,7 @@ if _SDK_ROOT not in sys.path:
 # backend the suite talks to. These are the only settings a first-time user must
 # provide; ``_ensure_dotenv`` scaffolds them and ``_persist_dotenv`` writes back
 # whatever a run actually used, so the 2nd/3rd invocation just needs
-# ``python3 -m perf`` (no re-exporting). Everything else stays in ``.env.example``.
+# ``python3 -m e2e_perf`` (no re-exporting). Everything else stays in ``.env.example``.
 _DATAFLOW_ENV_KEYS = (
     "CUBE_API_URL",
     "CUBE_API_KEY",
@@ -76,7 +76,7 @@ _DOTENV_HEADER = (
     "# CubeSandbox perf suite — auto-generated .env (data-flow + tunables + scenarios).\n"
     "# First run: all keys are commented placeholders; after a successful run the\n"
     "# values actually used (concurrency ladders, rounds, template id, …) are\n"
-    "# written back here, so later runs just need: python3 -m perf\n"
+    "# written back here, so later runs just need: python3 -m e2e_perf\n"
     "# Copy .env.example for even more detail (report layout, customisation, …).\n"
     "\n"
 )
@@ -97,7 +97,7 @@ def _dotenv_candidates() -> "list[str]":
 
 def _dotenv_path() -> str:
     """The ``.env`` file to read/write: the first existing candidate, else the
-    default ``tests/.env`` (so ``cd tests && python3 -m perf`` just works)."""
+    default ``tests/.env`` (so ``cd tests && python3 -m e2e_perf`` just works)."""
     explicit = os.environ.get("CUBE_DOTENV")
     if explicit:
         return explicit
@@ -197,8 +197,8 @@ def _ensure_dotenv() -> None:
     except OSError:
         return
     sys.stderr.write(
-        f"[perf] created {target}\n"
-        "  set CUBE_API_URL for a remote backend, then run python3 -m perf\n"
+        f"[e2e_perf] created {target}\n"
+        "  set CUBE_API_URL for a remote backend, then run python3 -m e2e_perf\n"
     )
 
 
