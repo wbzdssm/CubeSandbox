@@ -29,16 +29,25 @@ python3 -m perf --list-scenarios               # 列出全部场景
 
 ## 并发阶梯
 
-| 变量 | 默认值 | 控制场景 |
-|------|--------|---------|
-| `CUBE_PERF_CONCURRENCY` | `1,5,10` | snapshot-create、rollback、pause-resume |
-| `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` | template-create、snapshot-create-from、clone |
+| 场景 | 并发变量 | 默认阶梯 |
+|------|------|---------|
+| template-create | `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` |
+| snapshot-create-from | `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` |
+| clone | `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` |
+| snapshot-create | `CUBE_PERF_CONCURRENCY` | `1,5,10` |
+| rollback | `CUBE_PERF_CONCURRENCY` | `1,5,10` |
+| pause-resume | `CUBE_PERF_CONCURRENCY` | `1,5,10` |
+| snapshot-dirty | — | 单次 |
+| density | — | 单次 |
+| ivshmem | — | 单次 |
+| volume-* | — | 单次 |
+| 外部脚本 | `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` |
 
 ```bash
 CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m perf --html
 ```
 
-高并发超资源的档位会自动标记 `errors=N/total`（红色），不影响其他档位和报告。
+高并发超资源的档位自动标记 `errors=N/total`（红色），不影响其他档位和报告。
 
 ## 场景一览
 
