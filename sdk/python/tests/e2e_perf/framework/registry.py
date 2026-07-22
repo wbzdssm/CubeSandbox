@@ -308,7 +308,9 @@ def parallel_sweep(
             rounds_n = PERF_ROUNDS if rounds is None else rounds
             warmup_n = PERF_WARMUP if warmup is None else warmup
             settle_s = PERF_SETTLE if settle is None else settle
-            for i, concurrency in enumerate(levels or CONCURRENCY_LEVELS):
+            for i, concurrency in enumerate(
+                _resolve_levels(label, levels or CONCURRENCY_LEVELS, concurrency_key)
+            ):
                 # Let the node quiesce between levels (skip before the first).
                 if i and settle_s:
                     time.sleep(settle_s)
@@ -584,7 +586,7 @@ def auto(
     from .runner import PERF_RESULTS, measure_parallel, print_parallel_stats  # noqa: PLC0415
     from .config import CONCURRENCY_LEVELS  # noqa: PLC0415
 
-    _levels = levels or CONCURRENCY_LEVELS
+    _levels = _resolve_levels(key, levels or CONCURRENCY_LEVELS)
     report = ReportGroup(title) if title else None
     header = header or f" [Perf] {title or key.capitalize()}"
     _metrics = metrics or ("avg", "min", "p95", "max")
@@ -664,7 +666,7 @@ def register_external(
     from .runner import PerfSample, PerfResult, PERF_RESULTS, print_parallel_stats, yellow
 
     _script_path = path
-    _levels = levels or CONCURRENCY_LEVELS
+    _levels = _resolve_levels(key, levels or CONCURRENCY_LEVELS)
     _rounds = rounds or PERF_ROUNDS
     report = ReportGroup(title) if title else None
     header = f" [Perf] {title or key.capitalize()}"
@@ -720,6 +722,27 @@ def register_external(
                 PERF_RESULTS.append(result)
                 print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
         print(f"{'=' * 60}\n")
+
+
+def _resolve_levels(
+    label: str,
+    default_levels: "tuple[int, ...]",
+    concurrency_key: str = "CONCURRENCY_LEVELS",
+) -> "tuple[int, ...]":
+    """Per‑scenario concurrency override via ``CUBE_<LABEL>_CONCURRENCY``.
+
+    e.g. ``CUBE_CLONE_CONCURRENCY=1,5,10`` overrides the global default for the
+    clone scenario while other scenarios keep their global ladders.
+    """
+    import os as _os
+
+    env = _os.environ.get(f"CUBE_{label.upper().replace('-', '_')}_CONCURRENCY")
+    if env:
+        try:
+            return tuple(int(x.strip()) for x in env.split(",") if x.strip())
+        except Exception:
+            pass
+    return default_levels
 
 
 def _open_pool(factory: "Callable[..., Any]", cfg: Config) -> Any:
