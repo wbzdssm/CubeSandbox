@@ -170,16 +170,15 @@ def _ensure_dotenv() -> None:
 
     # -- External scripts --
     out.extend(_banner("外部压测脚本（逗号分隔 .py 路径，约定 -c -n --rounds --no-header）"))
-    _default_ext = (
-        "../examples/snapshot-rollback-clone/bench_clone_concurrency.py,"
-        "../examples/snapshot-rollback-clone/bench_create_concurrency.py,"
-        "../examples/snapshot-rollback-clone/bench_snapshot_concurrency.py,"
-        "../examples/snapshot-rollback-clone/bench_rollback_concurrency.py,"
-        "../examples/snapshot-rollback-clone/bench_pause_resume_concurrency.py,"
-        "../examples/snapshot-rollback-clone/bench_snapshot_dirty.py"
-    )
-    ext = os.environ.get("CUBE_EXTERNAL_SCRIPTS", _default_ext)
-    out.append(f"CUBE_EXTERNAL_SCRIPTS={ext}\n")
+    ext = os.environ.get("CUBE_EXTERNAL_SCRIPTS", "")
+    if ext:
+        out.append(f"CUBE_EXTERNAL_SCRIPTS={ext}\n")
+    else:
+        out.append(
+            "# examples/snapshot-rollback-clone/bench_*.py 已默认纳入，无需配置此处。\n"
+            "# 接入自定义脚本时取消注释：\n"
+            "# CUBE_EXTERNAL_SCRIPTS=\n"
+        )
 
     # -- Output --
     out.extend(_banner("输出"))
