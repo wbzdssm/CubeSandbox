@@ -9,7 +9,7 @@
 
 ## 快速开始
 
-在 `tests/` 目录下运行：
+在 `sdk/python/tests/` 目录下运行：
 
 ```bash
 # 跑全部场景，产出 JSON + Markdown
@@ -60,24 +60,16 @@ python3 -m perf --list-scenarios
 `__init__.py`），因此可以把「跑哪些 / 开哪些 / 关哪些」一次写进 `.env`，之后直接
 `python3 -m perf` 即可。真实环境变量与 CLI 参数始终优先，`.env` 只补空缺。
 
-**首次自动生成 + 运行后写回**：若启动时找不到任何 `.env`，套件会在 `tests/perf/` 下
-自动生成一份**极简 `.env`**，只含「数据流（连接）变量」——即
-`CUBE_API_URL`、`CUBE_API_KEY`、`CUBE_TEMPLATE_ID`、`CUBE_PROXY_NODE_IP`、
-`CUBE_PROXY_PORT_HTTP`、`CUBE_SANDBOX_DOMAIN`；其余场景/运行参数一律不写入，用默认即可。
-若你已在命令行 export 了其中某些项，会被写成已填状态。**打本地后端（默认
-`http://127.0.0.1:3000`）时无需填任何变量即可开跑**；仅在打远端后端时才需填
-`CUBE_API_URL`（及鉴权 `CUBE_API_KEY`）。`CUBE_TEMPLATE_ID` 留空则自动发现一个 READY
-模板。
+**首次自动生成 + 运行后写回**：若启动时找不到任何 `.env`，套件会在 `tests/` 下
+自动生成一份 `.env`，包含**所有常用变量**（数据流、场景开关、运行参数、外部脚本路径、
+输出路径）——均为注释占位。若你已在命令行 export 了其中某些项，会被写成已填状态。
+**打本地后端（默认 `http://127.0.0.1:3000`）时无需填任何变量即可开跑**；仅在打远端后端
+时才需填 `CUBE_API_URL`（及鉴权 `CUBE_API_KEY`）。`CUBE_TEMPLATE_ID` 留空则自动发现一个
+READY 模板。
 
-每次运行结束后，本次实际用到的数据流变量（**含自动发现的模板 ID**）会被**二次写回**
-该 `.env`，因此第二、三次直接 `python3 -m perf` 就能复用，无需再 export。已存在的 `.env`
-只会就地更新这几项，其余行（注释、你手动加的场景开关）原样保留。要调场景/运行参数，
-参照 `.env.example` 手动加进 `.env` 即可。
-
-**运行参数也会被写回**：如果本次运行 export 了某个运行参数（并发梯度、轮数、密度测试
-数量、预热/静默、脏页档位、清理开关等，见 `.env.example` 里「运行参数」一节的 `CUBE_*`
-变量），同样会被写回 `.env`。也就是说，遇到 CubeMaster `130597 no more resource` 把并发
-梯度调小跑通一次后，这个更小的梯度会自动固化下来，之后无需再手动 export 或改 `.env`。
+每次运行结束后，**本次实际用到的所有变量**（含自动发现的模板 ID、并发梯度、场景开关、
+外部脚本路径）会被**二次写回**该 `.env`，因此第二、三次直接 `python3 -m perf` 就能复用，
+无需再 export。已存在的 `.env` 只会就地更新这几项，其余行（注释、你手动加的内容）原样保留。
 
 ```bash
 # 打本地后端（默认 http://127.0.0.1:3000）：无需指定任何变量，直接跑
@@ -88,10 +80,9 @@ CUBE_API_URL=https://api.example.com CUBE_API_KEY=sk-... python3 -m perf
 
 # 小节点跑到 "no more resource"？调小一次并发梯度即可 —— 会写回 .env，
 # 之后的运行会一直沿用这个更小的梯度，无需重复 export
-CUBE_CREATE_CONCURRENCY=1,3,5 CUBE_PERF_CONCURRENCY=1,3,5 python3 -m perf
+CUBE_CREATE_CONCURRENCY=1,3,5 python3 -m perf
 
-# 想固化场景开关时，编辑 tests/perf/.env（参照 .env.example），例如：
-#   CUBE_PERF_SCENARIOS=snapshot rollback   # 只跑这两个（等价 --only）
+# 想固化场景开关时，编辑 tests/.env（参照 .env.example），例如：
 #   CUBE_RUN_IVSHMEM=1                        # 启用默认关闭的 ivshmem
 #   CUBE_SKIP_DENSITY=1                       # 跳过默认开启的 density
 python3 -m perf
@@ -105,9 +96,10 @@ python3 -m perf
 | 启用 ivshmem（默认关） | `CUBE_RUN_IVSHMEM=1` | `--only ivshmem` |
 | 关闭 density（默认开） | `CUBE_SKIP_DENSITY=1` | `--scenarios all no-density` |
 | 关闭 snapshot-dirty（默认开） | `CUBE_SKIP_SNAPSHOT_DIRTY=1` | `--scenarios all no-snapshot-dirty` |
+| 接入外部脚本 | `CUBE_EXTERNAL_SCRIPTS=/path/to/a.py,/path/to/b.py` | `--scripts /path/to/dir/` |
 
-> `.env` 查找顺序（就近优先）：当前目录 → `tests/perf/` → `tests/` → `sdk/python/`；
-> 也可用 `CUBE_DOTENV=/path/to/other.env` 指定文件。`.env` 已被 `.gitignore` 忽略，勿提交密钥。
+> `.env` 查找顺序（就近优先）：当前目录 → `tests/` → `sdk/python/`；
+> 也可用 `CUBE_DOTENV=/path/to/other.env` 指定文件。首次无 `.env` 时在 `tests/` 下自动生成。
 
 ## 资源清理（随手删除）
 
@@ -221,10 +213,24 @@ python3 -m perf --md-only report_20260720T120000Z.json
 
 | 选项 | 说明 |
 |---|---|
-| `--scenarios / --only SCENARIO...` | 只跑指定场景；接键或别名，逗号/空格分隔，`no-`/`skip-`/`!`/`^` 前缀排除。显式点名默认关闭场景会自动启用它。详见「压测场景一览」 |
+| `--scenarios / --only SCENARIO...` | 只跑指定场景；接键或别名，逗号/空格分隔，`no-`/`skip-`/`!`/`^` 前缀排除 |
 | `--rounds N` | 覆盖 `CUBE_PERF_ROUNDS`（默认 10） |
 | `--list-scenarios` | 列出全部场景键/别名后退出 |
 | `--md-only JSON` | 从已有 JSON 重渲染 Markdown + JSON（不跑压测、不连后端） |
+
+### 外部脚本
+
+| 选项 | 说明 |
+|---|---|
+| `--scripts DIR` | 跑 `DIR/` 下所有 `.py` 文件，按 `CUBE_CREATE_CONCURRENCY` 阶梯并发，收集 wall-time 统计 |
+
+### 快照清理
+
+| 选项 | 说明 |
+|---|---|
+| `--cleanup` | 跑压测前删除所有 `snap-*` 模板 |
+| `--cleanup-dry-run` | 预览将被清理的 `snap-*` 模板，不删、不跑压测 |
+| `--cleanup-older-than N` | 配合 `--cleanup`，只删 N 分钟前的快照 |
 
 ### HTML（可选，见文末）
 
@@ -255,6 +261,7 @@ python3 -m perf --md-only report_20260720T120000Z.json
 | `CUBE_RUN_IVSHMEM` | — | `1` 启用 ivshmem 场景（需 host 上运行 + ivshmem 模板） |
 | `CUBE_IVSHMEM_TEMPLATE_ID` | 回落 `CUBE_TEMPLATE_ID` | ivshmem 专用模板 |
 | `CUBE_IVSHMEM_ITERATIONS` | `10000` | ivshmem mmap 迭代次数 |
+| `CUBE_EXTERNAL_SCRIPTS` | — | 逗号分隔的外部脚本路径（`.py`，接受 `-c -n --rounds --no-header`） |
 | `CUBE_PERF_CLEANUP` | `1` | `0` 关闭轮次间节点残留 micro-VM 清理 |
 | `CUBE_CLEANUP_CMD` | `echo y \| cubecli unsafe destroyall -f` | 覆盖节点清理命令 |
 | `CUBE_OUTPUT_REPORT` | `report` | 输出报告基础路径 |
@@ -272,51 +279,129 @@ python3 -m perf --md-only report_20260720T120000Z.json
 
 ## 新增一个场景
 
-**在 `cases/` 下丢一个 `bench_<名字>.py` 文件即可自动注册**——无需改注册表、别名表或报告代码。
-最常见的「起一个临时沙箱、对它做一件事、随手销毁」用 `@sandbox_benchmark` 一行糖搞定：
+**三种方式，从简到繁，按需选择。**
+
+### 方式一：`@perf_test`（一行 import，适合绝大多数场景）
+
+```python
+# cases/<任意目录>/bench_<任意>.py
+from framework import perf_test, op
+
+@perf_test("my-scenario", title="我的场景", levels=(1, 5, 10))
+def bench(cfg, concurrency, n):
+    yield op.sandbox(cfg, lambda sb: sb.exec("whoami"))
+```
+
+`@perf_test` 自动生成 `@benchmark` + `@parallel_sweep` + `ReportGroup`，一个装饰器搞定。
+不传 `levels` 则表示非并发场景，`bench(cfg)` 只跑一次。
+
+### 方式二：`def run():`（零 import，纯脚本）
+
+```python
+# cases/<任意目录>/bench_<任意>.py
+"""我的场景描述"""                  # ← 首行自动当报告标题
+LEVELS = (1, 5, 10)                 # ← 并发阶梯（不写用默认）
+
+def run():
+    from cubesandbox import Sandbox
+    sb = Sandbox.create("tpl-xxx")
+    try:
+        return sb.exec("whoami")
+    finally:
+        sb.kill()
+```
+
+文件放到 `cases/` 下**自动注册**，框架按 `LEVELS` 扫并发、计时、统结果。**零 framework import。**
+
+### 方式三：外部独立脚本（零耦合，`-c` `-n` 约定）
+
+如果压测脚本完全不依赖框架 —— 自己的 `argparse`、自己的业务逻辑、自己的并发控制 ——
+把路径加到 `.env` 即可接入：
+
+```bash
+# tests/.env
+CUBE_EXTERNAL_SCRIPTS=/path/to/bench_clone.py,/path/to/bench_create.py
+```
+
+**脚本约定**（脚本方只需要遵守这个接口）：
+
+```
+python bench_xxx.py -c <并发> -n <操作数> --rounds <轮数> --no-header
+```
+
+| 参数 | 必选 | 说明 |
+|------|:---:|------|
+| `-c N` | 是 | 并发度，框架会按 `CUBE_CREATE_CONCURRENCY` 阶梯逐一调用 |
+| `-n N` | 是 | 单轮操作数 |
+| `--rounds N` | 否 | 脚本内部轮数（已传，加上即可） |
+| `--no-header` | 否 | 抑制脚本自己的表头输出 |
+
+示例：
+
+```python
+# /path/to/bench_clone.py
+"""Clone concurrency benchmark."""         # ← 首行注释 → 报告标题
+
+import argparse
+ap = argparse.ArgumentParser()
+ap.add_argument("-c", type=int, default=1)
+ap.add_argument("-n", type=int, default=5)
+ap.add_argument("--rounds", type=int, default=3)
+ap.add_argument("--no-header", action="store_true")
+args = ap.parse_args()
+
+from cubesandbox import Sandbox
+sb = Sandbox.create("tpl-xxx")
+sb.clone(n=args.n, concurrency=args.c)
+sb.kill()
+```
+
+**脚本方**只负责提供 `-c -n --rounds --no-header` 四个参数的入口，**框架方**负责：
+扫并发阶梯、按档位逐一调用、测 wall-clock、收集统计。
+
+> 默认也会自动发现 `examples/snapshot-rollback-clone/bench_*.py`，无需配置 `CUBE_EXTERNAL_SCRIPTS`。
+
+### 方式四：`@sandbox_benchmark`（完整控制，适合复杂场景）
 
 ```python
 from cubesandbox import Sandbox
-from ...framework.registry import ReportChart, ReportSection, sandbox_benchmark
+from framework.registry import ReportChart, ReportSection, sandbox_benchmark
 
 @sandbox_benchmark(
     "rollback",
     header=" [Perf] Rollback",
     fixture="snapshot",
     report=ReportSection(
-        table="latency",                 # 表类型：latency|density|dirty|clone|pause_resume
-        order=7,                          # Markdown 小节排序（§1 恒为测试环境）
-        title_zh="回滚（Rollback）",      # 小节标题
+        table="latency",
+        order=7,
+        title_zh="回滚（Rollback）",
         title_en="Rollback",
-        method_zh="对运行中沙箱调用 `POST /sandboxes/{id}/rollback` …",  # 「测试方式」说明
-        method_en="`POST /sandboxes/{id}/rollback` restores memory + filesystem in place …",
-        noun_zh="回滚", noun_en="rollback",  # 结论句用词（如「单并发**回滚**延迟约 …」）
-        charts=(ReportChart("回滚（Rollback）"),),  # HTML 图表（可多个；无图则留空）
+        method_zh="对运行中沙箱调用 `POST /sandboxes/{id}/rollback` …",
+        method_en="`POST /sandboxes/{id}/rollback` restores memory + filesystem …",
+        noun_zh="回滚", noun_en="rollback",
+        charts=(ReportChart("回滚（Rollback）"),),
     ),
 )
 def bench_rollback(sb: Sandbox, snap_id: str) -> None:
-    """Benchmark: in-place rollback to a snapshot."""
-    sb.rollback(snap_id)  # 这一行就是被测操作；沙箱与快照由框架自动清理
+    sb.rollback(snap_id)
 ```
 
-框架负责并发调度、计时、统计、报告采集、以及**资源的随手清理**。场景名统一按 `<键>-c<并发数>`
-生成，报告靠该前缀聚合数据点。
+完整说明见 [DESIGN.zh.md](./DESIGN.zh.md) §4。
 
-**报告声明由装饰器驱动**：每个场景的小节标题 / 测试方式 / 表类型 / 吞吐量列（`throughput=True`）/
-结论用词，全部写在 `@benchmark(report=ReportSection(...))` 里（`@sandbox_benchmark` 同样接受
-`report=`）。Markdown 渲染遍历所有 `ReportSection` 声明、按 `order` 排序成节；HTML 图表则从同一份
-声明的 `charts` 派生——**新增场景无需改动 `reporting/report.py`**。带图的延迟类场景挂 `ReportChart`，
-density / dirty / clone 等无折线图的场景 `charts` 留空即可。
+### 接入方式对比
 
-需要拆分关注点或自定义采样时，可直接用底层四层装饰器
-（`@benchmark` / `@parallel_sweep` / `@metrics` / `@sandbox_action`）——完整说明见
-[DESIGN.zh.md](./DESIGN.zh.md) §4。
+| 方式 | import 数量 | 适合 |
+|------|:---:|------|
+| `@perf_test` | 1 行 | 起沙箱→做件事→销毁，90% 的场景 |
+| `def run():` | 0 | 完全不想学框架，脚本即测例 |
+| 外部脚本 `-c -n` | 0 | 已有自己的 argparse/业务逻辑 |
+| `@sandbox_benchmark` | 2 行 | 需要自定义报告章节、图表 |
 
 ## 编程方式调用
 
 ```python
 import sys
-sys.path.insert(0, "tests")
+sys.path.insert(0, "sdk/python/tests")
 
 from perf.framework.config import resolve_config
 from perf.framework.env import collect_env_info
