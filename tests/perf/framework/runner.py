@@ -239,7 +239,7 @@ def measure_one(fn: Callable[[], Any]) -> PerfSample:
     return PerfSample(label="", latency_ms=elapsed_ms)
 
 
-def _shorten(msg: str, limit: int = 200) -> str:
+def _shorten(msg: str, limit: int = 500) -> str:
     return msg[:limit] + ("…" if len(msg) > limit else "")
 
 

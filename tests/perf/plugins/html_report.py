@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from . import report_config
+from ..reporting import report_config
 
 # Solid colors for measured environments (RUN_SERIES).
 _RUN_COLORS = [
