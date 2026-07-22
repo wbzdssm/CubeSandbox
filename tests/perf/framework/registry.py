@@ -616,6 +616,70 @@ def auto(
 # ---------------------------------------------------------------------------
 
 
+def discover_external_scripts() -> None:
+    """Auto-discover and register all external scripts.
+
+    1) ``examples/snapshot-rollback-clone/bench_*.py`` (default, always on).
+    2) Paths listed in ``CUBE_EXTERNAL_SCRIPTS`` (comma-separated in .env).
+    """
+    import os as _os
+    import re
+    from pathlib import Path as _Path
+
+    # sdk/python/ from tests/perf/framework/registry.py
+    _script_dir = _Path(__file__).resolve()
+    _sdk_root = _script_dir.parents[3] / "sdk" / "python"
+
+    candidates: list[_Path] = []
+
+    # 1) Default examples
+    _examples_dir = _sdk_root / "examples" / "snapshot-rollback-clone"
+    if _examples_dir.is_dir():
+        for pf in sorted(_examples_dir.glob("bench_*.py")):
+            if pf.is_file():
+                candidates.append(pf)
+
+    # 2) CUBE_EXTERNAL_SCRIPTS
+    raw = _os.environ.get("CUBE_EXTERNAL_SCRIPTS", "").strip()
+    if raw:
+        for p in raw.split(","):
+            p = p.strip()
+            if p:
+                candidates.append(_Path(p).expanduser().resolve())
+
+    registered_keys = set(BENCHMARK_REGISTRY)
+
+    for p in candidates:
+        if not p.is_file():
+            continue
+        key = p.stem.replace("bench_", "").replace("_", "-")
+        if key in registered_keys:
+            continue
+
+        levels = None
+        title = ""
+        try:
+            source = p.read_text(encoding="utf-8")
+            m = re.search(r"^LEVELS\s*=\s*[\[(]([^)\]]+)[)\]]", source, re.MULTILINE)
+            if m:
+                levels = tuple(
+                    int(x.strip()) for x in m.group(1).split(",") if x.strip()
+                )
+            for line in source.split("\n"):
+                stripped = line.strip()
+                if stripped.startswith('"""') or stripped.startswith("'''"):
+                    title = stripped.strip('"\'').strip()
+                    break
+                if stripped.startswith("#"):
+                    title = stripped.lstrip("#").strip()
+                    break
+        except Exception:
+            pass
+
+        register_external(key, str(p), title=title, levels=levels)
+        registered_keys.add(key)
+
+
 def register_external(
     key: str,
     path: str,

@@ -40,8 +40,10 @@ from .framework.config import DENSITY_COUNT, PERF_ROUNDS, resolve_config
 from .framework.env import collect_env_info
 from .framework.runner import PERF_RESULTS, reset
 
-from . import cases  # noqa: F401 — importing registers every @benchmark scenario
 from .framework import registry
+
+# Auto-discover and register external scripts on import.
+registry.discover_external_scripts()
 
 # NOTE: ``report_html`` is intentionally *not* imported at module level. The
 # default run path only produces Markdown + JSON reports, so the heavier HTML
