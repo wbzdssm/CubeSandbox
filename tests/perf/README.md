@@ -93,10 +93,13 @@ python bench_xxx.py -c <concurrency> -n <ops> --rounds <rounds> --no-header
 
 | Arg | Required | Framework behavior |
 |-----|:---:|------|
-| `-c N` | Yes | Swept across `CUBE_CREATE_CONCURRENCY` levels |
-| `-n N` | Yes | Maps to `CUBE_PERF_ROUNDS` |
+| `-c N` | Yes* | Swept across concurrency levels |
+| `-n N` | Yes* | Maps to `CUBE_PERF_ROUNDS` |
 | `--rounds N` | No | Internal script rounds |
 | `--no-header` | No | Suppress repeated header output |
+
+_\*Scripts without `-c`/`--concurrency` in their argparse definition are
+auto-detected and run once with `--no-header` only (no concurrency sweep)._
 
 ### Example
 
@@ -117,5 +120,24 @@ sb = Sandbox.create("tpl-xxx")
 sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
 ```
+
+## Cleanup
+
+Snapshots created during benchmarks are **auto-deleted after every
+concurrency level** (default ON). Disable with
+`CUBE_PERF_AUTO_CLEANUP=0`.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `CUBE_PERF_AUTO_CLEANUP` | `1` | Per-level cleanup (set `0` to disable) |
+| `CUBE_PERF_AUTO_CLEANUP_WAIT` | `3` | Seconds to wait before cleanup |
+
+Manual cleanup flags:
+
+| Flag | Description |
+|------|-------------|
+| `--cleanup` | Delete all `snap-*` templates before run |
+| `--cleanup-dry-run` | Preview which snapshots would be deleted |
+| `--cleanup-older-than DAYS` | Only delete snapshots older than N days |
 
 [中文文档](./README.zh.md)

@@ -788,7 +788,7 @@ def register_external(
                 )
                 PERF_RESULTS.append(result)
                 print(f"  wall={wall:.0f}ms")
-            _post_concurrency_cleanup(meta.name, 1)
+            _post_concurrency_cleanup(key, 1)
             print(f"{'=' * 60}\n")
             return
 
@@ -838,7 +838,7 @@ def register_external(
                 )
                 PERF_RESULTS.append(result)
                 print(f"  concurrency={c:>2}: wall={wall:.0f}ms")
-            _post_concurrency_cleanup(meta.name, c)
+            _post_concurrency_cleanup(key, c)
         print(f"{'=' * 60}\n")
 
 
