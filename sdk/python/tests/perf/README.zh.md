@@ -2,7 +2,7 @@
 
 [English](./README.md) · 架构细节见 [DESIGN.zh.md](./DESIGN.zh.md)
 
-一条命令跑完所有场景，产出 **JSON + Markdown + HTML** 报告。
+一条命令跑完所有场景，产出 **JSON + Markdown** 报告（加 `--html` 额外产出交互式 HTML）。
 
 ## 快速开始
 
@@ -13,10 +13,16 @@ cd sdk/python/tests
 python3 -m perf
 
 # 打远端后端
-CUBE_API_URL=http://9.135.79.34:3000 CUBE_API_KEY=sk-xxx python3 -m perf --html
+CUBE_API_URL=http://9.135.79.34:3000 python3 -m perf
 ```
 
 不指定场景即跑全部。`CUBE_TEMPLATE_ID` 留空自动发现 READY 模板。
+
+需要 HTML 可视化报告时加 `--html`：
+
+```bash
+python3 -m perf --html
+```
 
 ## 指定场景
 
@@ -98,15 +104,14 @@ python3 -m perf --compare run1.json run2.json --output diff.html
 |------|------|
 | `--scenarios / --only KEY...` | 指定场景，`no-`/`skip-` 前缀排除 |
 | `--rounds N` | 每场景轮数（默认 `CUBE_PERF_ROUNDS=10`） |
-| `--html` | 运行后生成 HTML 报告 |
-| `--list-scenarios` | 列出全部场景 |
+| `--html` | 额外生成 HTML 可视化报告 |
+| `--list-scenarios` | 列出全部场景，不跑压测 |
 | `--cleanup` | 跑前删除所有 `snap-*` 快照 |
 | `--cleanup-dry-run` | 预览 `--cleanup` 将删除的快照，不执行 |
-| `--cleanup-older-than N` | 配合 `--cleanup`，只删 N 分钟前的 |
 | `--scripts DIR` | 跑 `DIR/` 下所有 `.py`（按 `CUBE_CREATE_CONCURRENCY` 阶梯并发计时） |
 | `--md-only JSON` | 从已有 JSON 重渲染 Markdown |
 | `--html-only JSON...` | 从已有 JSON 生成 HTML |
-| `--compare JSON...` | 生成对比 HTML |
+| `--compare JSON...` | 生成多轮对比 HTML |
 
 ## 环境变量
 
