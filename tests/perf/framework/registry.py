@@ -630,8 +630,8 @@ def discover_external_scripts() -> None:
     raw = _os.environ.get("CUBE_EXTERNAL_SCRIPTS", "").strip()
     if not raw:
         print("[perf] CUBE_EXTERNAL_SCRIPTS is not set — no external scripts to register")
-        print("[perf]   edit tests/.env and set:")
-        print("[perf]   CUBE_EXTERNAL_SCRIPTS=/path/to/bench_a.py,/path/to/bench_b.py")
+        print("[perf]   cp tests/perf/.env.example tests/perf/.env")
+        print("[perf]   then edit tests/perf/.env and uncomment CUBE_EXTERNAL_SCRIPTS")
         return
 
     for p in raw.split(","):
