@@ -42,8 +42,9 @@ from .framework.runner import PERF_RESULTS, reset
 
 from .framework import registry
 
-# Auto-discover and register external scripts on import.
-registry.discover_external_scripts()
+# Register default external scripts on import (business layer).
+from .business.scenarios import register_default_scripts
+register_default_scripts()
 
 # NOTE: the HTML report plugin is intentionally *not* imported at module level.
 # It lives under ``plugins/`` and is loaded lazily (see ``_generate_html``) only
@@ -153,9 +154,9 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
     print(f"  {len(PERF_RESULTS)} performance scenarios collected")
     print(f"{'='*60}")
 
-    # Auto-cleanup snapshots after benchmarks finish (opt-in via env).
-    from .business.snapshot import auto_cleanup_if_enabled
-    auto_cleanup_if_enabled()
+    # Auto-cleanup after benchmarks finish (business layer, opt-in via env).
+    from .business.scenarios import cleanup_after_benchmark
+    cleanup_after_benchmark()
 
     return json_path
 

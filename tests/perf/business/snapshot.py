@@ -5,6 +5,10 @@
 全模块通过 :class:`cubesandbox.Template` 和 :class:`cubesandbox.Sandbox`
 调用底层 API，复用 SDK 的连接池、鉴权和错误处理语义。 业务层只做数据筛选
 （如按 ``snap-`` 前缀过滤），不拼 HTTP 调用。
+
+.. warning::
+    本模块 **仅操作快照**（``snap-*`` 前缀的 ID），**不会删除 /
+    触及普通模板**。删除前已按 ``snap-*`` 前缀过滤。
 """
 
 from __future__ import annotations
