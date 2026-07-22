@@ -132,7 +132,6 @@ python3 -m perf --compare run1.json run2.json --output diff.html
 | `CUBE_PERF_SETTLE` | `0` | 档间静默秒数 |
 | `CUBE_DENSITY_COUNT` | `100` | 密度测试最大沙箱数 |
 | `CUBE_PERF_CLEANUP` | `1` | `0` 关闭轮间清理 |
-| `CUBE_EXTERNAL_SCRIPTS` | — | 逗号分隔的外部脚本路径 |
 
 ### 外部脚本
 
@@ -161,7 +160,7 @@ CUBE_SKIP_DENSITY=1
 
 脚本接受这四个参数，框架负责按并发阶梯逐一调用、测 wall-clock、统结果：
 
-```bash
+```
 python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
 ```
 
@@ -171,6 +170,21 @@ python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
 | `-n N` | 是 | 对应 `CUBE_PERF_ROUNDS` |
 | `--rounds N` | 否 | 同上 |
 | `--no-header` | 否 | 抑制重复表头 |
+
+### 配置
+
+在 `tests/.env` 里加一行：
+
+```bash
+# 逗号分隔多个脚本
+CUBE_EXTERNAL_SCRIPTS=/root/my_benchmarks/bench_clone.py,/path/to/bench_create.py
+```
+
+跑完后自动写回 `.env`，下次直接 `python3 -m perf` 复用。
+
+也可以用 CLI 直接跑一个目录：`python3 -m perf --scripts /root/my_benchmarks/`
+
+> `examples/snapshot-rollback-clone/bench_*.py` 已默认纳入，无需额外配置。
 
 ### 脚本示例
 
@@ -192,36 +206,8 @@ sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
 ```
 
-### 接入
-
-```bash
-# .env 里加一行（逗号分隔多个脚本）
-CUBE_EXTERNAL_SCRIPTS=/root/my_benchmarks/bench_clone.py,/path/to/bench_create.py
-```
-
-或 CLI 直接跑一个目录：
-
-```bash
-python3 -m perf --scripts /root/my_benchmarks/
-```
-
+> 结果与内置场景写入同一份报告，统计口径一致。
+>
 > `examples/snapshot-rollback-clone/bench_*.py` 已默认纳入，无需额外配置。
-
-### 结果示例
-
-```
-============================================================
- [Perf] Clone concurrency benchmark
-============================================================
-  concurrency= 1: wall=512ms
-  concurrency=10: wall=158ms
-  concurrency=20: wall=140ms
-  concurrency=50: wall=160ms
-============================================================
-```
-
-统计和内置场景一起写入同一份报告。
-
----
-
+>
 > 需要更复杂的框架内场景（带自定义报告章节、图表），见 [DESIGN.zh.md](./DESIGN.zh.md) §4。
