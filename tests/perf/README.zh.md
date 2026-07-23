@@ -6,191 +6,39 @@
 
 ```bash
 cd CubeSandbox/tests
-python3 -m perf                     # 本地后端
-CUBE_API_URL=http://1.2.3.4:3000 python3 -m perf   # 远端
+cp perf/.env.example perf/.env      # 编辑填入 CUBE_API_URL / CUBE_TEMPLATE_ID
 python3 -m perf
 ```
 
 `CUBE_TEMPLATE_ID` 留空自动发现 READY 模板。
 
-## 场景来源
+## 常用命令
 
-所有压测场景来自外部脚本，在 `.env` 中配置 `CUBE_EXTERNAL_SCRIPTS`（逗号分隔）：
-
-```bash
-# tests/perf/.env
-CUBE_EXTERNAL_SCRIPTS=../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
-                      ../examples/snapshot-rollback-clone/bench_create_concurrency.py
-```
-
-也可 CLI 一次性跑目录：
-
-```bash
-python3 -m perf --scripts /my/dir/
-```
-
-每个脚本按文件名独立注册，`--list-scenarios` 看全部，`--only X Y` 只跑指定。
-
-## 并发阶梯
-
-| 变量 | 默认值 | 作用域 |
-|------|--------|--------|
-| `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` | 所有外部脚本的默认阶梯 |
-| `CUBE_PERF_CONCURRENCY` | `1,5,10` | 轻量场景备用 |
-
-按场景单独覆盖（覆盖以上全局默认）：
-
-```bash
-# CUBE_CLONE_CONCURRENCY=1,5,10
-# CUBE_TEMPLATE_CREATE_CONCURRENCY=1,10,20
-# CUBE_SNAPSHOT_CREATE_FROM_CONCURRENCY=1,10,20
-# CUBE_SNAPSHOT_CREATE_CONCURRENCY=1,3,5
-# CUBE_ROLLBACK_CONCURRENCY=1,3,5
-# CUBE_PAUSE_RESUME_CONCURRENCY=1,5,10
-```
-
-命名规则：`CUBE_<SCENARIO_KEY大写以_分隔>_CONCURRENCY`。不设走全局。
-
-高并发超资源的档位自动 `errors=N/total`（红色），不中断。
-
-## CLI
-
-| 选项 | 说明 |
+| 命令 | 说明 |
 |------|------|
-| `--only KEY...` | 只跑指定场景 |
-| `--rounds N` | 每场景轮数（默认 `CUBE_PERF_ROUNDS`） |
-| `--list-scenarios` | 列出已注册的全部场景 |
-| `--scripts DIR` | 跑目录下所有 `.py` |
-| `--cleanup` | 跑前删全部 `snap-*` 快照 |
-| `--cleanup-dry-run` | 预览 `--cleanup` |
-| `--md-only JSON` | 从 JSON 重渲染 Markdown |
-## 环境变量
+| `python3 -m perf` | 跑全部场景 |
+| `python3 -m perf --rounds 20` | 每场景 20 轮 |
+| `python3 -m perf --scenarios clone-concurrency` | 只跑指定场景 |
+| `python3 -m perf --list-scenarios` | 列出全部场景 |
+| `python3 -m perf --cleanup` | 清理 `snap-*` 快照 |
+| `python3 -m perf --md-only report.json` | 从 JSON 重渲染报告 |
 
-### 连接
+## 接入新场景
 
-| 变量 | 默认 |
-|------|------|
-| `CUBE_API_URL` | `http://127.0.0.1:3000` |
-| `CUBE_API_KEY` | — |
-| `CUBE_TEMPLATE_ID` | 自动发现 |
-| `CUBE_PROXY_NODE_IP` | — |
-| `CUBE_PROXY_PORT_HTTP` | `80` |
-| `CUBE_SANDBOX_DOMAIN` | `cube.app` |
+详见 [Perf 脚本集成契约](../../docs/guide/perf-integration.zh.md)。
 
-### 运行参数
+简单来说：写一个接受 `-c <并发>` `-n <次数>` 参数的脚本，在 `.env` 里注册即可。
 
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `CUBE_PERF_ROUNDS` | `3` | 每场景轮数 |
-| `CUBE_PERF_WARMUP` | `1` | 预热轮数（不计统计） |
-| `CUBE_PERF_SETTLE` | `0` | 档间静默秒数 |
-| `CUBE_CREATE_CONCURRENCY` | `1,10,20,50` | 默认并发阶梯 |
-| `CUBE_PERF_CONCURRENCY` | `1,5,10` | 轻量备选阶梯 |
-| `CUBE_PERF_CLEANUP` | `1` | `0` 关闭轮间清理 |
+## 配置
 
-### 外部脚本
+所有配置见 `tests/perf/.env.example`，首次运行自动生成 `.env`。
+
+关键变量：
 
 | 变量 | 说明 |
 |------|------|
-| `CUBE_EXTERNAL_SCRIPTS` | 逗号分隔 `.py` 路径 |
-
-## `.env`
-
-首次启动在 `tests/` 下自动生成，跑完后实际用到的值二次写回，下次直接复用。详见 `.env.example`。
-
-## 接入新压测脚本
-
-> 框架负责执行和统计，脚本定义压测方案。接入只需两步：编写脚本 + 注册到 `.env`。
-
-### 脚本约定
-
-脚本必须支持以下 CLI 参数：
-
-```bash
-python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
-```
-
-| 参数 | 必选 | 说明 |
-|------|:---:|------|
-| `-c N` | 是 | 并发度，框架按 `CUBE_PERF_CONCURRENCY` 阶梯逐一调用 |
-| `-n N` | 是 | 每轮操作数，对应 `CUBE_PERF_ROUNDS` |
-| `--rounds N` | 否 | 脚本内部轮数（同 `-n`） |
-| `--no-header` | 否 | 抑制重复表头 |
-
-### 脚本示例
-
-```python
-# bench_clone.py
-"""Clone Concurrency"""               # 首行 → 报告标题
-
-# ── 报告元数据（框架读取，驱动 Markdown 表格列头）──
-METRICS = ("avg", "min", "p50", "p95", "p99", "max")  # 输出哪些指标列
-
-REPORT = {                            # 表头定制（均为可选）
-    "method_zh": "克隆沙箱",           # 操作说明（中文）
-    "method_en": "Clone Sandbox",      # operation description (English)
-    "noun_zh":    "次",                # 计量单位（中文）
-    "noun_en":    "op",                # unit (English)
-    "throughput": True,                # 显示吞吐量列
-    "table":      "latency",           # 表格类型: latency | dirty
-}
-
-LEVELS = (1, 5, 10, 20)               # 并发度阶梯（可选，默认用 CUBE_PERF_CONCURRENCY）
-
-# ── CLI 契约（必选）──
-import argparse
-ap = argparse.ArgumentParser()
-ap.add_argument("-c", type=int, default=1)
-ap.add_argument("-n", type=int, default=5)
-ap.add_argument("--rounds", type=int, default=3)
-ap.add_argument("--no-header", action="store_true")
-args = ap.parse_args()
-
-from cubesandbox import Sandbox
-sb = Sandbox.create("tpl-xxx")
-sb.clone(n=args.n, concurrency=args.c)
-sb.kill()
-```
-
-### 脚本元数据约定
-
-框架通过 `discover_external_scripts()` 解析脚本文件中的模块级变量：
-
-| 变量 | 类型 | 必填 | 说明 |
-|------|------|:---:|------|
-| `METRICS` | `tuple[str, ...]` | 否 | 报告表格的指标列，如 `("avg","min","p50","p95","p99","max")`。未声明时使用默认列集 |
-| `REPORT` | `dict` | 否 | 报告元数据，所有 `ReportSection` 字段均可声明。未声明字段用默认值 |
-| `LEVELS` | `tuple[int, ...]` | 否 | 并发度阶梯，覆盖全局 `CUBE_PERF_CONCURRENCY` |
-
-`REPORT` 支持的字段（`ReportSection` 全量，均可选）：
-
-| 字段 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `table` | `str` | `"latency"` | 表格类型：`latency` 或 `dirty` |
-| `method_zh` | `str` | `""` | 操作方法中文描述 |
-| `method_en` | `str` | `""` | 操作方法英文描述 |
-| `noun_zh` | `str` | `""` | 操作计量单位中文，如 `"次"` |
-| `noun_en` | `str` | `""` | 操作计量单位英文，如 `"op"` |
-| `throughput` | `bool` | `False` | 是否显示吞吐量列 |
-| `star` | `bool` | `False` | 是否标记为星标场景 |
-
-### 注册脚本
-
-在 `tests/perf/.env` 中通过 `CUBE_EXTERNAL_SCRIPTS` 注册，逗号分隔：
-
-```bash
-CUBE_EXTERNAL_SCRIPTS=\
-../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
-../examples/snapshot-rollback-clone/bench_create_concurrency.py
-```
-
-注册后框架自动：
-1. 按 `--list-scenarios` 列出场景
-2. 执行时调度并发度阶梯
-3. 采集延迟指标并写入 Markdown 报告
-
-### 临时运行（不写 .env）
-
-```bash
-python3 -m perf --scripts /path/to/bench_clone.py,/path/to/bench_create.py
-```
+| `CUBE_API_URL` | API 地址 |
+| `CUBE_TEMPLATE_ID` | 模板 ID |
+| `CUBE_EXTERNAL_SCRIPTS` | 压测脚本路径（逗号分隔，支持 `*` 通配） |
+| `CUBE_PERF_ROUNDS` | 每场景轮数 |
+| `CUBE_PERF_CONCURRENCY` | 默认并发度阶梯 |
