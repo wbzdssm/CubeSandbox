@@ -28,7 +28,34 @@ python3 -m perf --list-scenarios
 | `python3 -m perf --cleanup-dry-run` | 预览将要清理的快照 |
 | `python3 -m perf --md-only report.json` | 从 JSON 重渲染报告 |
 
-## 环境变量
+## 输出文件
+
+运行后，报告写入当前目录（`tests/`）：
+
+```
+tests/
+├── report.json      # 完整数据的 JSON（含环境、配置、性能指标）
+├── report.md        # Markdown 报告（英文）
+└── report.zh.md     # Markdown 报告（中文）
+```
+
+通过 `CUBE_OUTPUT_REPORT` 可自定义输出基名（默认 `report`）。
+
+## 清理行为
+
+框架在**每轮结束后**和**所有场景完成后**会自动清理压测残留。具体操作：
+
+| 时机 | 清理内容 | 如何关闭 |
+|------|---------|---------|
+| 每轮结束 | 本轮创建的沙箱（逐个 kill） | `CUBE_PERF_CLEANUP=0` |
+| 全部场景后 | `snap-*` 快照模板（通过 SDK 删除） | `CUBE_PERF_AUTO_CLEANUP=0` |
+| 手动触发 | 全部 `snap-*` 快照，不区分新旧 | `python3 -m perf --cleanup` |
+
+**注意**：
+- 只删除 ID 以 `snap-` 开头的快照模板，不触碰用户自有模板（`tpl-*`）
+- 有活跃沙箱引用的快照（`replicas` 非空）自动跳过，不会报错
+- 清理前等待 `CUBE_PERF_AUTO_CLEANUP_WAIT` 秒（默认 5s），确保异步操作完成
+- `--cleanup-dry-run` 预览将被删除的快照列表，不执行实际删除
 
 首次运行自动生成 `tests/perf/.env`，所有变量均可在 `.env.example` 中找到完整注释。参数优先级：CLI > 环境变量 > .env。
 
