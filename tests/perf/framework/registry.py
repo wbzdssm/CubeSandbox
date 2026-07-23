@@ -777,10 +777,7 @@ def discover_external_scripts() -> None:
                             k, v_raw = pair.split(":", 1)
                             args.append(k.strip().strip('"\' '))
                             v = v_raw.strip().strip('"\' ')
-                            try:
-                                args.append(int(v))
-                            except ValueError:
-                                args.append(v)
+                            args.append(v)  # always str for subprocess
                         if args:
                             sweep_args.append(args)
         except Exception:
