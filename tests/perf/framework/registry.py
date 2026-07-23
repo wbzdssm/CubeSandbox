@@ -133,6 +133,7 @@ class ReportSection:
     noun_zh: str = ""
     noun_en: str = ""
     star: bool = False
+    metrics: "tuple[str, ...] | None" = None  # columns to show (None → all defaults)
     charts: "tuple[ReportChart, ...]" = ()
 
 
@@ -651,13 +652,13 @@ def discover_external_scripts() -> None:
 
         levels = None
         title = ""
+        report_kwargs: dict = {}
+        metrics = None
+        no_concurrency = False
         try:
             source = p.read_text(encoding="utf-8")
-            m = re.search(r"^LEVELS\s*=\s*[\[(]([^)\]]+)[)\]]", source, re.MULTILINE)
-            if m:
-                levels = tuple(
-                    int(x.strip()) for x in m.group(1).split(",") if x.strip()
-                )
+
+            # ── title: first docstring line or first comment ──
             for line in source.split("\n"):
                 stripped = line.strip()
                 if stripped.startswith('"""') or stripped.startswith("'''"):
@@ -666,18 +667,55 @@ def discover_external_scripts() -> None:
                 if stripped.startswith("#"):
                     title = stripped.lstrip("#").strip()
                     break
+
+            # ── LEVELS = (1, 10, 20) ──
+            m = re.search(r"^LEVELS\s*=\s*[\[(]([^)\]]+)[)\]]", source, re.MULTILINE)
+            if m:
+                levels = tuple(
+                    int(x.strip()) for x in m.group(1).split(",") if x.strip()
+                )
+
+            # ── METRICS = ("avg", "p50", "p95") ──
+            m = re.search(r"^METRICS\s*=\s*[\[(]([^)\]]+)[)\]]", source, re.MULTILINE)
+            if m:
+                metrics = tuple(
+                    x.strip().strip('"\'') for x in m.group(1).split(",") if x.strip()
+                )
+
+            # ── REPORT = {...} dict for method/noun/table/throughput/star ──
+            m = re.search(r"^REPORT\s*=\s*\{([^}]+)\}", source, re.MULTILINE)
+            if m:
+                for item in m.group(1).split(","):
+                    item = item.strip()
+                    if ":" not in item:
+                        continue
+                    k, v = item.split(":", 1)
+                    k = k.strip().strip('"\'')
+                    v = v.strip().strip('"\'')
+                    if k in (
+                        "method_zh", "method_en", "noun_zh", "noun_en",
+                        "table", "order",
+                    ):
+                        report_kwargs[k] = v
+                    elif k in ("throughput", "star"):
+                        report_kwargs[k] = v.lower() in ("true", "1", "yes")
+
+            # ── no_concurrency: detect scripts without -c argument ──
+            no_concurrency = not bool(
+                re.search(r'add_argument\("?-c"', source)
+                or re.search(r'add_argument\("?--concurrency"', source)
+            )
         except Exception:
             pass
 
-        # Detect scripts that don't accept -c / --concurrency (e.g.
-        # bench_snapshot_dirty.py which uses -d DIRTY_MB instead).
-        has_concurrency = bool(
-            re.search(r'add_argument\("?-c"', source)
-            or re.search(r'add_argument\("?--concurrency"', source)
+        register_external(
+            key, str(p),
+            title=title,
+            levels=levels,
+            metrics=metrics,
+            no_concurrency=no_concurrency,
+            **report_kwargs,
         )
-
-        register_external(key, str(p), title=title, levels=levels,
-                          no_concurrency=not has_concurrency)
         registered_keys.add(key)
 
     if candidates:
@@ -696,15 +734,31 @@ def register_external(
     metrics: "tuple[str, ...] | None" = None,
     timeout: int = 300,
     no_concurrency: bool = False,  # True → run once without -c / -n
+    # ── Report metadata (maps to ReportSection fields) ──
+    table: str = "",               # "latency" | "dirty" (default: latency or dirty if no_concurrency)
+    method_zh: str = "",           # 操作方法中文名
+    method_en: str = "",           # operation method English name
+    noun_zh: str = "",             # 操作计量单位中文
+    noun_en: str = "",             # operation unit English
+    throughput: bool = False,      # include per-second throughput column
+    star: bool = False,            # mark as starred in report
+    order: float | None = None,    # section ordering (default: append order)
 ) -> None:
     """Register a decoupled external ``.py`` script as a perf scenario.
 
     **Convention for script authors**
         The script MUST accept ``-c <N>`` (concurrency) and ``-n <N>``
         (op count).  ``--rounds <N>`` and ``--no-header`` are passed
-        additionally — add them as optional flags.  That's the entire
-        contract — the script owns its business logic; the framework only
-        handles execution scheduling and statistics collection.
+        additionally — add them as optional flags.
+
+    **Report metadata** (optional, maps to ReportSection fields):
+
+        - *table*: "latency" or "dirty" (default: latency, or dirty if no_concurrency)
+        - *method_zh* / *method_en*: operation description (e.g. "创建沙箱" / "Create Sandbox")
+        - *noun_zh* / *noun_en*: operation unit (e.g. "次" / "op")
+        - *throughput*: show per-second throughput column
+        - *star*: mark scenario as starred in report
+        - *order*: section ordering (default: append-based)
 
         Example::
 
@@ -740,13 +794,20 @@ def register_external(
     _levels = _resolve_levels(key, levels or CONCURRENCY_LEVELS)
     _rounds = rounds or PERF_ROUNDS
 
-    # Build report metadata — Markdown ReportSection drives report.md.
+    # Build report metadata — ReportSection drives report.md / report.zh.md.
     _section_title = title or key.capitalize()
     _section = ReportSection(
-        table="dirty" if no_concurrency else "latency",
+        table=table or ("dirty" if no_concurrency else "latency"),
         title_zh=_section_title,
         title_en=_section_title,
-        order=100.0 + len(REPORT_SECTIONS),
+        method_zh=method_zh,
+        method_en=method_en,
+        noun_zh=noun_zh,
+        noun_en=noun_en,
+        throughput=throughput,
+        star=star,
+        metrics=metrics or _metrics,
+        order=order if order is not None else (100.0 + len(REPORT_SECTIONS)),
     )
     header = f" [Perf] {_section_title}"
 

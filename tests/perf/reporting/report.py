@@ -228,23 +228,39 @@ def _sweep_rows(perf: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
 
 
 def _latency_table(perf: list[dict[str, Any]], key: str, lang: Lang,
-                   *, throughput: bool = False) -> str:
-    """Per-op latency distribution table, with optional wall/per/throughput.
+                   *, throughput: bool = False,
+                   metrics: "tuple[str, ...] | None" = None) -> str:
+    """Per-op latency distribution table, columns driven by *metrics*.
 
+    When *metrics* is ``None``, defaults to ``avg | min | p50 | p95 | p99 | max``.
     ``wall`` / ``per`` columns are shown only when the scenario recorded a
-    batch wall time (the parallel sweeps do; pause/resume do not).
+    batch wall time.
     """
     rows = _sweep_rows(perf, key)
     if not rows:
         return _no_data(lang)
     has_wall = any(r.get("wall_ms", 0) > 0 for r in rows)
 
-    if lang == "zh":
-        header = ["并发", "采样数", "avg", "min", "p50", "p95", "p99", "max"]
-    else:
-        header = ["Conc", "N", "avg", "min", "p50", "p95", "p99", "max"]
+    if metrics is None:
+        metrics = ("avg", "min", "p50", "p95", "p99", "max")
+
+    _METRIC_LABELS = {  # noqa: N806
+        "zh": {
+            "concurrency": "并发", "count": "采样数",
+            "avg": "avg", "min": "min", "p50": "p50", "p95": "p95",
+            "p99": "p99", "max": "max", "wall": "wall", "per": "单次均摊",
+        },
+        "en": {
+            "concurrency": "Conc", "count": "N",
+            "avg": "avg", "min": "min", "p50": "p50", "p95": "p95",
+            "p99": "p99", "max": "max", "wall": "wall", "per": "per",
+        },
+    }
+    lb = _METRIC_LABELS[lang]
+
+    header = [lb["concurrency"], lb["count"]] + [lb[m] for m in metrics]
     if has_wall:
-        header += (["wall", "per"] if lang == "en" else ["wall", "单次均摊"])
+        header += [lb["wall"], lb["per"]]
     if throughput and has_wall:
         header += (["Throughput"] if lang == "en" else ["吞吐量"])
 
@@ -252,9 +268,7 @@ def _latency_table(perf: list[dict[str, Any]], key: str, lang: Lang,
     for r in rows:
         cells = [
             str(r["concurrency"]), str(r["count"]),
-            _ms(r["avg_ms"]), _ms(r["min_ms"]), _ms(r["p50_ms"]),
-            _ms(r["p95_ms"]), _ms(r.get("p99_ms", 0)), _ms(r["max_ms"]),
-        ]
+        ] + [_ms(r[f"{m}_ms"]) for m in metrics]
         if has_wall:
             cells += [_ms(r["wall_ms"]), _ms(r["per_ms"])]
         if throughput and has_wall:
@@ -568,7 +582,9 @@ def _section_body(perf: list[dict[str, Any]], sec: dict[str, Any], lang: Lang,
     if table == "pause_resume":
         return _pause_resume_body(perf, lang, findings)
     if table == "latency":
-        tbl = _latency_table(perf, sec["key"], lang, throughput=sec.get("throughput", False))
+        tbl = _latency_table(perf, sec["key"], lang,
+                             throughput=sec.get("throughput", False),
+                             metrics=sec.get("metrics"))
         concl = _latency_conclusions(
             perf, sec["key"], lang, sec.get("noun_zh", ""), sec.get("noun_en", ""))
     elif table == "density":
