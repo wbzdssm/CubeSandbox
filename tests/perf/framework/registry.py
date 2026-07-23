@@ -682,7 +682,10 @@ def discover_external_scripts() -> None:
                     x.strip().strip('"\'') for x in m.group(1).split(",") if x.strip()
                 )
 
-            # ── REPORT = {...} dict for method/noun/table/throughput/star ──
+            # ── REPORT = {"key": "value", ...} ──
+            # All key/value pairs are forwarded to register_external() as
+            # keyword arguments.  The function accepts whatever is declared —
+            # no whitelist, no hard-coding.
             m = re.search(r"^REPORT\s*=\s*\{([^}]+)\}", source, re.MULTILINE)
             if m:
                 for item in m.group(1).split(","):
@@ -692,13 +695,15 @@ def discover_external_scripts() -> None:
                     k, v = item.split(":", 1)
                     k = k.strip().strip('"\'')
                     v = v.strip().strip('"\'')
-                    if k in (
-                        "method_zh", "method_en", "noun_zh", "noun_en",
-                        "table", "order",
-                    ):
-                        report_kwargs[k] = v
-                    elif k in ("throughput", "star"):
-                        report_kwargs[k] = v.lower() in ("true", "1", "yes")
+                    # serialised bools
+                    if v.lower() in ("true", "yes"):
+                        v = True
+                    elif v.lower() in ("false", "no"):
+                        v = False
+                    # serialised ints
+                    elif v.lstrip("-").isdigit():
+                        v = int(v)
+                    report_kwargs[k] = v
 
             # ── no_concurrency: detect scripts without -c argument ──
             no_concurrency = not bool(

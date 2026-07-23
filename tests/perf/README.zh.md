@@ -121,8 +121,23 @@ python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
 
 ```python
 # bench_clone.py
-"""Clone concurrency benchmark."""    # 首行注释 → 报告标题
+"""Clone Concurrency"""               # 首行 → 报告标题
 
+# ── 报告元数据（框架读取，驱动 Markdown 表格列头）──
+METRICS = ("avg", "min", "p50", "p95", "p99", "max")  # 输出哪些指标列
+
+REPORT = {                            # 表头定制（均为可选）
+    "method_zh": "克隆沙箱",           # 操作说明（中文）
+    "method_en": "Clone Sandbox",      # operation description (English)
+    "noun_zh":    "次",                # 计量单位（中文）
+    "noun_en":    "op",                # unit (English)
+    "throughput": True,                # 显示吞吐量列
+    "table":      "latency",           # 表格类型: latency | dirty
+}
+
+LEVELS = (1, 5, 10, 20)               # 并发度阶梯（可选，默认用 CUBE_PERF_CONCURRENCY）
+
+# ── CLI 契约（必选）──
 import argparse
 ap = argparse.ArgumentParser()
 ap.add_argument("-c", type=int, default=1)
@@ -136,6 +151,28 @@ sb = Sandbox.create("tpl-xxx")
 sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
 ```
+
+### 脚本元数据约定
+
+框架通过 `discover_external_scripts()` 解析脚本文件中的模块级变量：
+
+| 变量 | 类型 | 必填 | 说明 |
+|------|------|:---:|------|
+| `METRICS` | `tuple[str, ...]` | 否 | 报告表格的指标列，如 `("avg","min","p50","p95","p99","max")`。未声明时使用默认列集 |
+| `REPORT` | `dict` | 否 | 报告元数据，所有 `ReportSection` 字段均可声明。未声明字段用默认值 |
+| `LEVELS` | `tuple[int, ...]` | 否 | 并发度阶梯，覆盖全局 `CUBE_PERF_CONCURRENCY` |
+
+`REPORT` 支持的字段（`ReportSection` 全量，均可选）：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `table` | `str` | `"latency"` | 表格类型：`latency` 或 `dirty` |
+| `method_zh` | `str` | `""` | 操作方法中文描述 |
+| `method_en` | `str` | `""` | 操作方法英文描述 |
+| `noun_zh` | `str` | `""` | 操作计量单位中文，如 `"次"` |
+| `noun_en` | `str` | `""` | 操作计量单位英文，如 `"op"` |
+| `throughput` | `bool` | `False` | 是否显示吞吐量列 |
+| `star` | `bool` | `False` | 是否标记为星标场景 |
 
 ### 注册脚本
 

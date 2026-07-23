@@ -101,8 +101,57 @@ auto-detected and run once with `--no-header` only (no concurrency sweep)._
 
 ```python
 # bench_clone.py
-"""Clone concurrency benchmark."""
+"""Clone Concurrency"""               # first line → report title
 
+# ── Report metadata (drives Markdown table columns) ──
+METRICS = ("avg", "min", "p50", "p95", "p99", "max")
+
+REPORT = {                            # all fields optional
+    "method_en": "Clone Sandbox",
+    "method_zh": "克隆沙箱",
+    "noun_en":    "op",
+    "noun_zh":    "次",
+    "throughput": True,
+}
+
+LEVELS = (1, 5, 10, 20)               # concurrency gradient (optional)
+
+# ── CLI contract (required) ──
+import argparse
+ap = argparse.ArgumentParser()
+ap.add_argument("-c", type=int, default=1)
+ap.add_argument("-n", type=int, default=5)
+ap.add_argument("--rounds", type=int, default=3)
+ap.add_argument("--no-header", action="store_true")
+args = ap.parse_args()
+
+from cubesandbox import Sandbox
+sb = Sandbox.create("tpl-xxx")
+sb.clone(n=args.n, concurrency=args.c)
+sb.kill()
+```
+
+### Script metadata convention
+
+`discover_external_scripts()` parses module-level variables from the script file:
+
+| Variable | Type | Required | Description |
+|----------|------|:--------:|-------------|
+| `METRICS` | `tuple[str, ...]` | No | Columns in latency table (default: avg,min,p50,p95,p99,max) |
+| `REPORT` | `dict` | No | Report section fields; all `ReportSection` fields accepted |
+| `LEVELS` | `tuple[int, ...]` | No | Concurrency gradient, overrides global default |
+
+`REPORT` fields (subset of `ReportSection`, all optional):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `table` | `str` | `"latency"` | Table type: `latency` or `dirty` |
+| `method_en` | `str` | `""` | Operation description (English) |
+| `method_zh` | `str` | `""` | Operation description (Chinese) |
+| `noun_en` | `str` | `""` | Operation unit (English), e.g. `"op"` |
+| `noun_zh` | `str` | `""` | Operation unit (Chinese), e.g. `"次"` |
+| `throughput` | `bool` | `False` | Show throughput column |
+| `star` | `bool` | `False` | Mark as starred scenario |
 import argparse
 ap = argparse.ArgumentParser()
 ap.add_argument("-c", type=int, default=1)

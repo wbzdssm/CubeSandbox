@@ -167,17 +167,32 @@ CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.js
 
 ### 第一步 — 编写脚本
 
-创建一个 `.py` 文件，接受 `-c`（并发度）和 `-n`（操作数）参数。首行 docstring 会作为报告标题。
+创建一个 `.py` 文件，接受 `-c`（并发度）和 `-n`（操作数）参数。通过模块级变量 `METRICS`、`REPORT` 声明报告表格列头。
 
 ```python
 # bench_my_scenario.py
-"""我的场景压测"""    # ← 首行 docstring = 报告标题
+"""我的场景压测"""                          # ← 首行 = 报告标题
 
-import argparse, sys, time
+# ── 报告元数据（框架读取，驱动 Markdown 表格列头）──
+METRICS = ("avg", "min", "p50", "p95", "p99", "max")  # 输出哪些指标列
+
+REPORT = {                                 # 表头定制（均为可选）
+    "method_zh": "我的操作",                # 操作方法中文名
+    "method_en": "My Operation",            # operation description (English)
+    "noun_zh":    "次",                     # 计量单位中文
+    "noun_en":    "op",                     # unit (English)
+    "throughput": True,                     # 显示吞吐量列
+    "table":      "latency",                # 表格类型: latency | dirty
+}
+
+LEVELS = (1, 10, 20, 50)                   # 并发度阶梯（可选）
+
+# ── CLI 契约（必选）──
+import argparse
 
 ap = argparse.ArgumentParser()
-ap.add_argument("-c", type=int, default=1)     # 并发度（必选）
-ap.add_argument("-n", type=int, default=5)       # 每轮操作数（必选）
+ap.add_argument("-c", type=int, default=1)     # 并发度
+ap.add_argument("-n", type=int, default=5)     # 每轮操作数
 ap.add_argument("--rounds", type=int, default=3)
 ap.add_argument("--no-header", action="store_true")
 args = ap.parse_args()

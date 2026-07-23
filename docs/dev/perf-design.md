@@ -168,17 +168,32 @@ Three steps to add a new benchmark scenario.
 
 ### Step 1 — Write the script
 
-Create a `.py` file that accepts `-c` (concurrency) and `-n` (operations). The first docstring line becomes the report title.
+Create a `.py` file that accepts `-c` (concurrency) and `-n` (operations). Declare table columns via module-level `METRICS` and `REPORT` variables.
 
 ```python
 # bench_my_scenario.py
-"""My scenario benchmark."""    # ← first docstring line = report title
+"""My scenario benchmark."""              # ← first line = report title
 
-import argparse, sys, time
+# ── Report metadata (drives Markdown table columns) ──
+METRICS = ("avg", "min", "p50", "p95", "p99", "max")
+
+REPORT = {                                # all fields optional
+    "method_en": "My Operation",
+    "method_zh": "我的操作",
+    "noun_en":    "op",
+    "noun_zh":    "次",
+    "throughput": True,
+    "table":      "latency",
+}
+
+LEVELS = (1, 10, 20, 50)                  # concurrency gradient (optional)
+
+# ── CLI contract (required) ──
+import argparse
 
 ap = argparse.ArgumentParser()
-ap.add_argument("-c", type=int, default=1)     # concurrency (required)
-ap.add_argument("-n", type=int, default=5)     # operations per round (required)
+ap.add_argument("-c", type=int, default=1)
+ap.add_argument("-n", type=int, default=5)
 ap.add_argument("--rounds", type=int, default=3)
 ap.add_argument("--no-header", action="store_true")
 args = ap.parse_args()
