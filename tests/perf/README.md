@@ -30,16 +30,26 @@ python3 -m perf --list-scenarios
 
 ## Output Files
 
-Reports are written to the current directory (`tests/`):
+By default, reports are written into a fresh per-run directory under
+`tests/perf/report/<UTC-timestamp>/`, so the CWD stays clean:
 
 ```
-tests/
-├── report.json      # Full data JSON (environment, config, performance)
-├── report.md        # Markdown report (English)
-└── report.zh.md     # Markdown report (Chinese)
+tests/perf/report/
+├── 20260723T044740Z/             # one subdir per invocation
+│   ├── report.json               # Full data JSON (English, with environment, config, performance)
+│   ├── report.zh.json            # Same, Chinese-friendly (locale tag set to "zh")
+│   ├── report.md                 # Markdown report (English)
+│   └── report.zh.md              # Markdown report (Chinese)
+└── aggregate/                    # reserved for cross-run aggregation
 ```
 
-Override the base name with `CUBE_OUTPUT_REPORT` (default `report`).
+The default base name is `report`; the path is
+`<perf>/report/<UTC-timestamp>/report.{md,zh.md,json,zh.json}`.
+
+Override the **full base path** with `CUBE_OUTPUT_REPORT`, e.g.:
+
+- `CUBE_OUTPUT_REPORT=./report` → files land in `./report.{md,zh.md,json,zh.json}` (CWD)
+- `CUBE_OUTPUT_REPORT=/tmp/perf/2026-07-23/report` → all 4 files in that dir
 
 ## Cleanup Behaviour
 

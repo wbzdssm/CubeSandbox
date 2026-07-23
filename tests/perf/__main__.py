@@ -15,7 +15,8 @@ Optional env vars:
     CUBE_TEMPLATE_ID         - skip auto-discovery
     CUBE_PERF_SCENARIOS      - comma/space separated scenario keys/aliases to run (default: all)
     CUBE_SKIP_DENSITY        - set to "1" to skip deployment density test
-    CUBE_OUTPUT_REPORT       - base path for output reports (default: report)
+    CUBE_OUTPUT_REPORT       - full base path (incl. parent dir) for output
+                               reports. Default: <perf>/report/<UTC-timestamp>/report
     CUBE_PERF_ROUNDS         - rounds per perf scenario (default: 10)
     CUBE_DENSITY_COUNT       - max sandbox count for density test (default: 100)
     CUBE_RUN_VOLUME          - set to "1" to enable Volume scenarios
@@ -30,6 +31,7 @@ import argparse
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .reporting import report
 from .framework.config import DENSITY_COUNT, PERF_ROUNDS, resolve_config
@@ -42,10 +44,67 @@ from .ops.cleanup import register_default_scripts
 register_default_scripts()
 
 
-def _data_file_path(base: str, suffix: str = "") -> str:
-    """Generate a timestamped data file path."""
+# ---------------------------------------------------------------------------
+# Output layout
+# ---------------------------------------------------------------------------
+# Default layout (all under <perf>/report/, never in CWD):
+#
+#   tests/perf/report/
+#   ├── <UTC-timestamp>/             # per-run (one dir per invocation)
+#   │   ├── report.md
+#   │   ├── report.zh.md
+#   │   ├── report.json
+#   │   └── report.zh.json
+#   └── aggregate/                   # reserved for cross-run aggregation
+#
+# Override the base path with CUBE_OUTPUT_REPORT=<full path with .md stripped
+# by render_reports>. Useful for CI artefacts or for keeping the CWD clean.
+
+def _perf_report_root() -> Path:
+    """Absolute path to ``<perf-package>/report/``."""
+    return Path(__file__).parent.resolve() / "report"
+
+
+def _aggregate_dir() -> Path:
+    """Cross-run aggregation dir: ``<perf>/report/aggregate/``."""
+    return _perf_report_root() / "aggregate"
+
+
+def _run_output_dir() -> Path:
+    """Per-run output dir.
+
+    * Default: ``<perf>/report/<UTC-timestamp>/``
+    * Override via ``CUBE_OUTPUT_REPORT``: any full base path (with or
+      without ``.md`` / ``.json`` suffix). The parent directory of that
+      base is used as the per-run output directory.
+    """
+    env = os.environ.get("CUBE_OUTPUT_REPORT", "").strip()
+    if env:
+        p = Path(env)
+        if p.suffix:
+            p = p.with_suffix("")
+        return p.parent
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"{base}{suffix}_{ts}.json"
+    return _perf_report_root() / ts
+
+
+def _run_output_base() -> str:
+    """Full base path (no extension) for the current run's report files.
+
+    The parent directory is created on demand. The default base is
+    ``<perf>/report/<UTC-timestamp>/report``; the ``CUBE_OUTPUT_REPORT``
+    env var overrides the entire base (incl. parent dir) when needed.
+    """
+    out_dir = _run_output_dir()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    env = os.environ.get("CUBE_OUTPUT_REPORT", "").strip()
+    if env:
+        p = Path(env)
+        if p.suffix:
+            p = p.with_suffix("")
+        return str(p)
+    return str(out_dir / "report")
 
 
 def _resolve_selected(cli_scenarios: "list[str] | None") -> "list[str] | None":
@@ -116,11 +175,13 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
 
     registry.run_all(cfg, selected=selected)
 
-    # --- Write JSON data ---
+    # --- Resolve output paths (default: <perf>/report/<ts>/report) ---
+    base = _run_output_base()
+    out_dir = Path(base).parent
+
+    # --- Write JSON data (per-run snapshot, also serves as "latest") ---
     data = report.build_report_data(env)
-    base = os.environ.get("CUBE_OUTPUT_REPORT", "report")
-    base_noext = os.path.splitext(base)[0]
-    json_path = _data_file_path(base_noext)
+    json_path = f"{base}.json"
 
     import json
 
@@ -128,11 +189,15 @@ def run_benchmarks(selected: "list[str] | None" = None) -> str:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
     print(f"\n📄 JSON data saved to: {os.path.abspath(json_path)}")
+    print(f"📁 Run output dir:     {out_dir}")
 
-    # --- Also write MD reports (backward compat) ---
-    written = report.write_reports(env)
+    # --- Also write MD + zh.json reports (same dir, same base) ---
+    written = report.write_reports(env, base=base)
     for path in written:
         print(f"   - {path}")
+
+    # --- Touch the aggregate dir so cross-run tools can find it later ---
+    _aggregate_dir().mkdir(parents=True, exist_ok=True)
 
     print(f"\n{'='*60}")
     print(f"  {len(PERF_RESULTS)} performance scenarios collected")
@@ -382,8 +447,8 @@ Examples:
 
     # --md-only mode: no benchmarks, just re-render md/json from existing data
     if args.md_only:
-        base = os.path.splitext(os.environ.get("CUBE_OUTPUT_REPORT", "report"))[0]
-        written = report.render_from_json(args.md_only, base)
+        base = _run_output_base()
+        written = report.render_from_json(args.md_only, base=base)
         print(f"Re-rendered reports from {args.md_only}:")
         for path in written:
             print(f"   - {path}")

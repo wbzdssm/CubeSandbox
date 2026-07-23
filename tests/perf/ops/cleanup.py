@@ -26,11 +26,16 @@ _DEFAULT_SCRIPTS = [
 
 
 def register_default_scripts():
-    """自动注册内置默认脚本（若 CUBE_EXTERNAL_SCRIPTS 未设置）。"""
+    """Always register all built-in example scripts.
+
+    ``CUBE_EXTERNAL_SCRIPTS`` is force-set to the full default list (globs) so
+    that a previous filtered run (e.g. ``--scenarios snapshot-dirty``) never
+    leaves only a single script in ``.env``. The env var is intentionally NOT
+    in ``_TUNABLE_ENV_KEYS`` to avoid being persisted.
+    """
     from ..framework import registry
 
-    if not os.environ.get("CUBE_EXTERNAL_SCRIPTS"):
-        os.environ["CUBE_EXTERNAL_SCRIPTS"] = ",".join(_DEFAULT_SCRIPTS)
+    os.environ["CUBE_EXTERNAL_SCRIPTS"] = ",".join(_DEFAULT_SCRIPTS)
     registry.discover_external_scripts()
 
 
@@ -167,4 +172,5 @@ def post_concurrency_cleanup(label: str = "") -> None:
 
     *label* 形如 ``"clone/c=10"``，便于日志追踪。
     """
+    cleanup_all_sandboxes(label)
     cleanup_all_snapshots(label)

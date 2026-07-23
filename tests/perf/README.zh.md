@@ -30,16 +30,24 @@ python3 -m perf --list-scenarios
 
 ## 输出文件
 
-运行后，报告写入当前目录（`tests/`）：
+默认每次运行会写到 `tests/perf/report/<UTC-时间戳>/` 下的一个独立子目录，CWD 保持干净：
 
 ```
-tests/
-├── report.json      # 完整数据的 JSON（含环境、配置、性能指标）
-├── report.md        # Markdown 报告（英文）
-└── report.zh.md     # Markdown 报告（中文）
+tests/perf/report/
+├── 20260723T044740Z/             # 每次运行一个子目录
+│   ├── report.json               # 完整数据 JSON（英文版，含环境/配置/性能）
+│   ├── report.zh.json            # 同上，中文版（language 字段为 "zh"）
+│   ├── report.md                 # Markdown 报告（英文）
+│   └── report.zh.md              # Markdown 报告（中文）
+└── aggregate/                    # 预留给跨运行聚合使用
 ```
 
-通过 `CUBE_OUTPUT_REPORT` 可自定义输出基名（默认 `report`）。
+默认基名是 `report`，即 `<perf>/report/<UTC-timestamp>/report.{md,zh.md,json,zh.json}`。
+
+通过 `CUBE_OUTPUT_REPORT` 可指定**完整基路径**：
+
+- `CUBE_OUTPUT_REPORT=./report` → 4 个文件落到 `./report.{md,zh.md,json,zh.json}`（CWD）
+- `CUBE_OUTPUT_REPORT=/tmp/perf/2026-07-23/report` → 落到指定目录
 
 ## 清理行为
 

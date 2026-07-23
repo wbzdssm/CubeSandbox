@@ -71,7 +71,9 @@ _TUNABLE_ENV_KEYS = (
     "CUBE_SKIP_SNAPSHOT_DIRTY",
     "CUBE_IVSHMEM_TEMPLATE_ID",
     "CUBE_IVSHMEM_ITERATIONS",
-    "CUBE_EXTERNAL_SCRIPTS",
+    # NOTE: CUBE_EXTERNAL_SCRIPTS is deliberately NOT persisted — it defaults
+    # to all built-in examples/*.py scripts. Persisting it after a filtered
+    # run (e.g. --scenarios snapshot-dirty) would lock it to the last-run subset.
 )
 
 _DOTENV_HEADER = (

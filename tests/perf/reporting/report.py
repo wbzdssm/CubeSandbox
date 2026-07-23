@@ -22,10 +22,16 @@ produces (see ``framework/runner.py`` + ``cases/**``):
 - ``pause`` / ``resume`` — sequential per-level latency distributions (no wall).
 
 Output files (base name from ``CUBE_OUTPUT_REPORT``, default "report"):
-    report.md       - Markdown, English
-    report.zh.md    - Markdown, Chinese
-    report.json     - JSON, English
-    report.zh.json  - JSON, Chinese
+
+    <base>.md       - Markdown, English
+    <base>.zh.md    - Markdown, Chinese
+    <base>.json     - JSON, English
+    <base>.zh.json  - JSON, Chinese
+
+The CLI ``__main__`` writes the 4 files into a per-run subdirectory under
+``<perf-package>/report/<UTC-timestamp>/`` (configurable via
+``CUBE_OUTPUT_REPORT``), so CWD stays clean. The base path's parent
+directory is auto-created.
 """
 
 from __future__ import annotations
@@ -75,7 +81,7 @@ def _dirty_result_to_dicts(r: PerfResult) -> list[dict[str, Any]]:
     """Expand the single ``snapshot-dirty`` result into one row per write size.
 
     The scenario stores one sample per write-size step (each carrying its own
-    ``write_mb`` / ``dirty_mb`` / ``snapshot_ms`` / ``create_from_ms`` in
+    ``write_mb`` / ``dirty_mb`` / ``snap_avg_ms`` / ``create_avg_ms`` in
     ``extra``). Flattening it like a normal result would collapse all steps
     into a meaningless single row, so it gets its own expansion here — one JSON
     entry per step, named ``snapshot-dirty-<write_mb>mb``.
@@ -83,8 +89,15 @@ def _dirty_result_to_dicts(r: PerfResult) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for s in r.samples:
         e = s.extra
-        write_mb = e.get("write_mb", 0)
-        snap_ms = e.get("snapshot_ms", s.latency_ms)
+        # ``write_mb`` may have been overwritten by ``_parse_dirty_stdout``'s
+        # own ``float(parts[0])`` (registry._bench does ``_extra.update(parsed)``
+        # after first setting it as an int from ``-d <N>``). Normalise to int
+        # for the scenario key — ``_dirty_table``'s regex only matches
+        # ``snapshot-dirty-<digits>mb``, so a leftover "0.0mb" would silently
+        # fail to match and the table would render as "no data collected".
+        write_mb_raw = e.get("write_mb", 0)
+        write_mb = int(write_mb_raw)
+        snap_ms = e.get("snap_avg_ms", s.latency_ms)
         rows.append({
             "scenario": f"snapshot-dirty-{write_mb}mb",
             "count": 1,
@@ -97,7 +110,7 @@ def _dirty_result_to_dicts(r: PerfResult) -> list[dict[str, Any]]:
                 "write_mb": write_mb,
                 "dirty_mb": e.get("dirty_mb", -1),
                 "snapshot_ms": round(snap_ms, 2),
-                "create_from_ms": round(e.get("create_from_ms", 0), 2),
+                "create_from_ms": round(e.get("create_avg_ms", 0), 2),
             },
         })
     return rows
@@ -111,7 +124,9 @@ def _build_perf_rows() -> list[dict[str, Any]]:
     """
     rows: list[dict[str, Any]] = []
     for r in PERF_RESULTS:
-        if r.scenario == "snapshot-dirty":
+        # snapshot-dirty is a sweep: each step is its own PerfResult with key
+        # ``snapshot-dirty-<write_mb>mb``. Expand them all.
+        if r.scenario == "snapshot-dirty" or r.scenario.startswith("snapshot-dirty-"):
             rows.extend(_dirty_result_to_dicts(r))
         else:
             rows.append(_perf_result_to_dict(r))
@@ -836,8 +851,18 @@ def render_reports(data: dict[str, Any], base: str | None = None) -> list[str]:
     """Write the 4 report files (md/zh.md/json/zh.json) from a ready ``data``
     dict. Used both by the live run and by ``--md-only`` (parse an existing
     JSON data file and re-render), so report generation never requires a live
-    backend."""
+    backend.
+
+    The parent directory of ``base`` is created on demand so callers can
+    point at a fresh timestamped directory without having to ``mkdir`` it
+    themselves. The CLI default is ``<perf>/report/<UTC-timestamp>/report``.
+    """
     base = base or _report_base_path()
+    base = str(base)
+
+    parent = os.path.dirname(base)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
 
     files = {
         f"{base}.md": render_markdown(data, "en"),
@@ -864,5 +889,5 @@ def render_from_json(json_path: str, base: str | None = None) -> list[str]:
     return render_reports(data, base)
 
 
-def write_reports(env: EnvInfo) -> list[str]:
-    return render_reports(build_report_data(env))
+def write_reports(env: EnvInfo, base: str | None = None) -> list[str]:
+    return render_reports(build_report_data(env), base=base)
