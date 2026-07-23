@@ -741,6 +741,26 @@ def register_external(
     _rounds = rounds or PERF_ROUNDS
     report = ReportGroup(title) if title else None
     header = f" [Perf] {title or key.capitalize()}"
+
+    # Auto-register a Markdown report section so external scripts appear
+    # in report.md / report.zh.md without a separate ReportSection declaration.
+    if no_concurrency:
+        _table = "dirty"
+    else:
+        _table = "latency"
+    REPORT_SECTIONS.append({
+        "key": key,
+        "table": _table,
+        "title_zh": title or key.capitalize(),
+        "title_en": title or key.capitalize(),
+        "method_zh": "",
+        "method_en": "",
+        "order": 100.0 + len(REPORT_SECTIONS),
+        "throughput": False,
+        "noun_zh": "",
+        "noun_en": "",
+        "star": False,
+    })
     _metrics = metrics or ("avg", "min", "p95", "max")
 
     @benchmark(key, aliases=None, report=report)
