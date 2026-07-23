@@ -111,6 +111,29 @@ sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
 ```
 
+## 装饰器用法（高级）
+
+框架内部通过 `register_external()` 函数将外部脚本封装为 `@benchmark` 装饰器管理的场景。普通脚本无需关心此用法——在 `.env` 注册即可。
+
+如果需要在代码中显式注册场景（如动态生成压测参数），可直接调用装饰器：
+
+```python
+from cubesandbox.perf import register_external
+
+register_external(
+    "my-scenario",
+    "path/to/bench_my_scenario.py",
+    title="My Scenario",
+    levels=(1, 10, 20, 50),
+    metrics=("avg", "p95", "max"),
+    method_zh="我的操作",
+    noun_zh="次",
+    throughput=True,
+)
+```
+
+框架内部自动将参数转为 `ReportSection` 并注入 `REPORT_SECTIONS` 列表，报告渲染器按列表生成表格。
+
 ## 注册脚本
 
 在 `tests/perf/.env` 中配置 `CUBE_EXTERNAL_SCRIPTS`，支持 glob pattern：

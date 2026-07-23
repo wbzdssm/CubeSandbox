@@ -111,6 +111,29 @@ sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
 ```
 
+## Decorator Usage (Advanced)
+
+The framework wraps external scripts via `register_external()`, which internally uses `@benchmark` to manage scenario registration. Normal scripts don't need this — just register in `.env`.
+
+If you need to register a scenario programmatically:
+
+```python
+from cubesandbox.perf import register_external
+
+register_external(
+    "my-scenario",
+    "path/to/bench_my_scenario.py",
+    title="My Scenario",
+    levels=(1, 10, 20, 50),
+    metrics=("avg", "p95", "max"),
+    method_en="My Operation",
+    noun_en="op",
+    throughput=True,
+)
+```
+
+The framework converts parameters into a `ReportSection` and appends it to `REPORT_SECTIONS`, which the report renderer reads to generate Markdown tables.
+
 ## Registering Scripts
 
 Set `CUBE_EXTERNAL_SCRIPTS` in `tests/perf/.env`. Supports glob patterns:
