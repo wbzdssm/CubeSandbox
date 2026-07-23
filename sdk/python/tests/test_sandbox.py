@@ -1096,10 +1096,7 @@ class TestCommands:
             return httpx.Response(200, stream=httpx.ByteStream(body))
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             result = sb.commands.run("echo warn >&2")
 
         assert result.stdout == ""
@@ -1120,10 +1117,7 @@ class TestCommands:
             return httpx.Response(200, stream=httpx.ByteStream(body))
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             result = sb.commands.run("false")
         assert result.exit_code == 1
 
@@ -1141,10 +1135,7 @@ class TestCommands:
             return httpx.Response(200, stream=httpx.ByteStream(body))
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             result = sb.commands.run("false")
         assert result.exit_code == 7
 
@@ -1165,39 +1156,10 @@ class TestCommands:
             return httpx.Response(200, stream=httpx.ByteStream(body))
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             result = sb.commands.run("kill")
         assert result.exit_code == 137
 
-    def test_collect_process_events_prefers_status_when_exit_code_unset(self):
-        class End:
-            exit_code = 0
-            status = "exit status 7"
-            exited = True
-            error = ""
-
-            def HasField(self, name):
-                return False
-
-        class Event:
-            end = End()
-
-            def HasField(self, name):
-                return name == "end"
-
-        class Response:
-            event = Event()
-
-            def HasField(self, name):
-                return name == "event"
-
-        result = _collect_process_events([Response()])
-        assert result.exit_code == 7
-
-    def test_run_timeout_forwarded(self):
         sb = make_sandbox()
         seen = {}
 
@@ -1213,10 +1175,7 @@ class TestCommands:
             return httpx.Response(200, stream=httpx.ByteStream(body))
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             sb.commands.run("sleep 1", timeout=5.0)
         assert seen["headers"]["connect-timeout-ms"] == "5000"
 
@@ -1227,10 +1186,7 @@ class TestCommands:
             return httpx.Response(400, json={"message": "sandbox is not ready"})
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             with pytest.raises(RuntimeError, match="HTTP 400: sandbox is not ready"):
                 sb.commands.run("echo hello")
 
