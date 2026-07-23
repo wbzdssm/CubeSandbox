@@ -808,6 +808,7 @@ def register_external(
 
     # Build report metadata — ReportSection drives report.md / report.zh.md.
     _section_title = title or key.capitalize()
+    _metrics = metrics or ("avg", "min", "p95", "max")
     _section = ReportSection(
         table=table or ("dirty" if no_concurrency else "latency"),
         title_zh=_section_title,
@@ -818,12 +819,10 @@ def register_external(
         noun_en=noun_en,
         throughput=throughput,
         star=star,
-        metrics=metrics or _metrics,
+        metrics=_metrics,
         order=order if order is not None else (100.0 + len(REPORT_SECTIONS)),
     )
     header = f" [Perf] {_section_title}"
-
-    _metrics = metrics or ("avg", "min", "p95", "max")
 
     @benchmark(key, aliases=None, report=[_section])
     def _bench(cfg: Config) -> None:
