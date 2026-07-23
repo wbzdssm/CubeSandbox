@@ -931,6 +931,7 @@ def register_external(
                 _dmb = _extra.get("dmb")
                 if _dmb is not None:
                     _scenario_key = f"{key}-{_dmb}mb"
+                t0 = time.time()
                 try:
                     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
                 except subprocess.TimeoutExpired:
