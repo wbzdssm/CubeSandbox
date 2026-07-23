@@ -1,260 +1,125 @@
-# CubeSandbox Perf — 设计与架构
+# CubeSandbox Perf — 脚本集成契约
 
-## 概述
+`tests/perf` 是 CubeSandbox 性能基准测试套件。本文档定义压测脚本与框架之间的约定。
 
-`tests/perf` 是 CubeSandbox 性能基准测试套件。设计目标：**一次运行，多份报告** — 一条命令收集环境元数据、通过统一契约驱动外部压测脚本、产出报告（JSON / Markdown），无需第三方图表库。
+遵循此契约，脚本自动获得并发调度、指标采集和 Markdown 报告生成。
 
-### 设计约束
-
-| 约束 | 原因 |
-|---|---|
-| 零运行时 JS 依赖 | 报告在隔离环境中也能打开 |
-| 框架 Python≥3.11，脚本不限 | 降低 CI 环境要求 |
-| 外部脚本是唯一的 workload 来源 | 框架无关；团队可在自己的仓库中编写压测脚本 |
-| 单次采集 | 环境 + 压测 + 清理一次完成，无需手动合并 |
-
----
-
-## 分层架构
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  __main__.py        CLI 编排入口                         │
-│  __init__.py        .env 生命周期、sys.path 引导        │
-├─────────────────────────────────────────────────────────┤
-│  framework/         核心引擎（不依赖报表）                  │
-│    config.py        环境变量驱动的运行时参数              │
-│    env.py           硬件 + OS + Cube 组件版本采集        │
-│    registry.py      @benchmark 装饰器、外部脚本发现       │
-│                     与注册、场景生命周期                  │
-│    runner.py        PerfResult/Sample、measure_parallel   │
-├─────────────────────────────────────────────────────────┤
-│  reporting/         数据组装与展示配置                    │
-│    report.py        build_report_data → JSON + Markdown  │
-│    report_config.py TOML + env 展示配置                  │
-├─────────────────────────────────────────────────────────┤
-│  plugins/           懒加载输出适配器                      │
-│  plugins/           懒加载输出适配器                        │
-│    html_report.py   （预留，当前未启用）                      │
-├─────────────────────────────────────────────────────────┤
-│  ops/               平台资源管理                          │
-│    cleanup.py        快照 CRUD、默认脚本注册、             │
-│                      压测后资源清理                        │
-└─────────────────────────────────────────────────────────┘
-```
-
-### 层间契约
-
-- **framework/** 不理解 Markdown 或 TOML。它只读 `os.environ`、调 `subprocess` 或 SDK，将 `PerfResult` 写入模块级列表。
-- **reporting/** 依赖 `framework/` 的数据结构，但不依赖 `plugins/`。它将原始 `PerfResult` 转为 JSON 兼容 dict（`build_report_data`）。
-- **plugins/** 依赖 `reporting/` 的 JSON schema。当前未启用；未来可加 HTML 或 Slack 适配器。
-- **ops/** 依赖 SDK（`cubesandbox`），但不依赖 `framework/` 或 `reporting/`。被 `__main__.py` 调用来做压测后清理。
-
----
-
-## 关键设计
-
-### 1. 外部脚本契约
-
-框架通过 CLI 契约驱动外部脚本，而不是把压测逻辑写死在框架里：
+## 快速开始
 
 ```bash
-python bench_xxx.py -c <并发度> -n <操作数> [--rounds N] [--no-header]
+cd CubeSandbox/tests
+cp perf/.env.example perf/.env      # 编辑填入 CUBE_API_URL / CUBE_TEMPLATE_ID
+python3 -m perf
 ```
 
-| 动因 | 说明 |
-|---|---|
-| 框架无关 | 团队可用任意语言写脚本，只要接受契约即可 |
-| 文件系统发现 | `CUBE_EXTERNAL_SCRIPTS` 或 `--scripts DIR` — 无需配置文件 |
-| 墙上时间测量 | 每次调用一次 subprocess，框架记录总 time.now 而非脚本内部耗时 |
+## CLI 契约
 
-### 2. 并发梯度 — 环境变量驱动
+框架通过 `subprocess` 调用脚本，传递以下参数：
 
-每个场景接受并发梯度（如 `1,10,20,50`），框架按每个梯度各调用一次脚本。梯度可按场景覆盖：
-
-```
-CUBE_CREATE_CONCURRENCY=1,10,20,50      # 全局默认
-CUBE_CLONE_CONCURRENCY=1,5,10           # 场景级覆盖
+```bash
+python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
 ```
 
-覆盖由 `framework/registry.py` 在注册时解析——脚本自身不感知梯度。
+| 参数 | 必选 | 说明 |
+|------|:---:|------|
+| `-c N` | 是 | 并发度，框架按 `LEVELS` 或全局阶梯逐一调用 |
+| `-n N` | 是 | 每轮操作数 |
+| `--rounds N` | 否 | 脚本内部轮数（默认同 `-n`） |
+| `--no-header` | 否 | 抑制重复表头 |
 
-### 3. 版本采集：release-manifest 为权威源
+脚本 `stdout` 展示给用户，`stderr` 输出到日志。退出码 0 代表成功。
 
-CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.json` 留下清单，这是 `cubemaster` 和 `cubelet` 共用的单一事实源。`framework/env.py` 依次按以下优先级查找，逐级回退：
+## 元数据约定
 
-1. **首选** → `release-manifest.json`（所有组件版本 + 摘要 + guest-image + kernel）
-2. **备用** → CubeAPI `/cluster/versions`（运行时视图，注意返回字段是 **camelCase** — 旧代码用 snake_case 导致全部读空）
-3. **兜底** → 本地二进制（`cube-api -V`、`cubemaster -v`……）
+框架解析脚本源码中的模块级变量获取报告元数据。以下均为可选：
 
-采集到的 `release_version` 放在环境指纹的最前面，保证同机换版本时会自动分为不同的 series。
+### METRICS
 
-### 4. 单次报告生成
-
-一次 `build_report_data()` 调用产出统一 JSON blob：
-
-```json
-{
-  "generated_at": "ISO8601",
-  "environment": { /* 硬件、OS、全部组件版本 */ },
-  "config": { /* 解析后的运行时参数 */ },
-  "functional": { /* 通过/失败/跳过计数 */ },
-  "perf": [ /* PerfResult 数组 */ ]
-}
-```
-
-同一份 JSON 喂给 `report.py`（→ Markdown）。`plugins/` 目录预留给未来的输出适配器（HTML、Slack 等）。
-
-### 5. 压测后清理（ops/）
-
-`ops/cleanup.py` 提供三个被 `__main__.py` 调用的函数：
-
-- `register_default_scripts()` — 未设 `CUBE_EXTERNAL_SCRIPTS` 时注册内置默认脚本
-- `list_snapshots()` / `delete_snapshots()` — 快照 CRUD（仅 `snap-*` 前缀 ID）
-- `cleanup_after_benchmark()` — 通过 `CUBE_PERF_AUTO_CLEANUP=1` 开启，压测后自动删残留快照
-
----
-
-## 单次运行数据流
-
-```
-                    config.py 读环境变量
-                         │
-                    collect_env_info(cfg)
-                         │ EnvInfo (80+ 字段)
-                         ▼
-             ┌─ register_default_scripts()
-             │       registry 发现外部 .py 脚本
-             │
-             └─ registry.run_all(cfg, selected=...)
-                     │
-                     ├─ 遍历每个外部脚本：
-                     │     for c in CONCURRENCY_GRADIENT:
-                     │       subprocess: bench_xxx.py -c <c> -n <n>
-                     │       记录 end-start → PerfResult → PERF_RESULTS[]
-                     │
-                     ▼
-               build_report_data(env)
-                     │ {generated_at, environment, config, functional, perf}
-                     ▼
-        ┌────────────┬──────────────┐
-        ▼                            ▼
-   report.json                  report.md
-        │
-        └─ cleanup_after_benchmark()
-              (CUBE_PERF_AUTO_CLEANUP=1)
-```
-
----
-
----
-
-## 可扩展性
-
-| 需求 | 改动位置 |
-|---|---|
-| 加新场景 | 写一个 `.py` 脚本，设 `CUBE_EXTERNAL_SCRIPTS` |
-| 加新组件版本 | `framework/env.py` → `_MANIFEST_COMPONENT_MAP` + 1 行 |
-| 加新指标列 | `reporting/report.py` → `_DEFAULT_METRICS` |
-| 加输出格式 | `plugins/` 里加新适配器，消费 `build_report_data()` schema |
-| 加清理目标 | `ops/cleanup.py` 加函数，接入 `cleanup_after_benchmark()` |
-
----
-
-## 快速接入新场景
-
-三步完成一个新压测场景的接入。
-
-### 第一步 — 编写脚本
-
-创建一个 `.py` 文件，接受 `-c`（并发度）和 `-n`（操作数）参数。通过模块级变量 `METRICS`、`REPORT` 声明报告表格列头。
+声明报告表格的指标列。未声明时使用默认列集（`avg`, `min`, `p50`, `p95`, `p99`, `max`）：
 
 ```python
-# bench_my_scenario.py
-"""我的场景压测"""                          # ← 首行 = 报告标题
+METRICS = ("avg", "min", "p95", "max")
+```
 
-# ── 报告元数据（框架读取，驱动 Markdown 表格列头）──
-METRICS = ("avg", "min", "p50", "p95", "p99", "max")  # 输出哪些指标列
+### REPORT
 
-REPORT = {                                 # 表头定制（均为可选）
-    "method_zh": "我的操作",                # 操作方法中文名
-    "method_en": "My Operation",            # operation description (English)
-    "noun_zh":    "次",                     # 计量单位中文
-    "noun_en":    "op",                     # unit (English)
-    "throughput": True,                     # 显示吞吐量列
-    "table":      "latency",                # 表格类型: latency | dirty
+声明报告表格的展示方式：
+
+```python
+REPORT = {
+    "method_zh": "创建沙箱",        # 操作方法中文名
+    "method_en": "Create Sandbox",  # 操作方法英文名
+    "noun_zh":    "次",             # 计量单位中文
+    "noun_en":    "op",             # 计量单位英文
+    "throughput": True,             # 显示吞吐量列
+    "table":      "latency",        # 表格类型: latency | dirty
+    "star":       True,             # 标记为星标场景
+}
+```
+
+全部支持的字段：
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `table` | `str` | `"latency"` | 表格类型：`latency`（延迟分布）或 `dirty`（脏页） |
+| `method_zh` | `str` | `""` | 操作方法中文描述 |
+| `method_en` | `str` | `""` | 操作方法英文描述 |
+| `noun_zh` | `str` | `""` | 操作计量单位中文，如 `"次"` |
+| `noun_en` | `str` | `""` | 操作计量单位英文，如 `"op"` |
+| `throughput` | `bool` | `False` | 是否显示吞吐量列（`个/s`） |
+| `star` | `bool` | `False` | 是否星标 |
+
+### LEVELS
+
+覆盖全局并发度阶梯：
+
+```python
+LEVELS = (1, 10, 20, 50)
+```
+
+未声明时使用 `.env` 中的 `CUBE_PERF_CONCURRENCY`。
+
+## 完整示例
+
+```python
+# bench_clone.py
+"""Clone Concurrency"""               # 首行 → 报告标题
+
+METRICS = ("avg", "min", "p50", "p95", "p99", "max")
+
+REPORT = {
+    "method_zh": "克隆沙箱",
+    "method_en": "Clone Sandbox",
+    "noun_zh":    "次",
+    "noun_en":    "op",
+    "throughput": True,
 }
 
-LEVELS = (1, 10, 20, 50)                   # 并发度阶梯（可选）
+LEVELS = (1, 5, 10, 20)
 
-# ── CLI 契约（必选）──
 import argparse
-
 ap = argparse.ArgumentParser()
-ap.add_argument("-c", type=int, default=1)     # 并发度
-ap.add_argument("-n", type=int, default=5)     # 每轮操作数
+ap.add_argument("-c", type=int, default=1)
+ap.add_argument("-n", type=int, default=5)
 ap.add_argument("--rounds", type=int, default=3)
 ap.add_argument("--no-header", action="store_true")
 args = ap.parse_args()
 
 from cubesandbox import Sandbox
-
 sb = Sandbox.create("tpl-xxx")
-for _ in range(args.n):
-    sb.do_something(concurrency=args.c)
+sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
-
-print(f"n={args.n}, c={args.c}")   # 可选 stdout 用于调试
 ```
 
-### 第二步 — 注册到 `.env`
+## 注册脚本
 
-在 `tests/perf/.env` 的 `CUBE_EXTERNAL_SCRIPTS` 中添加脚本路径：
+在 `tests/perf/.env` 中配置 `CUBE_EXTERNAL_SCRIPTS`，支持 glob pattern：
 
 ```bash
-CUBE_EXTERNAL_SCRIPTS=\
-../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
-../examples/my-new-feature/bench_my_scenario.py
+CUBE_EXTERNAL_SCRIPTS=../examples/snapshot-rollback-clone/bench_*.py
 ```
 
-### 第三步 — 运行
-
-```bash
-# 列出场景确认注册成功
-python3 -m perf --list-scenarios
-
-# 只跑新场景
-python3 -m perf --rounds 1 --scenarios my-scenario
-```
-
-### 框架自动完成的事
-
-| 环节 | 框架处理 |
-|------|---------|
-| 并发度梯度 | 按 `CUBE_PERF_CONCURRENCY` 逐级调用脚本 |
-| 预热 | 前 N 轮结果丢弃（`CUBE_PERF_WARMUP`） |
-| 计时 | 每次调用记录墙钟时间 |
-| 指标 | 自动计算 avg / min / p50 / p95 / p99 / max |
-| 报告 | 生成 Markdown 表格 |
-| 清理 | 自动清理残留沙箱和快照 |
-
-脚本作者只需写压测逻辑 — 不用管计时、统计、报告格式。
-
-### CLI 参数约定
-
-| 参数 | 必选 | 说明 |
-|------|:----:|------|
-| `-c N` | 是 | 并发度 |
-| `-n N` | 是 | 每轮操作数 |
-| `--rounds N` | 否 | 脚本内部轮数（默认同 `-n`） |
-| `--no-header` | 否 | 抑制重复表头 |
-
----
-
-## 配置优先级
-
-```
-CLI 参数  >  环境变量  >  report.toml  >  内置默认
-```
-
-`report.toml` 查找路径：`$CUBE_REPORT_CONFIG` → `./report.toml` → `tests/perf/report.toml` → `tests/report.toml` → `sdk/python/report.toml`。文件不存在或缺键 → 回退到默认。
+注册后框架自动：
+1. `--list-scenarios` 列出场景
+2. 执行时按 `LEVELS` 调度并发度
+3. 采集延迟并生成 Markdown 报告
