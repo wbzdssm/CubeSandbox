@@ -89,18 +89,7 @@ CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.js
 
 采集到的 `release_version` 放在环境指纹的最前面，保证同机换版本时会自动分为不同的 series。
 
-### 4. 基线过滤：auto 模式
-
-官方基线（BMSA9 / BMI5 / Kunpeng 920 / Vera）按交集自动过滤。默认 `auto` 模式：基线场景 key 跟当前运行不交集的基线不展示（如 x86-only 报告不会出现 Kunpeng 的空柱子）。
-
-可通过 `report.toml` 配置：
-
-```toml
-[baselines]
-mode = "auto"    # auto | all | none | list
-```
-
-### 5. 单次报告生成
+### 4. 单次报告生成
 
 一次 `build_report_data()` 调用产出统一 JSON blob：
 
@@ -116,7 +105,7 @@ mode = "auto"    # auto | all | none | list
 
 同一份 JSON 同时喂给 `report.py`（→ Markdown）和 `html_report.py`（→ HTML）。多环境对比只需传多份 JSON 给 `generate_html()`——内部 `_group_runs()` 按环境指纹分组，SVG 折线图每个指纹一条线。
 
-### 6. 压测后清理（ops/）
+### 5. 压测后清理（ops/）
 
 `ops/cleanup.py` 提供三个被 `__main__.py` 调用的函数：
 
@@ -183,6 +172,81 @@ HTML 完全自包含 — 无外部 Chart.js CDN、无网络依赖。所有 CSS /
 | 加新指标列 | `reporting/report.py` → `_DEFAULT_METRICS` |
 | 加输出格式 | `plugins/` 里加新适配器，消费 `build_report_data()` schema |
 | 加清理目标 | `ops/cleanup.py` 加函数，接入 `cleanup_after_benchmark()` |
+
+---
+
+## 快速接入新场景
+
+三步完成一个新压测场景的接入。
+
+### 第一步 — 编写脚本
+
+创建一个 `.py` 文件，接受 `-c`（并发度）和 `-n`（操作数）参数。首行 docstring 会作为报告标题。
+
+```python
+# bench_my_scenario.py
+"""我的场景压测"""    # ← 首行 docstring = 报告标题
+
+import argparse, sys, time
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-c", type=int, default=1)     # 并发度（必选）
+ap.add_argument("-n", type=int, default=5)       # 每轮操作数（必选）
+ap.add_argument("--rounds", type=int, default=3)
+ap.add_argument("--no-header", action="store_true")
+args = ap.parse_args()
+
+from cubesandbox import Sandbox
+
+sb = Sandbox.create("tpl-xxx")
+for _ in range(args.n):
+    sb.do_something(concurrency=args.c)
+sb.kill()
+
+print(f"n={args.n}, c={args.c}")   # 可选 stdout 用于调试
+```
+
+### 第二步 — 注册到 `.env`
+
+在 `tests/perf/.env` 的 `CUBE_EXTERNAL_SCRIPTS` 中添加脚本路径：
+
+```bash
+CUBE_EXTERNAL_SCRIPTS=\
+../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+../examples/my-new-feature/bench_my_scenario.py
+```
+
+### 第三步 — 运行
+
+```bash
+# 列出场景确认注册成功
+python3 -m perf --list-scenarios
+
+# 只跑新场景
+python3 -m perf --rounds 1 --scenarios my-scenario --html
+```
+
+### 框架自动完成的事
+
+| 环节 | 框架处理 |
+|------|---------|
+| 并发度梯度 | 按 `CUBE_PERF_CONCURRENCY` 逐级调用脚本 |
+| 预热 | 前 N 轮结果丢弃（`CUBE_PERF_WARMUP`） |
+| 计时 | 每次调用记录墙钟时间 |
+| 指标 | 自动计算 avg / min / p50 / p95 / p99 / max |
+| 报告 | 生成 Markdown 表格 + HTML 折线图 |
+| 清理 | 自动清理残留沙箱和快照 |
+
+脚本作者只需写压测逻辑 — 不用管计时、统计、报告格式。
+
+### CLI 参数约定
+
+| 参数 | 必选 | 说明 |
+|------|:----:|------|
+| `-c N` | 是 | 并发度 |
+| `-n N` | 是 | 每轮操作数 |
+| `--rounds N` | 否 | 脚本内部轮数（默认同 `-n`） |
+| `--no-header` | 否 | 抑制重复表头 |
 
 ---
 

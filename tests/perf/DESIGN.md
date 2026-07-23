@@ -90,18 +90,7 @@ CubeSandbox installations ship `/usr/local/services/cubetoolbox/release-manifest
 
 The collected `release_version` is placed first in the environment fingerprint so that two runs on the same machine but with different CubeSandbox releases automatically split into separate series in multi-env HTML reports.
 
-### 4. Baseline filtering: auto mode
-
-Published baselines (BMSA9, BMI5, Kunpeng 920, Vera) are compared against the current run. The default mode is `auto`: baselines whose scenario keys don't intersect the current run are silently dropped. This prevents empty "Kunpeng 920" bars from appearing in an x86-only report.
-
-Configuration via `report.toml`:
-
-```toml
-[baselines]
-mode = "auto"    # auto | all | none | list
-```
-
-### 5. Single-pass report generation
+### 4. Single-pass report generation
 
 A single call to `build_report_data()` produces a unified JSON blob:
 
@@ -117,7 +106,7 @@ A single call to `build_report_data()` produces a unified JSON blob:
 
 The same JSON feeds `report.py` (→ Markdown) and `html_report.py` (→ HTML). Multi-environment comparison is achieved by feeding multiple JSON files to `generate_html()` — the internal `_group_runs()` function splits by environment fingerprint and the SVG chart renders one line per fingerprint.
 
-### 6. Post-benchmark cleanup (ops/)
+### 5. Post-benchmark cleanup (ops/)
 
 `ops/cleanup.py` provides three functions called from `__main__.py`:
 
@@ -183,6 +172,81 @@ The HTML is **fully self-contained** — no external Chart.js CDN, no internet d
 | New metric column | `reporting/report.py` → `_DEFAULT_METRICS` |
 | New output format | `plugins/` → new adapter consuming the `build_report_data()` schema |
 | New cleanup target | `ops/cleanup.py` → new function, wire into `cleanup_after_benchmark()` |
+
+---
+
+## Quick Start: Add a New Scenario
+
+Three steps to add a new benchmark scenario.
+
+### Step 1 — Write the script
+
+Create a `.py` file that accepts `-c` (concurrency) and `-n` (operations). The first docstring line becomes the report title.
+
+```python
+# bench_my_scenario.py
+"""My scenario benchmark."""    # ← first docstring line = report title
+
+import argparse, sys, time
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-c", type=int, default=1)     # concurrency (required)
+ap.add_argument("-n", type=int, default=5)     # operations per round (required)
+ap.add_argument("--rounds", type=int, default=3)
+ap.add_argument("--no-header", action="store_true")
+args = ap.parse_args()
+
+from cubesandbox import Sandbox
+
+sb = Sandbox.create("tpl-xxx")
+for _ in range(args.n):
+    sb.do_something(concurrency=args.c)
+sb.kill()
+
+print(f"n={args.n}, c={args.c}")   # optional stdout for debugging
+```
+
+### Step 2 — Register in `.env`
+
+Add the script path to `CUBE_EXTERNAL_SCRIPTS` in `tests/perf/.env`:
+
+```bash
+CUBE_EXTERNAL_SCRIPTS=\
+../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+../examples/my-new-feature/bench_my_scenario.py
+```
+
+### Step 3 — Run
+
+```bash
+# List to verify registration
+python3 -m perf --list-scenarios
+
+# Run just the new scenario
+python3 -m perf --rounds 1 --scenarios my-scenario --html
+```
+
+### What the framework does automatically
+
+| Step | Framework handles |
+|------|------------------|
+| Concurrency gradient | Calls script once per level in `CUBE_PERF_CONCURRENCY` |
+| Warm-up | First N rounds discarded (`CUBE_PERF_WARMUP`) |
+| Timing | Wall-clock measured per invocation |
+| Metrics | avg / min / p50 / p95 / p99 / max computed |
+| Report | Markdown table + HTML chart generated |
+| Cleanup | Residual sandboxes & snapshots cleaned up |
+
+The script author only writes the benchmark logic — no timing, no stats, no report formatting.
+
+### CLI contract reference
+
+| Flag | Required | Description |
+|------|:--------:|-------------|
+| `-c N` | Yes | Concurrency level |
+| `-n N` | Yes | Operations per round |
+| `--rounds N` | No | Internal rounds (defaults to `-n`) |
+| `--no-header` | No | Suppress repeated table headers |
 
 ---
 
