@@ -229,6 +229,7 @@ def _register_report(
                 "noun_zh": item.noun_zh,
                 "noun_en": item.noun_en,
                 "star": item.star,
+                "metrics": item.metrics,
             })
             charts = item.charts
         elif isinstance(item, ReportChart):
