@@ -636,10 +636,17 @@ def discover_external_scripts() -> None:
         print("[perf]   then edit tests/perf/.env and uncomment CUBE_EXTERNAL_SCRIPTS")
         return
 
-    for p in raw.split(","):
-        p = p.strip()
-        if p:
-            candidates.append(_Path(p).expanduser().resolve())
+    for p_raw in raw.split(","):
+        p_raw = p_raw.strip()
+        if not p_raw:
+            continue
+        path = _Path(p_raw).expanduser().resolve()
+        # Support glob patterns: bench_*.py expands to all matching files
+        if "*" in path.name:
+            parent = path.parent
+            candidates.extend(sorted(parent.glob(path.name)))
+        else:
+            candidates.append(path)
 
     registered_keys = set(BENCHMARK_REGISTRY)
 
