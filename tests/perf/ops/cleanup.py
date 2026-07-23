@@ -21,6 +21,7 @@ _DEFAULT_SCRIPTS = [
     "../examples/snapshot-rollback-clone/bench_rollback_concurrency.py",
     "../examples/snapshot-rollback-clone/bench_pause_resume_concurrency.py",
     "../examples/snapshot-rollback-clone/bench_snapshot_dirty.py",
+    "../examples/ivshmem/ivshmem_benchmark.py",
 ]
 
 
@@ -84,7 +85,9 @@ def delete_snapshots(ids: list[str]) -> tuple[int, int]:
             ok += 1
         except Exception as exc:
             msg = str(exc)
-            if "130409" not in msg:
+            if "130409" in msg:
+                print(f"[cleanup] {tid}: in use, skipped", file=sys.stderr)
+            else:
                 print(f"[cleanup] {tid}: {exc}", file=sys.stderr)
             fail += 1
     return ok, fail

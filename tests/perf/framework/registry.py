@@ -860,8 +860,8 @@ def register_external(
 
         if no_concurrency:
             # Single run — the script manages its own parameters
-            # (e.g. bench_snapshot_dirty.py with -d DIRTY_MB).
-            cmd = [_sys.executable, _script_path, "--no-header"]
+            # (e.g. bench_snapshot_dirty.py, ivshmem_benchmark.py).
+            cmd = [_sys.executable, _script_path]
             t0 = _time.time()
             try:
                 proc = subprocess.run(
