@@ -97,16 +97,23 @@ tests/
 
 ## 内置场景
 
-框架自带 6 个场景，通过 `CUBE_EXTERNAL_SCRIPTS` 默认注册，位于 `../examples/snapshot-rollback-clone/`：
+框架默认 6 个场景，另有 2 个需手动开启，均位于 `../examples/snapshot-rollback-clone/`：
 
 | 场景 | Key | 说明 |
 |------|-----|------|
-| 克隆（并发） | `clone-concurrency` | 多并发克隆沙箱 |
 | 创建（并发） | `create-concurrency` | 多并发创建沙箱 |
 | 快照创建（并发） | `snapshot-concurrency` | 多并发创建快照 |
 | 快照回滚（并发） | `rollback-concurrency` | 多并发回滚到快照 |
+| 克隆（并发） | `clone-concurrency` | 多并发克隆沙箱 |
 | 暂停 & 恢复（并发） | `pause-resume-concurrency` | 多并发暂停和恢复 |
 | 脏页快照 | `snapshot-dirty` | 不同脏页大小下的快照制作耗时 |
+
+以下场景需手动开启：
+
+| 场景 | Key | 开启方式 | 说明 |
+|------|-----|---------|------|
+| ivshmem 共享内存 | `ivshmem` | `CUBE_RUN_IVSHMEM=1` | 需 host ivshmem + ivshmem 模板 |
+| 远程存储卷 | `volume` | `CUBE_RUN_VOLUME=1` | 需配置 Volume 插件 |
 
 ## 接入新场景
 

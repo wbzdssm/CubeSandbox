@@ -96,16 +96,23 @@ The framework cleans up after **each round** and **after all scenarios**:
 
 ## Built-in Scenarios
 
-6 scenarios registered by default via `CUBE_EXTERNAL_SCRIPTS`, located in `../examples/snapshot-rollback-clone/`:
+6 scenarios enabled by default, 2 opt-in. All located in `../examples/snapshot-rollback-clone/`:
 
 | Scenario | Key | Description |
 |----------|-----|-------------|
-| Clone (concurrency) | `clone-concurrency` | Multi-concurrency sandbox clone |
 | Create (concurrency) | `create-concurrency` | Multi-concurrency sandbox create |
 | Snapshot (concurrency) | `snapshot-concurrency` | Multi-concurrency snapshot create |
 | Rollback (concurrency) | `rollback-concurrency` | Multi-concurrency snapshot rollback |
+| Clone (concurrency) | `clone-concurrency` | Multi-concurrency sandbox clone |
 | Pause & Resume | `pause-resume-concurrency` | Multi-concurrency pause/resume |
 | Snapshot Dirty | `snapshot-dirty` | Snapshot creation with varying dirty page sizes |
+
+Opt-in scenarios:
+
+| Scenario | Key | Enable | Notes |
+|----------|-----|--------|-------|
+| ivshmem shared memory | `ivshmem` | `CUBE_RUN_IVSHMEM=1` | Requires host ivshmem + ivshmem template |
+| Volume (remote storage) | `volume` | `CUBE_RUN_VOLUME=1` | Requires Volume plugin |
 
 ## Adding New Scenarios
 
