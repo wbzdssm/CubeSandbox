@@ -618,6 +618,22 @@ def auto(
 # ---------------------------------------------------------------------------
 
 
+_BOILERPLATE_PREFIXES = (
+    "copyright",
+    "licen",
+    "spdx",
+    "all rights reserved",
+    "作者",
+    "版权所有",
+)
+
+
+def _is_boilerplate_comment(text: str) -> bool:
+    """Return True if *text* looks like a license/copyright comment."""
+    lower = text.lower()
+    return any(lower.startswith(p) for p in _BOILERPLATE_PREFIXES)
+
+
 def discover_external_scripts() -> None:
     """Auto-discover and register external scripts.
 
@@ -665,15 +681,26 @@ def discover_external_scripts() -> None:
         try:
             source = p.read_text(encoding="utf-8")
 
-            # ── title: first docstring line or first comment ──
+            # ── title: first docstring line or first meaningful comment ──
             for line in source.split("\n"):
                 stripped = line.strip()
                 if stripped.startswith('"""') or stripped.startswith("'''"):
-                    title = stripped.strip('"\'').strip()
+                    # Extract content between opening and (optional) closing quotes
+                    for q in ('"""', "'''"):
+                        if stripped.startswith(q):
+                            inner = stripped[len(q):]
+                            end = inner.find(q)
+                            if end >= 0:
+                                inner = inner[:end]
+                            title = inner.strip()
+                            break
                     break
                 if stripped.startswith("#"):
-                    title = stripped.lstrip("#").strip()
-                    break
+                    candidate = stripped.lstrip("#").strip()
+                    # Skip license/copyright lines — they are not scenario titles
+                    if not _is_boilerplate_comment(candidate):
+                        title = candidate
+                        break
 
             # ── LEVELS = (1, 10, 20) ──
             m = re.search(r"^LEVELS\s*=\s*[\[(]([^)\]]+)[)\]]", source, re.MULTILINE)

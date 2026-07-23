@@ -1,4 +1,4 @@
-"""Create sandbox baseline."""           # ← report title
+"""Create sandbox baseline."""
 
 METRICS = ("avg", "min", "p95", "max")   # which stats to show
 
