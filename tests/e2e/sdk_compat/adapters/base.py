@@ -46,6 +46,21 @@ class SandboxAdapter(ABC):
     def read_file(self, path: str, *, user: str = "root") -> str:
         raise NotImplementedError
 
+    def remove_file(self, path: str, *, user: str = "root") -> None:
+        raise UnsupportedCapability(self.backend, "filesystem_remove")
+
+    def list_dir(self, path: str, *, user: str = "root") -> list[str]:
+        raise UnsupportedCapability(self.backend, "filesystem_list")
+
+    def make_dir(self, path: str, *, user: str = "root") -> None:
+        raise UnsupportedCapability(self.backend, "filesystem_makedir")
+
+    def rename_file(self, old_path: str, new_path: str, *, user: str = "root") -> None:
+        raise UnsupportedCapability(self.backend, "filesystem_rename")
+
+    def file_exists(self, path: str, *, user: str = "root") -> bool:
+        raise UnsupportedCapability(self.backend, "filesystem_exists")
+
     @abstractmethod
     def run_code(self, code: str, *, timeout: int = 60) -> CodeResult:
         raise NotImplementedError

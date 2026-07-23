@@ -269,7 +269,7 @@ class E2BAdapter(SandboxAdapter):
         )
 
     def write_file(self, path: str, content: str, *, user: str = "root") -> None:
-        files = getattr(self._sandbox, "files", None)
+        files = getattr(self._sandbox, "files", None) or getattr(self._sandbox, "filesystem", None)
         if files is None:
             raise RuntimeError("E2B sandbox object does not expose files")
         writer = getattr(files, "write", None) or getattr(files, "write_file", None)
@@ -278,13 +278,62 @@ class E2BAdapter(SandboxAdapter):
         writer(path, content)
 
     def read_file(self, path: str, *, user: str = "root") -> str:
-        files = getattr(self._sandbox, "files", None)
+        files = getattr(self._sandbox, "files", None) or getattr(self._sandbox, "filesystem", None)
         if files is None:
             raise RuntimeError("E2B sandbox object does not expose files")
         reader = getattr(files, "read", None) or getattr(files, "read_file", None)
         if not callable(reader):
             raise RuntimeError("E2B files object does not expose read/read_file")
         return str(reader(path))
+
+    def _files(self):
+        return getattr(self._sandbox, "files", None) or getattr(self._sandbox, "filesystem", None)
+
+    def remove_file(self, path: str, *, user: str = "root") -> None:
+        files = self._files()
+        if files is None:
+            raise RuntimeError("E2B sandbox object does not expose files")
+        remover = getattr(files, "remove", None)
+        if not callable(remover):
+            raise RuntimeError("E2B files object does not expose remove")
+        remover(path)
+
+    def list_dir(self, path: str, *, user: str = "root") -> list[str]:
+        files = self._files()
+        if files is None:
+            raise RuntimeError("E2B sandbox object does not expose files")
+        lister = getattr(files, "list", None) or getattr(files, "list_dir", None)
+        if not callable(lister):
+            raise RuntimeError("E2B files object does not expose list/list_dir")
+        entries = lister(path)
+        return [e.name if hasattr(e, "name") else e.get("name", str(e)) for e in entries]
+
+    def make_dir(self, path: str, *, user: str = "root") -> None:
+        files = self._files()
+        if files is None:
+            raise RuntimeError("E2B sandbox object does not expose files")
+        mkdir = getattr(files, "make_dir", None) or getattr(files, "makeDir", None)
+        if not callable(mkdir):
+            raise RuntimeError("E2B files object does not expose make_dir/makeDir")
+        mkdir(path)
+
+    def rename_file(self, old_path: str, new_path: str, *, user: str = "root") -> None:
+        files = self._files()
+        if files is None:
+            raise RuntimeError("E2B sandbox object does not expose files")
+        renamer = getattr(files, "rename", None) or getattr(files, "move", None)
+        if not callable(renamer):
+            raise RuntimeError("E2B files object does not expose rename/move")
+        renamer(old_path, new_path)
+
+    def file_exists(self, path: str, *, user: str = "root") -> bool:
+        files = self._files()
+        if files is None:
+            raise RuntimeError("E2B sandbox object does not expose files")
+        exists = getattr(files, "exists", None)
+        if not callable(exists):
+            raise RuntimeError("E2B files object does not expose exists")
+        return bool(exists(path))
 
     def run_code(self, code: str, *, timeout: int = 60) -> CodeResult:
         result = self._sandbox.run_code(code, timeout=timeout)

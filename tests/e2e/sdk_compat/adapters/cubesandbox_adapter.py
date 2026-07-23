@@ -107,6 +107,22 @@ class CubeSandboxAdapter(SandboxAdapter):
     def read_file(self, path: str, *, user: str = "root") -> str:
         return self._sandbox.files.read(path, user=user)
 
+    def remove_file(self, path: str, *, user: str = "root") -> None:
+        self._sandbox.files.remove(path, user=user)
+
+    def list_dir(self, path: str, *, user: str = "root") -> list[str]:
+        entries = self._sandbox.files.list(path, user=user)
+        return [e.get("name", "") for e in entries]
+
+    def make_dir(self, path: str, *, user: str = "root") -> None:
+        self._sandbox.files.make_dir(path, user=user)
+
+    def rename_file(self, old_path: str, new_path: str, *, user: str = "root") -> None:
+        self._sandbox.files.rename(old_path, new_path, user=user)
+
+    def file_exists(self, path: str, *, user: str = "root") -> bool:
+        return self._sandbox.files.exists(path, user=user)
+
     def run_code(self, code: str, *, timeout: int = 60) -> CodeResult:
         execution = self._sandbox.run_code(code, timeout=timeout)
         stdout = _normalize_log_lines(execution.logs.stdout) if execution.logs else []

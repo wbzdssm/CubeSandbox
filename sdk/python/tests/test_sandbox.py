@@ -21,7 +21,7 @@ import pytest
 
 from cubesandbox import CommandResult, Template
 from cubesandbox._template import TemplateInfo
-from cubesandbox._commands import Commands, _collect_process_events
+from cubesandbox._commands import Commands
 from cubesandbox._config import Config
 from cubesandbox._exceptions import (
     ApiError,
@@ -1063,10 +1063,7 @@ class TestCommands:
             return httpx.Response(200, stream=httpx.ByteStream(body))
 
         client = httpx.Client(transport=httpx.MockTransport(handler))
-        with (
-            patch.object(Commands, "_run_with_e2b_connect", side_effect=ImportError),
-            patch.object(sb, "_build_data_client", return_value=client),
-        ):
+        with patch.object(sb, "_build_data_client", return_value=client):
             result = sb.commands.run("echo hello", cwd="/work", env={"A": "B"})
 
         assert result.stdout == "hello\nworld\n"
