@@ -914,8 +914,7 @@ def register_external(
                 cmd += _sweep
                 _sweep_label = "_".join(str(a) for a in _sweep) if _sweep else "default"
                 _sweep_header = f"{header} [{_sweep_label}]" if _sweep else header
-                t0 = time.time()
-                # Build extra dict from sweep args (e.g. {"dmb": "0"} for -d 0)
+                # Build extra dict from sweep args (e.g. {"dmb": 0} for -d 0)
                 _extra: dict = {}
                 _sweep_iter = iter(_sweep)
                 for flag in _sweep_iter:
@@ -923,13 +922,20 @@ def register_external(
                         val = next(_sweep_iter, "")
                         if flag == "-d":
                             _extra["dmb"] = int(val)
+                            _extra["write_mb"] = int(val)
                         else:
                             _extra[flag.lstrip("-")] = val
+                # Build scenario key to match _dirty_table pattern:
+                #   snapshot-dirty-<write_mb>mb
+                _scenario_key = key
+                _dmb = _extra.get("dmb")
+                if _dmb is not None:
+                    _scenario_key = f"{key}-{_dmb}mb"
                 try:
                     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
                 except subprocess.TimeoutExpired:
                     wall = (time.time() - t0) * 1000
-                    result = PerfResult(scenario=key, samples=[PerfSample(label="", latency_ms=wall)])
+                    result = PerfResult(scenario=_scenario_key, samples=[PerfSample(label="", latency_ms=wall)])
                     result.samples[0].extra = {**_extra, "error": "TIMEOUT"}
                     PERF_RESULTS.append(result)
                     print(f"  {_sweep_header}: TIMEOUT after {wall:.0f}ms")
@@ -938,7 +944,7 @@ def register_external(
                 wall = (time.time() - t0) * 1000
                 if proc.returncode != 0:
                     err = (proc.stderr or "").strip()[:500]
-                    result = PerfResult(scenario=key, samples=[PerfSample(label="", latency_ms=wall)])
+                    result = PerfResult(scenario=_scenario_key, samples=[PerfSample(label="", latency_ms=wall)])
                     result.samples[0].extra = {**_extra, "error": f"rc={proc.returncode}: {err}"}
                     PERF_RESULTS.append(result)
                     print(f"  {_sweep_header}: wall={wall:.0f}ms ERR(rc={proc.returncode})")
@@ -946,7 +952,7 @@ def register_external(
                         for line in err.split("\n"):
                             print(f"    {line}")
                 else:
-                    result = PerfResult(scenario=key, samples=[PerfSample(label="", latency_ms=wall)])
+                    result = PerfResult(scenario=_scenario_key, samples=[PerfSample(label="", latency_ms=wall)])
                     result.samples[0].extra = _extra
                     PERF_RESULTS.append(result)
                     print(f"  {_sweep_header}: wall={wall:.0f}ms")
