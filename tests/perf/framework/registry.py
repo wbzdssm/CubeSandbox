@@ -953,10 +953,19 @@ def register_external(
                         for line in err.split("\n"):
                             print(f"    {line}")
                 else:
-                    result = PerfResult(scenario=_scenario_key, samples=[PerfSample(label="", latency_ms=wall)])
+                    parsed = _parse_dirty_stdout(proc.stdout or "")
+                    if parsed:
+                        _extra.update(parsed)
+                        sample_latency = parsed.get("snap_avg_ms", wall)
+                        print(f"  {_sweep_header}: wall={wall:.0f}ms "
+                              f"snap_avg={parsed['snap_avg_ms']:.1f}ms "
+                              f"create_avg={parsed['create_avg_ms']:.1f}ms")
+                    else:
+                        sample_latency = wall
+                        print(f"  {_sweep_header}: wall={wall:.0f}ms")
+                    result = PerfResult(scenario=_scenario_key, samples=[PerfSample(label="", latency_ms=sample_latency)])
                     result.samples[0].extra = _extra
                     PERF_RESULTS.append(result)
-                    print(f"  {_sweep_header}: wall={wall:.0f}ms")
             return
             t0 = _time.time()
             try:
@@ -1063,6 +1072,33 @@ def register_external(
 _STDOUT_PARSE_RE = re.compile(
     r"avg=(?P<avg>[0-9.]+)ms\s+min=(?P<min>[0-9.]+)ms\s+p95=(?P<p95>[0-9.]+)ms\s+max=(?P<max>[0-9.]+)ms"
 )
+
+
+def _parse_dirty_stdout(stdout: str) -> dict[str, float]:
+    """Parse bench_snapshot_dirty's last data line.
+
+    Layout (whitespace-separated, last line only):
+        write_MB  dirty_MB_avg  snap_avg  snap_min  snap_p95  snap_max
+        create_avg  create_min  create_p95  create_max
+    """
+    lines = [l for l in stdout.splitlines() if l.strip()]
+    if not lines:
+        return {}
+    parts = lines[-1].split()
+    if len(parts) < 10:
+        return {}
+    return {
+        "write_mb": float(parts[0]),
+        "dirty_mb": float(parts[1]),
+        "snap_avg_ms": float(parts[2]),
+        "snap_min_ms": float(parts[3]),
+        "snap_p95_ms": float(parts[4]),
+        "snap_max_ms": float(parts[5]),
+        "create_avg_ms": float(parts[6]),
+        "create_min_ms": float(parts[7]),
+        "create_p95_ms": float(parts[8]),
+        "create_max_ms": float(parts[9]),
+    }
 
 
 def _parse_bench_stdout(stdout: str) -> dict[str, float]:
