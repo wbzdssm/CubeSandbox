@@ -38,8 +38,8 @@ def register_default_scripts():
 def list_snapshots():
     """返回当前所有 ``snap-*`` 快照，调用 ``Template.list()`` 后按前缀过滤。
 
-    只返回没有活跃运行时引用 (active runtime ref) 的快照，避免删除
-    正在被沙箱使用的快照导致 130409 错误。
+    注意：不依赖 status 字段过滤——实际 API 返回可能没有该字段。
+    不可删除的快照在 delete_snapshots() 中捕获 130409 错误跳过。
     """
     import sys
     from cubesandbox import Template
@@ -48,66 +48,40 @@ def list_snapshots():
     except Exception as exc:
         print(f"[cleanup] Template.list() failed: {exc}", file=sys.stderr)
         return []
-    result = []
-    for t in tmpls:
-        tid = t.template_id or ""
-        if not tid.startswith("snap-"):
-            continue
-        # Skip snapshots with active runtime references — deleting them
-        # would fail with error 130409 ("active runtime ref(s)").
-        status = getattr(t, "status", "") or ""
-        if status in ("in_use", "in-progress", "active"):
-            continue
-        result.append({
-            "template_id": tid,
-            "status": status,
+    return [
+        {
+            "template_id": t.template_id,
+            "status": getattr(t, "status", "") or "",
             "created_at": getattr(t, "created_at", "") or getattr(t, "createdAt", ""),
-        })
-    return result
+        }
+        for t in tmpls
+        if (t.template_id or "").startswith("snap-")
+    ]
 
 
 def delete_snapshots(ids: list[str]) -> tuple[int, int]:
-    """批量删除快照，遇到 "already in progress" 自动重试，返回 (ok, fail)。
+    """批量删除快照，遇到 130409 直接跳过，返回 (ok, fail)。
 
-    遇到 "active runtime ref" (130409) 时不重试——这类错误重试也没用，
-    快照正在被沙箱使用。
+    130409 涵盖两种不可删除的情况：
+    - "active runtime ref" — 快照被沙箱使用
+    - "active snapshot operation" — 另一个快照操作进行中
+
+    这两种重试也没用，直接跳过。
     """
     import sys
     from cubesandbox import Template
 
-    retries = int(os.environ.get("CUBE_PERF_CLEANUP_RETRIES", "3"))
     ok = fail = 0
     for tid in ids:
-        last_err = None
-        for attempt in range(1, retries + 1):
-            try:
-                Template.delete(tid)
-                ok += 1
-                last_err = None
-                break
-            except Exception as exc:
-                last_err = exc
-                msg = str(exc)
-                # "active runtime ref" — snapshot in use, don't retry
-                if "130409" in msg and "active runtime ref" in msg.lower():
-                    fail += 1
-                    print(f"[cleanup] {tid}: in use (active runtime ref), skipping",
-                          file=sys.stderr)
-                    last_err = None
-                    break
-                # "already in progress" — transient, retry
-                if "130409" in msg or "already in progress" in msg.lower():
-                    if attempt < retries:
-                        backoff = attempt * 2
-                        print(f"[cleanup] {tid}: in progress, retry {attempt}/{retries} "
-                              f"in {backoff}s...", file=sys.stderr)
-                        time.sleep(backoff)
-                        continue
-                fail += 1
+        try:
+            Template.delete(tid)
+            ok += 1
+        except Exception as exc:
+            msg = str(exc)
+            if "130409" in msg:
+                print(f"[cleanup] {tid}: in use, skipping", file=sys.stderr)
+            else:
                 print(f"[cleanup] {tid}: {exc}", file=sys.stderr)
-                last_err = None
-                break
-        if last_err:
             fail += 1
     return ok, fail
 
