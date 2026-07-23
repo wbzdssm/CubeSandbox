@@ -739,31 +739,22 @@ def register_external(
     _script_path = path
     _levels = _resolve_levels(key, levels or CONCURRENCY_LEVELS)
     _rounds = rounds or PERF_ROUNDS
-    report = ReportGroup(title) if title else None
-    header = f" [Perf] {title or key.capitalize()}"
 
-    # Auto-register a Markdown report section so external scripts appear
-    # in report.md / report.zh.md without a separate ReportSection declaration.
-    if no_concurrency:
-        _table = "dirty"
-    else:
-        _table = "latency"
-    REPORT_SECTIONS.append({
-        "key": key,
-        "table": _table,
-        "title_zh": title or key.capitalize(),
-        "title_en": title or key.capitalize(),
-        "method_zh": "",
-        "method_en": "",
-        "order": 100.0 + len(REPORT_SECTIONS),
-        "throughput": False,
-        "noun_zh": "",
-        "noun_en": "",
-        "star": False,
-    })
+    # Build report metadata once — both Markdown (ReportSection) and HTML
+    # (ReportGroup) read from the same decorator-declared metadata.
+    _section_title = title or key.capitalize()
+    _section = ReportSection(
+        table="dirty" if no_concurrency else "latency",
+        title_zh=_section_title,
+        title_en=_section_title,
+        order=100.0 + len(REPORT_SECTIONS),
+    )
+    _chart = ReportGroup(_section_title)
+    header = f" [Perf] {_section_title}"
+
     _metrics = metrics or ("avg", "min", "p95", "max")
 
-    @benchmark(key, aliases=None, report=report)
+    @benchmark(key, aliases=None, report=[_section, _chart])
     def _bench(cfg: Config) -> None:
         print(f"\n{'=' * 60}")
         print(f"{header:^60}")
