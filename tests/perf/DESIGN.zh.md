@@ -81,7 +81,7 @@ CUBE_CLONE_CONCURRENCY=1,5,10           # 场景级覆盖
 
 ### 3. 版本采集：release-manifest 为权威源
 
-CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.json` 留下清单，这是 `cubemaster` 和 `cubelet` 共用的单一事实源。`framework/env.py` 以此为神，两级降级：
+CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.json` 留下清单，这是 `cubemaster` 和 `cubelet` 共用的单一事实源。`framework/env.py` 依次按以下优先级查找，逐级回退：
 
 1. **首选** → `release-manifest.json`（所有组件版本 + 摘要 + guest-image + kernel）
 2. **备用** → CubeAPI `/cluster/versions`（运行时视图，注意返回字段是 **camelCase** — 旧代码用 snake_case 导致全部读空）
@@ -192,4 +192,4 @@ HTML 完全自包含 — 无外部 Chart.js CDN、无网络依赖。所有 CSS /
 CLI 参数  >  环境变量  >  report.toml  >  内置默认
 ```
 
-`report.toml` 查找路径：`$CUBE_REPORT_CONFIG` → `./report.toml` → `tests/perf/report.toml` → `tests/report.toml` → `sdk/python/report.toml`。文件不存在或缺键 → 降级到默认。
+`report.toml` 查找路径：`$CUBE_REPORT_CONFIG` → `./report.toml` → `tests/perf/report.toml` → `tests/report.toml` → `sdk/python/report.toml`。文件不存在或缺键 → 回退到默认。
