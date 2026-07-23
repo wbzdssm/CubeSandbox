@@ -247,13 +247,13 @@ def _latency_table(perf: list[dict[str, Any]], key: str, lang: Lang,
     _METRIC_LABELS = {  # noqa: N806
         "zh": {
             "concurrency": "并发", "count": "采样数",
-            "avg": "avg", "min": "min", "p50": "p50", "p95": "p95",
-            "p99": "p99", "max": "max", "wall": "wall", "per": "单次均摊",
+            "avg": "avg(ms)", "min": "min(ms)", "p50": "p50(ms)", "p95": "p95(ms)",
+            "p99": "p99(ms)", "max": "max(ms)", "wall": "wall(ms)", "per": "单次(ms)",
         },
         "en": {
             "concurrency": "Conc", "count": "N",
-            "avg": "avg", "min": "min", "p50": "p50", "p95": "p95",
-            "p99": "p99", "max": "max", "wall": "wall", "per": "per",
+            "avg": "avg(ms)", "min": "min(ms)", "p50": "p50(ms)", "p95": "p95(ms)",
+            "p99": "p99(ms)", "max": "max(ms)", "wall": "wall(ms)", "per": "per(ms)",
         },
     }
     lb = _METRIC_LABELS[lang]
