@@ -619,6 +619,16 @@ def auto(
 # ---------------------------------------------------------------------------
 
 
+_SCRIPT_SOURCE_CACHE: dict[str, str] = {}
+
+
+def _accepts_arg(flag: str) -> bool:
+    """Check if the currently-loading external script accepts *flag*."""
+    source = _SCRIPT_SOURCE_CACHE.get(_script_path, "")
+    # e.g. add_argument('--template') or add_argument("--template")
+    return bool(re.search(rf'add_argument\(["\']{re.escape(flag)}["\']', source))
+
+
 _BOILERPLATE_PREFIXES = (
     "copyright",
     "licen",
@@ -681,6 +691,8 @@ def discover_external_scripts() -> None:
         no_concurrency = False
         try:
             source = p.read_text(encoding="utf-8")
+            # Cache for _accepts_arg() used during benchmark command construction
+            _SCRIPT_SOURCE_CACHE[str(p)] = source
 
             # ── title: first docstring line or first meaningful comment ──
             for line in source.split("\n"):
@@ -852,6 +864,13 @@ def register_external(
     )
     header = f" [Perf] {_section_title}"
 
+    # Capture template flag check at registration time (before _script_path
+    # is overwritten by the next register_external call).
+    _has_template_arg = re.search(
+        rf'add_argument\(["\']--template["\']',
+        _SCRIPT_SOURCE_CACHE.get(path, ""),
+    ) is not None
+
     @benchmark(key, aliases=None, report=[_section])
     def _bench(cfg: Config) -> None:
         print(f"\n{'=' * 60}")
@@ -859,9 +878,11 @@ def register_external(
         print(f"{'=' * 60}")
 
         if no_concurrency:
-            # Single run — the script manages its own parameters
-            # (e.g. bench_snapshot_dirty.py, ivshmem_benchmark.py).
-            cmd = [_sys.executable, _script_path]
+            # Single run — the script manages its own parameters.
+            # Auto-pass --template if the script accepts it.
+            cmd = [_sys.executable, path]
+            if cfg.template_id and _has_template_arg:
+                cmd += ["--template", cfg.template_id]
             t0 = _time.time()
             try:
                 proc = subprocess.run(
