@@ -86,7 +86,7 @@ The framework cleans up after **each round** and **after all scenarios**:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CUBE_PERF_AUTO_CLEANUP` | `1` | Remove residual `snap-*` after benchmarks |
-| `CUBE_PERF_AUTO_CLEANUP_WAIT` | `5` | Wait seconds for async ops before cleanup |
+| `CUBE_PERF_AUTO_CLEANUP_WAIT` | `0` | Wait seconds for async ops before cleanup (0 = no wait) |
 
 ### External Scripts
 

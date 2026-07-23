@@ -55,7 +55,7 @@ tests/
 - `--cleanup` 先 kill 所有沙箱，再删除 `snap-*` 快照
 - 只删除 ID 以 `snap-` 开头的快照模板，不触碰用户自有模板（`tpl-*`）
 - 有活跃沙箱引用的快照（`replicas` 非空）自动跳过，不会报错
-- 清理前等待 `CUBE_PERF_AUTO_CLEANUP_WAIT` 秒（默认 5s），确保异步操作完成
+- 清理前等待 `CUBE_PERF_AUTO_CLEANUP_WAIT` 秒（默认 0，使用中的快照直接跳过不等待）
 - `--cleanup-dry-run` 预览将被删除的快照列表，不执行实际删除
 
 首次运行自动生成 `tests/perf/.env`，所有变量均可在 `.env.example` 中找到完整注释。参数优先级：CLI > 环境变量 > .env。
@@ -88,7 +88,7 @@ tests/
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `CUBE_PERF_AUTO_CLEANUP` | `1` | 压测后自动清除残留快照（只清 `snap-*`，不过滤非 snap-* 模板） |
-| `CUBE_PERF_AUTO_CLEANUP_WAIT` | `5` | 清理前等待异步任务完成的秒数 |
+| `CUBE_PERF_AUTO_CLEANUP_WAIT` | `0` | 清理前等待秒数（0 = 不等待，使用中的快照直接跳过） |
 
 ### 外部脚本
 

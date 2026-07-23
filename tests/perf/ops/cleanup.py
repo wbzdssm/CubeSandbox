@@ -84,9 +84,7 @@ def delete_snapshots(ids: list[str]) -> tuple[int, int]:
             ok += 1
         except Exception as exc:
             msg = str(exc)
-            if "130409" in msg:
-                print(f"[cleanup] {tid}: in use, skipping", file=sys.stderr)
-            else:
+            if "130409" not in msg:
                 print(f"[cleanup] {tid}: {exc}", file=sys.stderr)
             fail += 1
     return ok, fail
@@ -99,7 +97,7 @@ def _auto_cleanup_enabled() -> bool:
 
 
 def _cleanup_wait_seconds() -> float:
-    return float(os.environ.get("CUBE_PERF_AUTO_CLEANUP_WAIT", "5"))
+    return float(os.environ.get("CUBE_PERF_AUTO_CLEANUP_WAIT", "0"))
 
 
 def cleanup_all_snapshots(label: str = "") -> None:
