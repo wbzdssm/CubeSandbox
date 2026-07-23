@@ -36,10 +36,10 @@ def register_default_scripts():
 # ── 快照 CRUD（仅 snap-*，不动模板）───────────────────────────────────
 
 def list_snapshots():
-    """返回当前所有 ``snap-*`` 快照，调用 ``Template.list()`` 后按前缀过滤。
+    """返回当前所有 ``snap-*`` 快照，过滤掉正在使用中的。
 
-    注意：不依赖 status 字段过滤——实际 API 返回可能没有该字段。
-    不可删除的快照在 delete_snapshots() 中捕获 130409 错误跳过。
+    有活跃 replica（如 12cc1289f9...@9.135.79.34）的快照不可删除，
+    直接从列表中排除，避免 delete 时触发 130409 错误。
     """
     import sys
     from cubesandbox import Template
@@ -48,15 +48,21 @@ def list_snapshots():
     except Exception as exc:
         print(f"[cleanup] Template.list() failed: {exc}", file=sys.stderr)
         return []
-    return [
-        {
-            "template_id": t.template_id,
+    result = []
+    for t in tmpls:
+        tid = t.template_id or ""
+        if not tid.startswith("snap-"):
+            continue
+        # Skip snapshots that have active replicas (in-use sandboxes).
+        # Deleting them would fail with 130409 — just skip silently.
+        if getattr(t, "replicas", []):
+            continue
+        result.append({
+            "template_id": tid,
             "status": getattr(t, "status", "") or "",
             "created_at": getattr(t, "created_at", "") or getattr(t, "createdAt", ""),
-        }
-        for t in tmpls
-        if (t.template_id or "").startswith("snap-")
-    ]
+        })
+    return result
 
 
 def delete_snapshots(ids: list[str]) -> tuple[int, int]:
