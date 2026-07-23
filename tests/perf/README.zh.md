@@ -102,28 +102,30 @@ python3 -m perf --scripts /my/dir/
 
 首次启动在 `tests/` 下自动生成，跑完后实际用到的值二次写回，下次直接复用。详见 `.env.example`。
 
-## 接入新脚本
+## 接入新压测脚本
 
-> 框架只负责执行 + 统计。脚本方定义压测方案。
+> 框架负责执行和统计，脚本定义压测方案。接入只需两步：编写脚本 + 注册到 `.env`。
 
-### 约定
+### 脚本约定
+
+脚本必须支持以下 CLI 参数：
 
 ```bash
 python bench_xxx.py -c <并发度> -n <操作数> --rounds <轮数> --no-header
 ```
 
-| 参数 | 必选 | 框架行为 |
+| 参数 | 必选 | 说明 |
 |------|:---:|------|
-| `-c N` | 是 | 按 `CUBE_CREATE_CONCURRENCY` 阶梯逐一调用 |
-| `-n N` | 是 | 对应 `CUBE_PERF_ROUNDS` |
-| `--rounds N` | 否 | 同上（脚本内部轮数） |
+| `-c N` | 是 | 并发度，框架按 `CUBE_PERF_CONCURRENCY` 阶梯逐一调用 |
+| `-n N` | 是 | 每轮操作数，对应 `CUBE_PERF_ROUNDS` |
+| `--rounds N` | 否 | 脚本内部轮数（同 `-n`） |
 | `--no-header` | 否 | 抑制重复表头 |
 
-### 示例
+### 脚本示例
 
 ```python
 # bench_clone.py
-"""Clone concurrency benchmark."""    # 注释首行 → 报告标题
+"""Clone concurrency benchmark."""    # 首行注释 → 报告标题
 
 import argparse
 ap = argparse.ArgumentParser()
@@ -139,12 +141,23 @@ sb.clone(n=args.n, concurrency=args.c)
 sb.kill()
 ```
 
-### 接入方式
+### 注册脚本
+
+在 `tests/perf/.env` 中通过 `CUBE_EXTERNAL_SCRIPTS` 注册，逗号分隔：
 
 ```bash
-# .env (推荐，跑完写回)
-CUBE_EXTERNAL_SCRIPTS=/path/to/bench_clone.py,/path/to/bench_create.py
+CUBE_EXTERNAL_SCRIPTS=\
+../examples/snapshot-rollback-clone/bench_clone_concurrency.py,\
+../examples/snapshot-rollback-clone/bench_create_concurrency.py
+```
 
-# CLI 一次性
-python3 -m perf --scripts /path/to/scripts/
+注册后框架自动：
+1. 按 `--list-scenarios` 列出场景
+2. 执行时调度并发度阶梯
+3. 采集延迟指标并写入 Markdown / HTML 报告
+
+### 临时运行（不写 .env）
+
+```bash
+python3 -m perf --scripts /path/to/bench_clone.py,/path/to/bench_create.py
 ```
