@@ -544,17 +544,14 @@ def _cn_num(n: int) -> str:
 
 
 def _ensure_registered() -> None:
-    """Ensure ``default_report_sections`` is populated by importing scenarios.
+    """Ensure ``default_report_sections`` is populated.
 
-    A live run / ``--md-only`` already imports ``perf.cases`` via the CLI, but
-    importing this module standalone would otherwise see an empty section list.
+    Report sections are registered at import time by :func:`register_external`
+    (external scripts) and ``@benchmark`` (internal scenarios).  No lazy
+    import is needed.
     """
-    if default_report_sections():
+    if not default_report_sections():
         return
-    try:  # pragma: no cover - defensive
-        from .. import cases  # noqa: F401
-    except Exception:
-        pass
 
 
 def _scenario_section_count() -> int:
