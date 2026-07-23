@@ -757,6 +757,32 @@ def discover_external_scripts() -> None:
                 re.search(r'add_argument\("?-c"', source)
                 or re.search(r'add_argument\("?--concurrency"', source)
             )
+
+            # ── SWEEP = [{"-d": 0}, {"-d": 10}, ...] for no_concurrency sweeps ──
+            sweep_args = None
+            if no_concurrency:
+                m = re.search(r'^SWEEP\s*=\s*\[([^]]+)\]', source, re.MULTILINE)
+                if m:
+                    sweep_args = []
+                    for chunk in m.group(1).split("}"):
+                        chunk = chunk.strip().strip(",").strip()
+                        if not chunk or "{" not in chunk:
+                            continue
+                        inner = chunk.split("{", 1)[1].strip()
+                        args = []
+                        for pair in inner.split(","):
+                            pair = pair.strip().strip('"\'')
+                            if ":" not in pair:
+                                continue
+                            k, v_raw = pair.split(":", 1)
+                            args.append(k.strip().strip('"\' '))
+                            v = v_raw.strip().strip('"\' ')
+                            try:
+                                args.append(int(v))
+                            except ValueError:
+                                args.append(v)
+                        if args:
+                            sweep_args.append(args)
         except Exception:
             pass
 
@@ -766,6 +792,7 @@ def discover_external_scripts() -> None:
             levels=levels,
             metrics=metrics,
             no_concurrency=no_concurrency,
+            sweep_args=sweep_args,
             **report_kwargs,
         )
         registered_keys.add(key)
@@ -786,6 +813,7 @@ def register_external(
     metrics: "tuple[str, ...] | None" = None,
     timeout: int = 300,
     no_concurrency: bool = False,  # True → run once without -c / -n
+    sweep_args: "list[list] | None" = None,  # for no_concurrency scripts, e.g. [["-d", 0], ["-d", 10]]
     # ── Report metadata (maps to ReportSection fields) ──
     table: str = "",               # "latency" | "dirty" (default: latency or dirty if no_concurrency)
     method_zh: str = "",           # 操作方法中文名
@@ -878,11 +906,19 @@ def register_external(
         print(f"{'=' * 60}")
 
         if no_concurrency:
-            # Single run — the script manages its own parameters.
+            # Single or swept run — the script manages its own parameters.
             # Auto-pass --template if the script accepts it.
-            cmd = [_sys.executable, path]
-            if cfg.template_id and _has_template_arg:
-                cmd += ["--template", cfg.template_id]
+            # If sweep_args is set, run once per arg set (e.g. -d 0, -d 10, ...).
+            _sweeps = sweep_args or [[]]
+            for _sweep in _sweeps:
+                cmd = [_sys.executable, path]
+                if cfg.template_id and _has_template_arg:
+                    cmd += ["--template", cfg.template_id]
+                cmd += _sweep
+                _sweep_label = "_".join(str(a) for a in _sweep) if _sweep else "default"
+                _sweep_header = f"{header} [{_sweep_label}]" if _sweep else header
+                _ = _log_subprocess(cmd, _sweep_header, timeout)
+            return  # measure() done, skip concurrency loop below
             t0 = _time.time()
             try:
                 proc = subprocess.run(
