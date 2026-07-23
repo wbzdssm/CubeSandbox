@@ -246,9 +246,9 @@ def _latency_table(perf: list[dict[str, Any]], key: str, lang: Lang,
 
     _METRIC_LABELS = {  # noqa: N806
         "zh": {
-            "concurrency": "并发", "count": "采样数",
+            "concurrency": "并发", "count": "请求数",
             "avg": "avg(ms)", "min": "min(ms)", "p50": "p50(ms)", "p95": "p95(ms)",
-            "p99": "p99(ms)", "max": "max(ms)", "wall": "wall(ms)", "per": "单次(ms)",
+            "p99": "p99(ms)", "max": "max(ms)", "wall": "wall(ms)", "per": "单沙箱均摊(ms)",
         },
         "en": {
             "concurrency": "Conc", "count": "N",
