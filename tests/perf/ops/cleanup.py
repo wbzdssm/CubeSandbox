@@ -129,6 +129,38 @@ def cleanup_all_snapshots(label: str = "") -> None:
 
 # ── 钩子注册（供 registry.py 调用）────────────────────────────────────
 
+
+def cleanup_all_sandboxes(label: str = "") -> tuple[int, int]:
+    """Kill all sandboxes via the SDK. Returns (ok, fail)."""
+    import sys
+    from cubesandbox import Sandbox
+
+    try:
+        sandboxes = Sandbox.list()
+    except Exception as exc:
+        print(f"[cleanup{label}] Sandbox.list() failed: {exc}", file=sys.stderr)
+        return 0, 0
+
+    if not sandboxes:
+        return 0, 0
+
+    prefix = f"[cleanup{label}]"
+    print(f"{prefix} {len(sandboxes)} sandbox(es) ...", file=sys.stderr)
+    ok = fail = 0
+    for s in sandboxes:
+        sid = s.get("sandboxID", "")
+        if not sid:
+            continue
+        try:
+            Sandbox.connect(sid).kill()
+            ok += 1
+        except Exception as exc:
+            fail += 1
+            print(f"[cleanup{label}] kill {sid}: {exc}", file=sys.stderr)
+    print(f"{prefix} {ok} killed, {fail} failed", file=sys.stderr)
+    return ok, fail
+
+
 def post_concurrency_cleanup(label: str = "") -> None:
     """每档并发跑完后立即清理——由 ``registry.py`` 在每个 ``for c in _levels`` 末尾调用。
 

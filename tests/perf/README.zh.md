@@ -49,9 +49,10 @@ tests/
 |------|---------|---------|
 | 每轮结束 | 本轮创建的沙箱（逐个 kill） | `CUBE_PERF_CLEANUP=0` |
 | 全部场景后 | `snap-*` 快照模板（通过 SDK 删除） | `CUBE_PERF_AUTO_CLEANUP=0` |
-| 手动触发 | 全部 `snap-*` 快照，不区分新旧 | `python3 -m perf --cleanup` |
+| 手动触发 | 全部沙箱 + 全部 `snap-*` 快照 | `python3 -m perf --cleanup` |
 
 **注意**：
+- `--cleanup` 先 kill 所有沙箱，再删除 `snap-*` 快照
 - 只删除 ID 以 `snap-` 开头的快照模板，不触碰用户自有模板（`tpl-*`）
 - 有活跃沙箱引用的快照（`replicas` 非空）自动跳过，不会报错
 - 清理前等待 `CUBE_PERF_AUTO_CLEANUP_WAIT` 秒（默认 5s），确保异步操作完成

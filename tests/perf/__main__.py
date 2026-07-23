@@ -391,7 +391,11 @@ Examples:
 
     # --cleanup-dry-run: list snapshots only, then exit
     if args.cleanup_dry_run or args.cleanup:
-        from .ops.cleanup import list_snapshots, delete_snapshots
+        from .ops.cleanup import list_snapshots, delete_snapshots, cleanup_all_sandboxes
+
+        if not args.cleanup_dry_run:
+            # Kill all sandboxes first, then clean snapshots
+            cleanup_all_sandboxes(label=" [cleanup]")
 
         snaps = list_snapshots()
         if not snaps:
