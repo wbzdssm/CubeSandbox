@@ -740,8 +740,7 @@ def register_external(
     _levels = _resolve_levels(key, levels or CONCURRENCY_LEVELS)
     _rounds = rounds or PERF_ROUNDS
 
-    # Build report metadata once — both Markdown (ReportSection) and HTML
-    # (ReportGroup) read from the same decorator-declared metadata.
+    # Build report metadata — Markdown ReportSection drives report.md.
     _section_title = title or key.capitalize()
     _section = ReportSection(
         table="dirty" if no_concurrency else "latency",
@@ -749,12 +748,11 @@ def register_external(
         title_en=_section_title,
         order=100.0 + len(REPORT_SECTIONS),
     )
-    _chart = ReportGroup(_section_title)
     header = f" [Perf] {_section_title}"
 
     _metrics = metrics or ("avg", "min", "p95", "max")
 
-    @benchmark(key, aliases=None, report=[_section, _chart])
+    @benchmark(key, aliases=None, report=[_section])
     def _bench(cfg: Config) -> None:
         print(f"\n{'=' * 60}")
         print(f"{header:^60}")

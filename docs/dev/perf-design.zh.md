@@ -2,7 +2,7 @@
 
 ## 概述
 
-`tests/perf` 是 CubeSandbox 性能基准测试套件。设计目标：**一次运行，多份报告** — 一条命令收集环境元数据、通过统一契约驱动外部压测脚本、产出自包含的可视化报告（JSON / Markdown / HTML），无需第三方图表库。
+`tests/perf` 是 CubeSandbox 性能基准测试套件。设计目标：**一次运行，多份报告** — 一条命令收集环境元数据、通过统一契约驱动外部压测脚本、产出报告（JSON / Markdown），无需第三方图表库。
 
 ### 设计约束
 
@@ -22,7 +22,7 @@
 │  __main__.py        CLI 编排入口                         │
 │  __init__.py        .env 生命周期、sys.path 引导        │
 ├─────────────────────────────────────────────────────────┤
-│  framework/         核心引擎（不依赖报表/HTML）           │
+│  framework/         核心引擎（不依赖报表）                  │
 │    config.py        环境变量驱动的运行时参数              │
 │    env.py           硬件 + OS + Cube 组件版本采集        │
 │    registry.py      @benchmark 装饰器、外部脚本发现       │
@@ -34,8 +34,8 @@
 │    report_config.py TOML + env 展示配置                  │
 ├─────────────────────────────────────────────────────────┤
 │  plugins/           懒加载输出适配器                      │
-│    html_report.py   无 Chart.js 的 SVG 折线图 +           │
-│                     多环境折叠卡片                        │
+│  plugins/           懒加载输出适配器                        │
+│    html_report.py   （预留，当前未启用）                      │
 ├─────────────────────────────────────────────────────────┤
 │  ops/               平台资源管理                          │
 │    cleanup.py        快照 CRUD、默认脚本注册、             │
@@ -45,9 +45,9 @@
 
 ### 层间契约
 
-- **framework/** 不理解 HTML、Markdown 或 TOML。它只读 `os.environ`、调 `subprocess` 或 SDK，将 `PerfResult` 写入模块级列表。
+- **framework/** 不理解 Markdown 或 TOML。它只读 `os.environ`、调 `subprocess` 或 SDK，将 `PerfResult` 写入模块级列表。
 - **reporting/** 依赖 `framework/` 的数据结构，但不依赖 `plugins/`。它将原始 `PerfResult` 转为 JSON 兼容 dict（`build_report_data`）。
-- **plugins/** 依赖 `reporting/` 的 JSON schema。目前只有 `html_report.py` 一个消费者；未来可加 Slack/Mattermost 适配器。
+- **plugins/** 依赖 `reporting/` 的 JSON schema。当前未启用；未来可加 HTML 或 Slack 适配器。
 - **ops/** 依赖 SDK（`cubesandbox`），但不依赖 `framework/` 或 `reporting/`。被 `__main__.py` 调用来做压测后清理。
 
 ---
@@ -103,7 +103,7 @@ CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.js
 }
 ```
 
-同一份 JSON 同时喂给 `report.py`（→ Markdown）和 `html_report.py`（→ HTML）。多环境对比只需传多份 JSON 给 `generate_html()`——内部 `_group_runs()` 按环境指纹分组，SVG 折线图每个指纹一条线。
+同一份 JSON 喂给 `report.py`（→ Markdown）。`plugins/` 目录预留给未来的输出适配器（HTML、Slack 等）。
 
 ### 5. 压测后清理（ops/）
 
@@ -137,29 +137,15 @@ CubeSandbox 安装后会在 `/usr/local/services/cubetoolbox/release-manifest.js
                build_report_data(env)
                      │ {generated_at, environment, config, functional, perf}
                      ▼
-        ┌────────────┴──────────────┐
-        ▼                           ▼
-   report.json / report.md    --html? → html_report.generate_html()
-        │                                  │ SVG + 折叠详情卡片
-        │                                  ▼
-        │                           perf_report.html
+        ┌────────────┬──────────────┐
+        ▼                            ▼
+   report.json                  report.md
         │
         └─ cleanup_after_benchmark()
               (CUBE_PERF_AUTO_CLEANUP=1)
 ```
 
 ---
-
-## 多环境报告原理
-
-`generate_html()` 接收多份 JSON 时：
-
-1. **分组** (`_group_runs`) — 计算 `_env_fingerprint`；相同指纹的样本合并，不同指纹分成独立 series。
-2. **标签** (`_env_label`) — 优先用 `ip_address` 而非 `hostname`，追加 `release_version`。
-3. **消歧** (`_disambiguate_labels`) — 多环境时在图例中拼接差异的组件版本。
-4. **渲染** — SVG 折线图每个 series 一条 `<polyline>`，数据点用 `<g><title>...</title></g>` 包一层提供原生 hover 提示。
-
-HTML 完全自包含 — 无外部 Chart.js CDN、无网络依赖。所有 CSS / JS / SVG 均内联。
 
 ---
 
@@ -223,7 +209,7 @@ CUBE_EXTERNAL_SCRIPTS=\
 python3 -m perf --list-scenarios
 
 # 只跑新场景
-python3 -m perf --rounds 1 --scenarios my-scenario --html
+python3 -m perf --rounds 1 --scenarios my-scenario
 ```
 
 ### 框架自动完成的事
@@ -234,7 +220,7 @@ python3 -m perf --rounds 1 --scenarios my-scenario --html
 | 预热 | 前 N 轮结果丢弃（`CUBE_PERF_WARMUP`） |
 | 计时 | 每次调用记录墙钟时间 |
 | 指标 | 自动计算 avg / min / p50 / p95 / p99 / max |
-| 报告 | 生成 Markdown 表格 + HTML 折线图 |
+| 报告 | 生成 Markdown 表格 |
 | 清理 | 自动清理残留沙箱和快照 |
 
 脚本作者只需写压测逻辑 — 不用管计时、统计、报告格式。

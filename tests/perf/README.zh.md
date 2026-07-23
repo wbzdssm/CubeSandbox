@@ -1,6 +1,6 @@
 # `perf` — CubeSandbox 性能压测套件
 
-一条命令跑完所有场景，产出 **JSON + Markdown** 报告（加 `--html` 生成可视化）。
+一条命令跑完所有场景，产出 **JSON + Markdown** 报告。
 
 ## 快速开始
 
@@ -8,7 +8,7 @@
 cd CubeSandbox/tests
 python3 -m perf                     # 本地后端
 CUBE_API_URL=http://1.2.3.4:3000 python3 -m perf   # 远端
-python3 -m perf --html              # 加 HTML 报告
+python3 -m perf
 ```
 
 `CUBE_TEMPLATE_ID` 留空自动发现 READY 模板。
@@ -59,15 +59,11 @@ python3 -m perf --scripts /my/dir/
 |------|------|
 | `--only KEY...` | 只跑指定场景 |
 | `--rounds N` | 每场景轮数（默认 `CUBE_PERF_ROUNDS`） |
-| `--html` | 生成 HTML 可视化报告（插件，懒加载） |
 | `--list-scenarios` | 列出已注册的全部场景 |
 | `--scripts DIR` | 跑目录下所有 `.py` |
 | `--cleanup` | 跑前删全部 `snap-*` 快照 |
 | `--cleanup-dry-run` | 预览 `--cleanup` |
 | `--md-only JSON` | 从 JSON 重渲染 Markdown |
-| `--html-only JSON...` | 从 JSON 生成 HTML |
-| `--compare JSON...` | 多轮对比 HTML |
-
 ## 环境变量
 
 ### 连接
@@ -154,7 +150,7 @@ CUBE_EXTERNAL_SCRIPTS=\
 注册后框架自动：
 1. 按 `--list-scenarios` 列出场景
 2. 执行时调度并发度阶梯
-3. 采集延迟指标并写入 Markdown / HTML 报告
+3. 采集延迟指标并写入 Markdown 报告
 
 ### 临时运行（不写 .env）
 

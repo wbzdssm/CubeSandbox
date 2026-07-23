@@ -3,16 +3,13 @@
 """CLI entry point for the standalone performance benchmark suite.
 
 Usage:
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf              # run benchmarks, produce JSON + HTML
-    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --html       # also generate HTML report
+    CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf              # run benchmarks, produce JSON + Markdown
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --rounds 20  # run 20 rounds per scenario
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios snapshot-create-from  # only cold-start-from-snapshot
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback           # only selected scenarios
     CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only ivshmem                      # default-off scenario, no extra env needed
     python3 -m perf --list-scenarios                              # list scenario keys/aliases
     python3 -m perf --md-only report.json                          # re-render md + json from existing data (no backend)
-    python3 -m perf --html-only data/*.json                        # generate HTML from existing data files
-    python3 -m perf --compare data/run1.json data/run2.json        # compare two runs (HTML)
 
 Optional env vars:
     CUBE_TEMPLATE_ID         - skip auto-discovery
@@ -25,7 +22,6 @@ Optional env vars:
     CUBE_RUN_IVSHMEM         - set to "1" to enable the ivshmem scenario (host-only)
     CUBE_IVSHMEM_TEMPLATE_ID - ivshmem-enabled template (falls back to CUBE_TEMPLATE_ID)
     CUBE_IVSHMEM_ITERATIONS  - mmap iterations for the ivshmem scenario (default: 10000)
-    CUBE_HTML_OUTPUT         - path for HTML report (default: perf_report.html)
 """
 
 from __future__ import annotations
@@ -44,17 +40,6 @@ from .framework import registry
 
 from .ops.cleanup import register_default_scripts
 register_default_scripts()
-
-# NOTE: the HTML report plugin is intentionally *not* imported at module level.
-# It lives under ``plugins/`` and is loaded lazily (see ``_generate_html``) only
-# when ``--html`` / ``--html-only`` / ``--compare`` is requested.
-
-
-def _generate_html(*args, **kwargs) -> None:
-    """Lazily load and call the HTML report plugin (opt-in only)."""
-    from .plugins.html_report import generate_html  # noqa: PLC0415
-
-    generate_html(*args, **kwargs)
 
 
 def _data_file_path(base: str, suffix: str = "") -> str:
@@ -293,41 +278,19 @@ def main() -> None:
         epilog="""
 Examples:
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf
-  CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --html
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --rounds 20
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios snapshot-create-from
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --only snapshot rollback
   CUBE_API_URL=... CUBE_API_KEY=... python3 -m perf --scenarios all no-ivshmem
   python3 -m perf --list-scenarios
   python3 -m perf --md-only report.json
-  python3 -m perf --html-only report_20260717T120000Z.json
-  python3 -m perf --compare run1.json run2.json
         """,
-    )
-    parser.add_argument(
-        "--html",
-        action="store_true",
-        help="generate HTML report after running benchmarks",
-    )
-    parser.add_argument(
-        "--html-only",
-        nargs="+",
-        metavar="JSON_FILE",
-        help="generate HTML report from existing JSON data files (no benchmarks run)",
     )
     parser.add_argument(
         "--md-only",
         metavar="JSON_FILE",
         help="parse an existing JSON data file and re-render the Markdown + JSON "
         "reports (no benchmarks run, no backend required)",
-    )
-    parser.add_argument(
-        "--compare",
-        nargs="+",
-        metavar="JSON_FILE",
-        help="generate HTML comparison report from two or more JSON data files "
-        "(files are grouped by environment fingerprint; same machine -> averaged, "
-        "different machines -> separate comparison lines)",
     )
     parser.add_argument(
         "--rounds",
@@ -380,18 +343,6 @@ Examples:
         action="store_true",
         help="list available benchmark scenario keys/aliases and exit",
     )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default=None,
-        help="HTML output path (default: perf_report.html)",
-    )
-    parser.add_argument(
-        "--title",
-        type=str,
-        default="CubeSandbox Performance Benchmark Report",
-        help="HTML report title",
-    )
 
     args = parser.parse_args()
 
@@ -429,8 +380,6 @@ Examples:
 
         _cfg.PERF_ROUNDS = args.rounds
 
-    html_output = args.output or os.environ.get("CUBE_HTML_OUTPUT", "perf_report.html")
-
     # --md-only mode: no benchmarks, just re-render md/json from existing data
     if args.md_only:
         base = os.path.splitext(os.environ.get("CUBE_OUTPUT_REPORT", "report"))[0]
@@ -438,16 +387,6 @@ Examples:
         print(f"Re-rendered reports from {args.md_only}:")
         for path in written:
             print(f"   - {path}")
-        return
-
-    # --html-only mode: no benchmarks, just generate HTML
-    if args.html_only:
-        _generate_html(args.html_only, output_path=html_output, title=args.title)
-        return
-
-    # --compare mode: generate comparison HTML
-    if args.compare:
-        _generate_html(args.compare, output_path=html_output, title=args.title)
         return
 
     # --cleanup-dry-run: list snapshots only, then exit
@@ -481,10 +420,6 @@ Examples:
 
     reset()
     json_path = run_benchmarks(selected=selected)
-
-    # --html flag: also generate HTML
-    if args.html:
-        _generate_html([json_path], output_path=html_output, title=args.title)
 
     sys.exit(0)
 

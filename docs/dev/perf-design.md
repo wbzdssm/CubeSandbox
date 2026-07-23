@@ -2,7 +2,7 @@
 
 ## Overview
 
-`tests/perf` is the benchmark harness for CubeSandbox. Its design goal is **"run once, report everywhere"** — a single command collects environment metadata, drives external benchmark scripts through a unified contract, and renders human-readable reports (JSON, Markdown, HTML) without third-party charting libraries.
+`tests/perf` is the benchmark harness for CubeSandbox. Its design goal is **"run once, report everywhere"** — a single command collects environment metadata, drives external benchmark scripts through a unified contract, and renders human-readable reports (JSON, Markdown) without third-party charting libraries.
 
 ### Design constraints
 
@@ -35,8 +35,7 @@
 │    report_config.py  TOML + env display layer            │
 ├─────────────────────────────────────────────────────────┤
 │  plugins/           Lazy-loaded output adapters           │
-│    html_report.py    Chart-less SVG line chart +          │
-│                      collapsible details for multi-env   │
+│    html_report.py   (reserved, not currently active)      │
 ├─────────────────────────────────────────────────────────┤
 │  ops/               Platform resource management         │
 │    cleanup.py        Snapshot CRUD, default script        │
@@ -46,9 +45,9 @@
 
 ### Layer contracts
 
-- **framework/** has no knowledge of HTML, Markdown, or TOML. It reads `os.environ`, calls `subprocess` or the SDK, and writes `PerfResult` objects into a module-level list.
+- **framework/** has no knowledge of Markdown or TOML. It reads `os.environ`, calls `subprocess` or the SDK, and writes `PerfResult` objects into a module-level list.
 - **reporting/** depends on `framework/` data structures but not on `plugins/`. It transforms raw `PerfResult` lists into a JSON-compatible dict (`build_report_data`).
-- **plugins/** depends on `reporting/` JSON schema. `html_report.py` is the only consumer today; a Slack/Mattermost adapter could reuse the same schema.
+- **plugins/** depends on `reporting/` JSON schema. Currently inactive; a future HTML or Slack adapter could reuse the same schema.
 - **ops/** depends on the SDK (`cubesandbox`) but not on `framework/` or `reporting/`. It is called from `__main__.py` to clean up after benchmarks.
 
 ---
@@ -88,7 +87,7 @@ CubeSandbox installations ship `/usr/local/services/cubetoolbox/release-manifest
 2. **Fallback** → CubeAPI `/cluster/versions` (running-state view, **camelCase** fields — the old code used snake_case and silently returned empty strings)
 3. **Last resort** → local binaries (`cube-api -V`, `cubemaster -v`, ...)
 
-The collected `release_version` is placed first in the environment fingerprint so that two runs on the same machine but with different CubeSandbox releases automatically split into separate series in multi-env HTML reports.
+The collected `release_version` is placed first in the environment fingerprint so that two runs on the same machine but with different CubeSandbox releases automatically split into separate series in multi-env reports.
 
 ### 4. Single-pass report generation
 
@@ -104,7 +103,7 @@ A single call to `build_report_data()` produces a unified JSON blob:
 }
 ```
 
-The same JSON feeds `report.py` (→ Markdown) and `html_report.py` (→ HTML). Multi-environment comparison is achieved by feeding multiple JSON files to `generate_html()` — the internal `_group_runs()` function splits by environment fingerprint and the SVG chart renders one line per fingerprint.
+The same JSON feeds `report.py` (→ Markdown). The `plugins/` directory is reserved for future output adapters (HTML, Slack, etc.).
 
 ### 5. Post-benchmark cleanup (ops/)
 
@@ -138,12 +137,9 @@ The same JSON feeds `report.py` (→ Markdown) and `html_report.py` (→ HTML). 
                build_report_data(env)
                      │ {generated_at, environment, config, functional, perf}
                      ▼
-        ┌────────────┴──────────────┐
-        ▼                           ▼
-   report.json / report.md    --html? → html_report.generate_html()
-        │                                  │ SVG + collapsible details
-        │                                  ▼
-        │                           perf_report.html
+        ┌────────────┬──────────────┐
+        ▼                            ▼
+   report.json                  report.md
         │
         └─ cleanup_after_benchmark()
               (if CUBE_PERF_AUTO_CLEANUP=1)
@@ -151,18 +147,9 @@ The same JSON feeds `report.py` (→ Markdown) and `html_report.py` (→ HTML). 
 
 ---
 
-## Multi-Environment Report Internals
-
-When `generate_html()` receives multiple JSON files:
-
-1. **Grouping** (`_group_runs`) — compute `_env_fingerprint` for each file; same fingerprint → merged samples; different fingerprint → separate series.
-2. **Labeling** (`_env_label`) — prefers `ip_address` over `hostname`, appends `release_version` for at-a-glance identification.
-3. **Disambiguation** (`_disambiguate_labels`) — for multi-env reports, appends differing component versions to the legend label.
-4. **Rendering** — the SVG chart draws one polyline per series. Data points are wrapped in `<g><title>...</title></g>` for native browser tooltips.
-
-The HTML is **fully self-contained** — no external Chart.js CDN, no internet dependency. All CSS and JS are inlined.
-
 ---
+
+## Extensibility
 
 ## Extensibility
 
@@ -223,7 +210,7 @@ CUBE_EXTERNAL_SCRIPTS=\
 python3 -m perf --list-scenarios
 
 # Run just the new scenario
-python3 -m perf --rounds 1 --scenarios my-scenario --html
+python3 -m perf --rounds 1 --scenarios my-scenario
 ```
 
 ### What the framework does automatically
@@ -234,7 +221,7 @@ python3 -m perf --rounds 1 --scenarios my-scenario --html
 | Warm-up | First N rounds discarded (`CUBE_PERF_WARMUP`) |
 | Timing | Wall-clock measured per invocation |
 | Metrics | avg / min / p50 / p95 / p99 / max computed |
-| Report | Markdown table + HTML chart generated |
+| Report | Markdown table generated |
 | Cleanup | Residual sandboxes & snapshots cleaned up |
 
 The script author only writes the benchmark logic — no timing, no stats, no report formatting.

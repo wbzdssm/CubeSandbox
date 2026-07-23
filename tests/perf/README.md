@@ -1,6 +1,6 @@
 # `perf` — CubeSandbox Python SDK Performance Benchmark Suite
 
-One command runs all scenarios, producing **JSON + Markdown** reports (add `--html` for interactive visualization).
+One command runs all scenarios, producing **JSON + Markdown** reports.
 
 ## Quick Start
 
@@ -8,7 +8,7 @@ One command runs all scenarios, producing **JSON + Markdown** reports (add `--ht
 cd CubeSandbox/tests
 python3 -m perf                  # local backend
 CUBE_API_URL=http://1.2.3.4:3000 python3 -m perf  # remote
-python3 -m perf --html           # with HTML report
+python3 -m perf
 ```
 
 ## Scenarios
@@ -49,14 +49,10 @@ Over-resourced concurrency levels show `errors=N/total` (red) without blocking o
 |------|-------------|
 | `--only KEY...` | Run specific scenarios |
 | `--rounds N` | Rounds per scenario |
-| `--html` | Generate HTML plugin (lazy-loaded) |
 | `--list-scenarios` | List registered scenarios |
 | `--scripts DIR` | Run all `.py` files in a directory |
 | `--cleanup` | Delete all `snap-*` templates before run |
 | `--md-only JSON` | Re-render Markdown from JSON |
-| `--html-only JSON...` | Generate HTML from JSON |
-| `--compare JSON...` | Multi-run comparison HTML |
-
 ## Environment Variables
 
 ### Connection
