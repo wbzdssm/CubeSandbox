@@ -83,4 +83,4 @@ python3 -m perf --list-scenarios
 
 ## 接入新场景
 
-详见 [脚本集成契约](../../docs/guide/perf-design.zh.md)。简单来说：写一个接受 `-c <并发>` `-n <次数>` 参数的脚本，在 `.env` 注册即可。
+详见 [脚本集成契约](docs/guide/perf-design.zh.md)。简单来说：写一个接受 `-c <并发>` `-n <次数>` 参数的脚本，在 `.env` 注册即可。

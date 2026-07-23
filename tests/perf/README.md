@@ -82,4 +82,4 @@ python3 -m perf --list-scenarios
 
 ## Adding New Scenarios
 
-See [Integration Contract](../../docs/guide/perf-design.md). TL;DR: Write a script accepting `-c <concurrency>` and `-n <operations>`, register it in `.env`.
+See [Integration Contract](docs/guide/perf-design.md). TL;DR: Write a script accepting `-c <concurrency>` and `-n <operations>`, register it in `.env`.
