@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T23:50:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="Create 模板 状态机流程 (callback 方案)" id="create-template-callback">
+    <mxGraphModel dx="1700" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="镜像中心 Create 模板 — 模板中心段 (callback 方案, runTemplateImageJob 写到 def_BUILT 即返回)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=17;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1620" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="主线 9 步 (A1-A9) + 6 失败 (F1-F6) + 4 旁支 (N4 cancel / N5 R3 / N6 reconciler / N7 RefreshTask) → 出口: N0=def_BUILT 制作完成 等下发, N0f=失败" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="58" width="1620" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="boundary" value="━━━━━━ 边界: 本图只画模板中心段 (image_job_runner.go:21 runTemplateImageJob). 分发/claim alias/UpdateDefinitionStatus 走 templatecenter-distribute-flow.drawio ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="86" width="1620" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lane_in" value="═══ 入口(1) ═══" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=11;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_main" value="═══ 模板中心段 主线 (A2-A9 顺序 8 步) ═══" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="210" y="120" width="280" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_branch" value="═══ 失败分叉(F1-F6) ═══" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#b85450;strokeColor=#b85450;fontSize=11;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="500" y="120" width="220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_side" value="═══ 旁支 (4 个) ═══" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d79b00;strokeColor=#d79b00;fontSize=11;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="900" y="120" width="190" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_exok" value="═══ 成功出口(N0) ═══" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=11;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="120" width="280" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="lane_exfail" value="═══ 失败出口(N0f) ═══" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#b85450;strokeColor=#b85450;fontSize=11;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1390" y="120" width="270" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="a1" value="A1&#10;POST /v1/templates" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=12;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="50" y="180" width="140" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" value="A2&#10;validate req" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="220" y="180" width="120" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" value="A3&#10;EnsureArtifactBuildPreflight" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="220" y="235" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" value="A4&#10;PrepareSource&#10;image.PrepareSource" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="220" y="295" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" value="A5&#10;算 template_spec_fingerprint + artifactID&#10;(以请求+digest+CA 生成)&#10;case 不等 → R3 #1105" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="220" y="355" width="200" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6" value="A6&#10;写 image_jobs&#10;更新 artifact_id, fingerprint, source_image_digest&#10;phase=UNPACKING, progress=20" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="220" y="415" width="200" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="a7" value="A7&#10;ensureRootfsArtifact&#10;写 vda + mkfs ext4 + 算文件 sha256&#10;持久化到 cbs (builtFreshArtifact 标记)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="220" y="483" width="200" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="a8" value="A8&#10;写 image_jobs + rootfs_artifacts&#10;phase=Built progress=70 (新 phase, 产物就绪)&#10;artifact_status=Ready" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="551" width="200" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="a9" value="A9&#10;写 template_definitions&#10;status=def_BUILT (新状态, 产物已就绪)&#10;case 写失败 → F5" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=10;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="220" y="625" width="200" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="a10" value="A10&#10;OnTemplateBuilt(templateID, jobID)&#10;Distributor 进 channel (非阻塞)&#10;case 落空 → F6 → reconciler 兜底" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="220" y="700" width="200" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="a11" value="A11&#10;同步写 image_jobs (终态)&#10;status=Built, phase=Built, progress=70&#10;(不写 Ready — 那是 CubeMaster 段的事)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=10;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="220" y="775" width="220" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="f1" value="F1&#10;param invalid&#10;return error" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="180" width="200" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="f2" value="F2&#10;preflight fail&#10;phase=PULLING status=FAILED progress=100" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="235" width="220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3" value="F3&#10;pull fail&#10;phase=PULLING status=FAILED progress=100" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="300" width="220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="f3r" value="F3r&#10;R3 #1105 fingerprint hash&#10;不一致 (RETRY)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="730" y="360" width="220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="f4" value="F4&#10;ensureRootfsArtifact fail&#10;phase=BUILDING_EXT4 artifact=FAILED progress=100&#10;cleanupFailedRootfsArtifact (builtFreshArtifact)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="488" width="240" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="f5" value="F5&#10;写 def_BUILT 失败&#10;DB 断 / 行锁冲突 / 字段错&#10;phase=Built status=FAILED progress=100&#10;+ cleanupFailedRootfsArtifact" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="630" width="240" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="f6" value="F6&#10;callback 落空&#10;channel 满 / 进程 panic / distributor 挂了&#10;def_BUILT 已落, 但下游不知&#10;→ reconciler 兜底 (N6)&#10;image_jobs 不写 Failed, 等 reconciler 二次触发" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="500" y="700" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n0" value="N0 成功出口&#10;def_BUILT + image_jobs.status=Built&#10;callback 已发 (channel 投递成功)&#10;→ 等 CubeMaster Dispatcher 处理" style="ellipse;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=11;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="775" width="280" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="n0f" value="N0f 失败出口&#10;image_jobs.status=FAILED&#10;def 维持 PENDING (没写 BUILT)" style="ellipse;whiteSpace=wrap=html=1;fillColor=#b85450;strokeColor=#b85450;fontSize=12;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1390" y="775" width="280" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="n4" value="N4&#10;用户 cancelJob → CANCELLED" style="ellipse;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="120" width="190" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="n5" value="N5&#10;R3 retry → 回 A4" style="ellipse;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="220" width="190" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="n6" value="N6&#10;reconciler 兜底&#10;每 10min 扫 def_BUILT >30min 未分发" style="ellipse;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="340" width="190" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="n7" value="N7&#10;RefreshTask 定时扫&#10;PENDING/RUNNING 超时" style="ellipse;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="460" width="190" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_a1_a2" value="request" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="a1" target="a2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a2_f1" value="case invalid" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="a2" target="f1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a2_a3" value="case valid" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a2" target="a3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a3_f2" value="case preflight fail" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="a3" target="f2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a3_a4" value="case ok" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a3" target="a4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a4_f3" value="case pull fail" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="a4" target="f3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a4_a5" value="case pull ok" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a4" target="a5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a5_a6" value="case fingerprint equal" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a5" target="a6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a5_n5" value="case hash mismatch (R3)" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="a5" target="f3r"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a6_a7" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a6" target="a7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a7_f4" value="case artifact fail" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="a7" target="f4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a7_a8" value="case artifact ok" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a7" target="a8"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a8_a9" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a8" target="a9"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a9_f5" value="case def write fail" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="a9" target="f5"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a9_a10" value="case def_BUILT ok" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="a9" target="a10"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a10_f6" value="case channel 满 / panic" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="a10" target="f6"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a10_a11" value="case channel 投递成功" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="a10" target="a11"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a11_n0" value="终态" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="a11" target="n0"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_f1_n0f" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="f1" target="n0f"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_f2_n0f" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="f2" target="n0f"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_f3_n0f" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="f3" target="n0f"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_f4_n0f" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="f4" target="n0f"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_f5_n0f" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="f5" target="n0f"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_f6_n6" value="reconciler 接管" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="f6" target="n6"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_a2_n4" value="case user.abort" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="a2" target="n4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a4_n4" value="case user.abort" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="a4" target="n4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a7_n4" value="case user.abort" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="a7" target="n4"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_n5_a4" value="RETRY" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="f3r" target="a4"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a8_n7" value="RefreshTask" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="a8" target="n7"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_n6_a10" value="二次触发 callback" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;strokeWidth=2;curved=1;" edge="1" parent="1" source="n6" target="a10"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="fcount_box" value="失败节点统计: F1 (param) + F2 (preflight) + F3 (pull) + F4 (mkfs/cbs) + F5 (写 def_BUILT) + F6 (callback 落空) = 6 个独立失败, 其中 F6 走 reconciler 兜底" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="880" width="1620" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase_summary" value="模板中心段 phase 流转: PULLING (5→20) → UNPACKING (20) → BUILDING_EXT4 (40) → Built (70 新增, 产物就绪) — 之后由 CubeMaster 段接管到 Distributing→CreatingTemplate→Ready" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="907" width="1620" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="db_summary" value="DB 写库 (TC 不直连): updateTemplateImageJob (job_repo.go:24) × 5 次 · ensureRootfsArtifact (rootfs_artifacts × 2) · EnsureTemplateDefinition status=def_BUILT (新) · OnTemplateBuilt (Distributor.OnTemplateBuilt 进程内事件, 不写库) · reconciler 兜底扫 def_BUILT >30min 未分发" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="934" width="1620" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="handoff_note" value="━━━━━━ 衔接: A11 完成后, CubeMaster 段 (Distributor worker) 从 channel 拿到 (templateID, jobID) 事件 → 进入 templatecenter-distribute-flow.drawio 的入口 ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="970" width="1620" height="26" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

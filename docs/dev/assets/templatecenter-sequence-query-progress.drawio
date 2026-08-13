@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T19:00:00.000Z" agent="CodeBuddy" version="24.0.0">
+  <diagram name="查询进度 (master 内读)" id="query-progress-tc-service">
+    <mxGraphModel dx="1400" dy="700" grid="1" gridSize="10" pageWidth="1400" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="查询构建进度 (master 内部读 DB + Redis) — sequence-query-progress.drawio" style="text;html=1;align=center;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="0" y="20" width="1400" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-c" value="客户端" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cm" value="CubeMaster (任意副本)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=2;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="160" y="70" width="180" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cache" value="imageCache&#10;(进程内读)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="360" y="70" width="140" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-db" value="DB" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="520" y="70" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-rds" value="Redis" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="660" y="70" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-tc" value="TC (独立服务)&#10;可选: 调 TC 拿实时进度" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d0f0d0;strokeColor=#82b366;fontStyle=2;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="800" y="70" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-note" value="5 点原则: 不需要亲和性" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="980" y="70" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll-c" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="90" y="110" as="sourcePoint"/>
+            <mxPoint x="90" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cm" style="endArrow=none;dashed=1;strokeColor=#6c8ebf;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="250" y="110" as="sourcePoint"/>
+            <mxPoint x="250" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cache" style="endArrow=none;dashed=1;strokeColor=#d6b656" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="430" y="110" as="sourcePoint"/>
+            <mxPoint x="430" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-db" style="endArrow=none;dashed=1;strokeColor=#666666" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="580" y="110" as="sourcePoint"/>
+            <mxPoint x="580" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-rds" style="endArrow=none;dashed=1;strokeColor=#666666" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="720" y="110" as="sourcePoint"/>
+            <mxPoint x="720" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-tc" style="endArrow=none;dashed=1;strokeColor=#82b366;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="880" y="110" as="sourcePoint"/>
+            <mxPoint x="880" y="660" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m1" value="1. GET /v1/templates/{id}/builds/{bid}/status" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="90" y="140" as="sourcePoint"/>
+            <mxPoint x="250" y="140" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m2" value="2. master: 查 job (终态: PENDING/BUILDING/READY/FAILED)" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="175" as="sourcePoint"/>
+            <mxPoint x="580" y="175" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m3" value="3. master: 查 replica (分布状态)" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="205" as="sourcePoint"/>
+            <mxPoint x="580" y="205" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m4" value="4. master: 查 definition (就绪态)" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="235" as="sourcePoint"/>
+            <mxPoint x="580" y="235" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m5" value="5. master: GET tc_progress:&lt;job_id&gt; (Redis 实时进度 0-100)" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="265" as="sourcePoint"/>
+            <mxPoint x="720" y="265" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m6" value="6. (可选) 查 imageCache 节点视图 (本地)" style="endArrow=classic;html=1;strokeColor=#d6b656;dashed=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="295" as="sourcePoint"/>
+            <mxPoint x="430" y="295" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m7" value="7. (可选) 调 TC API GET /v1/builds/{id}/live — 拿 TC buildCache 内的实时细节" style="endArrow=classic;html=1;strokeColor=#82b366;dashed=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="325" as="sourcePoint"/>
+            <mxPoint x="880" y="325" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_5_2" value="✓ 5 点原则: 5 点原则架构下可选调 TC, 但 master 自己的 Redis 进度够用 — 默认不走 TC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="980" y="310" width="400" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m8" value="8. master: 合并 → 200 {status, percent, message, replicas[], ...}" style="endArrow=classic;html=1;strokeColor=#000000;dashed=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="365" as="sourcePoint"/>
+            <mxPoint x="90" y="365" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_no_affinity" value="✓ 5 点原则: master 内部读 DB + Redis, 任意副本可应答, 不需要亲和性" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="980" y="180" width="400" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="n_r6" value="⚠️ R6: cubemastercli 看 master 端点要走 meta (NodeSnapshot) 才能看 LocalTemplates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="980" y="355" width="400" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase_recon" value="异常路径: PENDING 卡住 → master 对账 (5 点原则第 3 条)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="405" width="1320" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="E1. 客户端 P1 轮询 (任意 master 副本) → 200 {status: BUILDING, percent: 30}" style="endArrow=classic;html=1;strokeColor=#d79b00;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="90" y="445" as="sourcePoint"/>
+            <mxPoint x="250" y="445" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="E2. P2 轮询 → 200 {BUILDING, 30} (BUILDING 卡 5min)" style="endArrow=classic;html=1;strokeColor=#d79b00;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="90" y="475" as="sourcePoint"/>
+            <mxPoint x="250" y="475" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="E3. master 对账: 扫 job.status=BUILDING &gt; 5min → 调 TC API 标记 FAILED" style="endArrow=classic;html=1;strokeColor=#b85450;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="505" as="sourcePoint"/>
+            <mxPoint x="880" y="505" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" value="E4. master: UPDATE job SET status=FAILED (CAS)" style="endArrow=classic;html=1;strokeColor=#b85450;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="530" as="sourcePoint"/>
+            <mxPoint x="580" y="530" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="E5. P3 轮询 → 200 {FAILED, last_error: ...}" style="endArrow=classic;html=1;strokeColor=#b85450;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="250" y="560" as="sourcePoint"/>
+            <mxPoint x="90" y="560" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend" value="图例: 蓝=master / 黄=imageCache / 灰=DB/Redis / 绿=TC 独立服务 / 红=R6 / 橙=对账异常" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="630" width="1320" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

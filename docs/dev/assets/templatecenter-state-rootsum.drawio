@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T12:00:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="5 大根因映射" id="rootsum">
+    <mxGraphModel dx="900" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Page 4: 5+1 根因 + R6 (5 点原则架构下) -&gt; 13+1 issue -&gt; 状态机落点" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;" vertex="1" parent="1"><mxGeometry x="40" y="20" width="760" height="40" as="geometry"/></mxCell>
+      <mxCell id="r_R1" value="R1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#333333;fontSize=18;" vertex="1" parent="1"><mxGeometry x="40" y="100" width="60" height="60" as="geometry"/></mxCell>
+      <mxCell id="rname_R1" value="状态机不完整" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#333333;fontSize=13;" vertex="1" parent="1"><mxGeometry x="110" y="100" width="200" height="60" as="geometry"/></mxCell>
+      <mxCell id="issues_R1" value="#66 (PENDING 无法 cancel)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="320" y="100" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="phase_R1" value="本期最小修复" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="560" y="100" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="r_R2" value="R2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#333333;fontSize=18;" vertex="1" parent="1"><mxGeometry x="40" y="190" width="60" height="60" as="geometry"/></mxCell>
+      <mxCell id="rname_R2" value="元数据/物理不一致" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#333333;fontSize=13;" vertex="1" parent="1"><mxGeometry x="110" y="190" width="200" height="60" as="geometry"/></mxCell>
+      <mxCell id="issues_R2" value="#852, #1005" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="320" y="190" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="phase_R2" value="下期+leader-only / self-heal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="560" y="190" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="r_R3" value="R3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#333333;fontSize=18;" vertex="1" parent="1"><mxGeometry x="40" y="280" width="60" height="60" as="geometry"/></mxCell>
+      <mxCell id="rname_R3" value="指纹/Schema 不纯" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#333333;fontSize=13;" vertex="1" parent="1"><mxGeometry x="110" y="280" width="200" height="60" as="geometry"/></mxCell>
+      <mxCell id="issues_R3" value="#1105 (本期), #1159 (下期)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="320" y="280" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="phase_R3" value="本期#1105, 下期#1159" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="560" y="280" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="r_R4" value="R4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#333333;fontSize=18;" vertex="1" parent="1"><mxGeometry x="40" y="370" width="60" height="60" as="geometry"/></mxCell>
+      <mxCell id="rname_R4" value="分发/升级不闭环" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#333333;fontSize=13;" vertex="1" parent="1"><mxGeometry x="320" y="370" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="issues_R4" value="#182, #499, #578, #989, #1203" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="320" y="370" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="phase_R4" value="下期, 与 #957 一起" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="560" y="370" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="r_R5" value="R5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#333333;fontSize=18;" vertex="1" parent="1"><mxGeometry x="40" y="460" width="60" height="60" as="geometry"/></mxCell>
+      <mxCell id="rname_R5" value="外部依赖不稳" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#333333;fontSize=13;" vertex="1" parent="1"><mxGeometry x="110" y="460" width="200" height="60" as="geometry"/></mxCell>
+      <mxCell id="issues_R5" value="#870, #1227, #1233" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="320" y="460" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="phase_R5" value="远期, 独立提案" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="560" y="460" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="r_R6" value="R6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#333333;fontSize=18;" vertex="1" parent="1"><mxGeometry x="40" y="550" width="60" height="60" as="geometry"/></mxCell>
+      <mxCell id="rname_R6" value="API 表面 / 消费者契约不清" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#333333;fontSize=13;" vertex="1" parent="1"><mxGeometry x="110" y="550" width="200" height="60" as="geometry"/></mxCell>
+      <mxCell id="issues_R6" value="(新) cli 看不到 LocalTemplates
+templatecenter-api-surface-audit.md" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="320" y="550" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="phase_R6" value="本期最小修复" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#333333;fontSize=12;" vertex="1" parent="1"><mxGeometry x="560" y="550" width="230" height="60" as="geometry"/></mxCell>
+      <mxCell id="t_state" value="状态机落点 (本期可见)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;" vertex="1" parent="1"><mxGeometry x="40" y="650" width="760" height="30" as="geometry"/></mxCell>
+      <mxCell id="n_landing" value="R1: Page 1 (CANCELLING 路径)
+R2: Page 3 (R2 修复方案 C, 同时解决 #1005 + #852)
+R3 #1105: Page 2 (snapshot_ops.go:165-168 / :835)
+R3 #1159: snapshot 模板 schema 加 source_image_ref 字段
+R4/R5: 本期不画 (见 templatecenter-roadmap.md)
+R6: 本期 cli node show 命令 + toSchedulerNode 投影修复 (见 api-surface-audit.md) — R6 跨 5 点原则架构仍然成立 (toSchedulerNode 仍是白名单投影)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="690" width="760" height="100" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

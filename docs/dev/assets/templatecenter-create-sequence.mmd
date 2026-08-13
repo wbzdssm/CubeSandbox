@@ -1,0 +1,43 @@
+%%{init: {"theme": "default", "themeVariables": {"fontSize": "13px"}}}%%
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant API as API Service
+    participant R as runTemplateImageJob
+    participant J as image_jobs
+    participant A as rootfs_artifacts
+    participant D as template_definitions
+    participant Dist as Distributor<br/>(进程内 channel)
+    participant Rec as Reconciler<br/>(兜底)
+
+    C->>API: POST /v1/templates
+    API->>R: 启动后台任务 (jobID, req)
+
+    R->>J: 写 status=Running phase=PULLING progress=5
+    Note over R: preflight → pull image → 算 fingerprint
+    R->>J: 写 phase=UNPACKING progress=20 + artifact_id
+    R->>A: mkfs ext4 + 算 sha + 落 cbs
+
+    alt mkfs / cbs 失败
+        R->>A: cleanupFailedRootfsArtifact
+        R->>J: 写 status=FAILED phase=BUILDING_EXT4
+    else 成功
+        R->>J: 写 phase=Built progress=70 (新)
+        R->>D: 写 status=def_BUILT (新状态)
+
+        alt 写 def_BUILT 失败
+            R->>J: 写 status=FAILED
+        else 成功
+            R->>Dist: OnTemplateBuilt(templateID, jobID)
+
+            alt channel 满 / 投递失败
+                Dist-->>Rec: fallbackEnqueue (reconciler 兜底)
+                Note over Rec: 每 10min 扫 def_BUILT >30min 未分发
+            else 投递成功
+                Dist->>Dist: 异步 worker 取事件
+            end
+
+            R->>J: 写 status=Built (终态)
+            Note over R,Dist: 模板中心段结束<br/>CubeMaster 段从 channel 接走 → 进入下发
+        end
+    end

@@ -1,0 +1,102 @@
+flowchart TD
+    Start([main: cmd/server/main.go])
+    Start --> Import[导入 pkg/templatecenter]
+    Import --> InitStore[initStore: pkg/templatecenter/store.go]
+    Import --> StartImageJob[ImageJobRunner]
+    Import --> StartDelete[DeleteTemplate 入口]
+    Import --> StartReconcile[template_reconciler 启动]
+    
+    StartImageJob --> RunTemplateImageJob
+    
+    %%====== runTemplateImageJob ======
+    subgraph RunTemplateImageJob[image_job_runner.go:21 runTemplateImageJob]
+        A1[/#8212; 入口: ctx + jobID + req + downloadBaseURL #8212;/]
+        A1 --> A2[logger = log.G.WithFields {job_id, template_id, image}]
+        A2 --> A3{"Call:&#10;updateTemplateImageJob(jobID, mapstatus: JobStatusRunning, phase: JobPhasePulling, progress: 5)"}
+        A3 -->|err != nil| A3_fail_1[/#8220; logger.Errorf update job start fail + return #8221;/]
+        A3 -->|err == nil| A4["Call: image.EnsureArtifactBuildPreflight(ctx)"]
+        A4 -->|err != nil| A4_fail_1["Call: updateTemplateImageJob(status: JobStatusFailed, phase: JobPhasePulling, progress: 100, error_message: err.Error)"]
+        A4_fail_1 --> Return1([return])
+        A4 -->|err == nil| A5["newJobPullProgressSink(ctx, jobID) → pullProgress"]
+        A5 --> A6["Call: image.PrepareSource(SourceSpec{ImageRef, ..., OnPullProgress: pullProgress.onProgress})"]
+        A6 -->|err != nil| A6_fail_1["pullProgress.flush(false)"]
+        A6_fail_1 --> A6_fail_2["Call: updateTemplateImageJob(status: Failed, phase: Pulling, progress: 100, error_message: err.Error)"]
+        A6_fail_2 --> Return2([return])
+        A6 -->|source != nil + ExportMode == ExportModeDocker| A7["pullProgress.flush(true); pullProgressFlushed := true"]
+        A6 -->|else| A8
+        A7 --> A8
+        A8["resolveWithCubeCA(req.WithCubeCA) → withCubeCA"]
+        A8 --> A9["Call: loadCubeEgressCA(ctx, withCubeCA) → _, caFingerprint, err"]
+        A9 -->|err != nil| A9_fail_1["updateTemplateImageJob(status: Failed, phase: Pulling, progress: 100, error_message)"]
+        A9_fail_1 --> Return3([return])
+        A9 -->|err == nil| A10["fingerprint := buildTemplateSpecFingerprintWithCA(req, source.Digest, caFingerprint)"]
+        A10 --> A11["artifactID := buildArtifactID(fingerprint)"]
+        A11 --> A12["Call: updateTemplateImageJob(artifact_id, template_spec_fingerprint, source_image_digest, phase: JobPhaseUnpacking, progress: 20)"]
+        A12 -->|err != nil| A12_warn["logger.Errorf update job source metadata fail"]
+        A12_warn --> A13
+        A12 -->|err == nil| A13["Call: ensureRootfsArtifact(ctx, req, source, downloadBaseURL) → artifact, generatedReq, builtFreshArtifact, err"]
+        A13 -->|err != nil| A13_y["if !pullProgressFlushed pullProgress.flush(false); pullProgressFlushed = true"]
+        A13_y --> A13_fail_1["updateTemplateImageJob(status: Failed, phase: JobPhaseBuildingExt4, artifact_id, template_spec_fingerprint, artifact_status: ArtifactStatusFailed, error_message, progress: 100)"]
+        A13_fail_1 --> Return4([return])
+        A13 -->|err == nil| A14["if !pullProgressFlushed pullProgress.flush(true)"]
+        A14 --> A15["updateTemplateImageJob(artifact_id, template_spec_fingerprint, source_image_digest, artifact_status, phase: JobPhaseDistributing, progress: 70)"]
+        A15 -->|err != nil| A15_warn["logger.Errorf update job artifact fail"]
+        A15_warn --> A16
+        A15 -->|err == nil| A16["readyTargets, expected, ready, failed, distErr := distributeRootfsArtifact(ctx, req, generatedReq, artifact, req.TemplateID, jobID)"]
+        A16 --> A17["updateTemplateImageJob(phase: CreatingTemplate, progress: 85, expected_node_count, ready_node_count, failed_node_count, error_message: errorString(distErr))"]
+        A17 --> A18{"expected > 0 && ready == 0 ?"}
+        A18 -->|True| A18_y["if builtFreshArtifact cleanupFailedRootfsArtifact(...)"]
+        A18_y --> A18_fail_1["updateTemplateImageJob(status: Failed, phase: Distributing, progress: 100, error_message: fmt.Sprintf artifact distribution failed...)"]
+        A18_fail_1 --> Return5([return])
+        A18 -->|False| A19["storedReq, err := normalizeStoredTemplateRequest(generatedReq)"]
+        A19 -->|err != nil| A19_fail_1["updateTemplateImageJob(status: Failed, phase: CreatingTemplate, progress: 100, template_status: StatusFailed, error_message)"]
+        A19_fail_1 --> Return6([return])
+        A19 -->|err == nil| A20["Call: ensureTemplateDefinitionWithOptions(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, version, opts) → _, err"]
+        A20 -->|err != nil| A20_fail_1["updateTemplateImageJob(status: Failed, phase: CreatingTemplate, progress: 100, template_status: StatusFailed, error_message)"]
+        A20_fail_1 --> Return7([return])
+        A20 -->|err == nil| A21["replicas, persistErr := createTemplateReplicasOnNodes(ctx, req.TemplateID, generatedReq, readyTargets, replicaRunOptions{ArtifactID, JobID})"]
+        A21 --> A22{"persistErr != nil ?"}
+        A22 -->|True| A22_y["err = persistErr"]
+        A22_y --> A22_y2["if builtFreshArtifact cleanupFailedRootfsArtifact(...)"]
+        A22_y2 --> A22_fail_1["updateTemplateImageJob(status: Failed, phase: CreatingTemplate, progress: 100, template_status: StatusFailed, error_message)"]
+        A22_fail_1 --> Return8([return])
+        A22 -->|False| A23["info, claimWarning, err := finalizeTemplateReplicas(ctx, req.TemplateID, generatedReq.InstanceType, version, req.Alias, replicas)"]
+        A23 -->|err != nil| A23_y["err = 上一步的 persistErr (走 A22_y 分支)"]
+        A23_y --> A23_y2["if builtFreshArtifact cleanupFailedRootfsArtifact(...)"]
+        A23_y2 --> A23_fail_1["updateTemplateImageJob(status: Failed, phase: CreatingTemplate, progress: 100, template_status: StatusFailed, error_message)"]
+        A23_fail_1 --> Return9([return])
+        A23 -->|err == nil| A24["resultPayload, _ := json.Marshal(info)"]
+        A24 --> A25["jobStatus := JobStatusReady; jobPhase := JobPhaseReady"]
+        A25 --> A26{"info.Status == StatusFailed ?"}
+        A26 -->|True| A26_y["if builtFreshArtifact cleanupFailedRootfsArtifact(...)"]
+        A26_y --> A26_y2["jobStatus = JobStatusFailed; jobPhase = JobPhaseCreatingTemplate"]
+        A26_y2 --> A27
+        A26 -->|False| A27["errorMessage := info.LastError; if errorMessage == '' and claimWarning != '': errorMessage = claimWarning"]
+        A27 --> A28["updateTemplateImageJob(status: jobStatus, phase: jobPhase, progress: 100, template_status: info.Status, result_json: string(resultPayload), error_message)"]
+        A28 --> Done([runTemplateImageJob exits normally])
+    end
+    
+    %%====== store.go ======
+    subgraph StoreFunctions[store.go 关键函数]
+        S1[UpdateDefinitionStatus]
+        S2[GetDefinition]
+        S3[GetTemplateInfo]
+        S4[ListTemplates]
+        S5[summarizeStatus: 3 case aggregation]
+    end
+    
+    %%====== reconciler ======
+    StartReconcile --> ReconcileLoop[每 10 min 跑一次]
+    ReconcileLoop --> R1{"trySessionLock(tc_reconcile_building) ?"}
+    R1 -->|抢不到| R1_skip[(本轮跳过)]
+    R1 -->|抢到| R2["SELECT * FROM template_image_jobs WHERE status IN (Pending, Running) AND created_at &lt; now - threshold"]
+    R2 --> R3{"for each job: 是否超时?"}
+    R3 -->|True| R3_fix["updateTemplateImageJob(status: Failed, error_message: timed out)"]
+    R3 -->|False| R3_skip[(skip)]
+    
+    classDef fail fill:#f8cecc,stroke:#b85450,color:#000
+    classDef ok fill:#d5e8d4,stroke:#82b366,color:#000
+    classDef warn fill:#ffe6cc,stroke:#d79b00,color:#000
+    classDef inproc fill:#dae8fc,stroke:#6c8ebf,color:#000
+    class A3_fail_1,A4_fail_1,A6_fail_1,A6_fail_2,A9_fail_1,A13_fail_1,A18_fail_1,A19_fail_1,A20_fail_1,A22_fail_1,A23_fail_1,A3_fail_1,A18_y,A22_y2,A23_y,A23_y2,A26_y fail
+</content>

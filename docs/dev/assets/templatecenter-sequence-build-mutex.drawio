@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T19:00:00.000Z" agent="CodeBuddy" version="24.0.0">
+  <diagram name="构建互斥 (TC 独立服务 + DB 锁)" id="build-mutex-tc-service">
+    <mxGraphModel dx="1500" dy="800" grid="1" gridSize="10" pageWidth="1500" pageHeight="800" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="构建互斥 (TC 独立服务 — 跨 TC 副本需要 DB 锁) — sequence-build-mutex.drawio" style="text;html=1;align=center;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="0" y="20" width="1500" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cm" value="CubeMaster 副本 1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="70" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-tc1" value="TC 副本 1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d0f0d0;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="240" y="70" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-lock" value="DB 互斥锁&#10;(MySQL GET_LOCK /&#10; PG pg_try_advisory_lock)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e0e8ff;strokeColor=#6c8ebf;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="420" y="65" width="180" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cm2" value="CubeMaster 副本 2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="620" y="70" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-tc2" value="TC 副本 2" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d0f0d0;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="800" y="70" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-db" value="DB" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="980" y="70" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-note" value="5 点原则" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1120" y="70" width="360" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll-cm1" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="140" y="110" as="sourcePoint"/>
+            <mxPoint x="140" y="750" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-tc1" style="endArrow=none;dashed=1;strokeColor=#82b366" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="320" y="110" as="sourcePoint"/>
+            <mxPoint x="320" y="750" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-lock" style="endArrow=none;dashed=1;strokeColor=#6c8ebf;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="510" y="110" as="sourcePoint"/>
+            <mxPoint x="510" y="750" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cm2" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="700" y="110" as="sourcePoint"/>
+            <mxPoint x="700" y="750" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-tc2" style="endArrow=none;dashed=1;strokeColor=#82b366" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="880" y="110" as="sourcePoint"/>
+            <mxPoint x="880" y="750" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-db" style="endArrow=none;dashed=1;strokeColor=#666666" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1040" y="110" as="sourcePoint"/>
+            <mxPoint x="1040" y="750" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_scenario" value="场景: 两个 TC 副本 (不同 master 后) 同时收到 CreateTemplate(同一 artifact_id)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="1420" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m1" value="1. master1 → TC1: POST /v1/templates (跨进程 RPC)" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="160" as="sourcePoint"/>
+            <mxPoint x="320" y="160" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m2" value="2. TC1: 拿进程内 lock(artifact_X) — 单副本内 OK" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="190" as="sourcePoint"/>
+            <mxPoint x="320" y="210" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m3" value="3. TC1: 拿 DB 跨实例锁 (GET_LOCK(tc_build_X))" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="235" as="sourcePoint"/>
+            <mxPoint x="510" y="235" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m4" value="4. ✅ lock acquired (TC1 拿到)" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="510" y="265" as="sourcePoint"/>
+            <mxPoint x="320" y="265" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m5" value="5. TC1 → master1: claim job (UPDATE job SET worker=MASTER_POD_1)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;dashed=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="295" as="sourcePoint"/>
+            <mxPoint x="140" y="295" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m6" value="6. master1: UPDATE job SET status=BUILDING, worker=MASTER_POD_1" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="320" as="sourcePoint"/>
+            <mxPoint x="1040" y="320" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m7" value="7. master2 → TC2: POST /v1/templates (跨进程 RPC)" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="360" as="sourcePoint"/>
+            <mxPoint x="880" y="360" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m8" value="8. TC2: 拿进程内 lock — OK" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="390" as="sourcePoint"/>
+            <mxPoint x="880" y="410" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m9" value="9. TC2: 拿 DB 跨实例锁 (GET_LOCK(tc_build_X))" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="435" as="sourcePoint"/>
+            <mxPoint x="510" y="435" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m10" value="10. ❌ lock NOT acquired (TC2 拿不到, TC1 持锁中)" style="endArrow=classic;html=1;strokeColor=#b85450;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="510" y="465" as="sourcePoint"/>
+            <mxPoint x="880" y="465" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_lock_note" value="⚠️ 5 点原则架构下: TC 是独立服务, 多 TC 副本竞争必须用 DB 锁 (GET_LOCK / pg_try_advisory_lock) — 进程内锁不够" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1120" y="420" width="360" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="m11" value="11. TC2: 释放进程内 lock + poll DB job status (1s/次)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="880" y="500" as="sourcePoint"/>
+            <mxPoint x="1040" y="500" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m12" value="12. TC1: 完成 build → 释放 DB 锁 + 写终态" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="540" as="sourcePoint"/>
+            <mxPoint x="510" y="540" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m13" value="13. TC2 poll 看到 definition=READY → 释放进程内 lock → 返回 200 (复用结果)" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1040" y="570" as="sourcePoint"/>
+            <mxPoint x="880" y="570" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_5_4" value="⚠️ 5 点原则: 跨进程锁经 DB, 进程内锁做细粒度并发控制" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1120" y="550" width="360" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase_exception" value="异常路径: TC1 挂掉 → 锁释放, TC2 可重试" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="60" y="610" width="1420" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="E1. TC1 异常退出, DB 锁自动释放 (session 断开)" style="endArrow=classic;html=1;strokeColor=#d79b00;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="320" y="645" as="sourcePoint"/>
+            <mxPoint x="510" y="645" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e2" value="E2. master 对账: 扫 job.status=BUILDING &gt; 5min → 调 TC API 标记 FAILED" style="endArrow=classic;html=1;strokeColor=#d79b00;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="670" as="sourcePoint"/>
+            <mxPoint x="140" y="690" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e3" value="E3. master → TC2: POST /v1/templates/{id}/cleanup" style="endArrow=classic;html=1;strokeColor=#82b366;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="715" as="sourcePoint"/>
+            <mxPoint x="880" y="715" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_5_4_2" value="5 点原则第 3 条: 对账由 master 发起, 经 API 调 TC 处理" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1120" y="675" width="360" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend" value="图例: 蓝=CubeMaster / 绿=TC 独立副本 / 紫=DB 锁 / 灰=DB / 黄=5 点原则 / 橙=对账异常" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="60" y="750" width="1420" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T21:00:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="镜像中心状态读写路径" id="state-readwrite">
+    <mxGraphModel dx="1300" dy="380" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="380" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="镜像中心 状态读写路径 — 5 点原则第 1 条: TC 进程不直连 DB, 全部状态由 master 落库" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1220" height="32" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="h_tc" value="TC 进程 (不连 DB)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=12;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="240" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="h_api" value="master 进程 API" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="370" y="70" width="280" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="h_db" value="master DB (gorm, master 唯一持)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#9673a6;strokeColor=#9673a6;fontSize=12;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="740" y="70" width="240" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="h_read" value="3 层读 (谁在用)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d6b656;strokeColor=#d6b656;fontSize=12;fontStyle=1;fontColor=#ffffff;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="70" width="200" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r1a" value="Job 状态变更&#10;(7 step + retry/cancel)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="110" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1b" value="/v1/jobs/{id}/state  POST" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="110" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1c" value="template_image_jobs" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="110" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1d" value="API 层 → CLI / SDK / WebUI" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="110" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r2a" value="Definition 状态&#10;summarizeStatus 后" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="156" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2b" value="/v1/definitions/{id}/state  POST" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="156" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2c" value="template_definitions" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="156" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2d" value="localcache → TC 拉节点视图" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="156" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r3a" value="Artifact 状态变更&#10;BUILDING/READY/FAILED/Orphaned" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="202" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3b" value="/v1/artifacts/{id}/state  POST" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="202" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3c" value="rootfs_artifacts" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="202" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3d" value="Reconciler 扫 PENDING/RUNNING" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="202" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r4a" value="Replica upsert&#10;(本地缓存 + Redis)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="248" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4b" value="/v1/replicas  POST" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="248" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4c" value="template_replicas" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="248" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4d" value="artifact_gc 扫 gc_deadline" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="248" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r5a" value="跨副本互斥锁&#10;(经 master API 拿)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="294" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5b" value="/v1/locks/{name}/acquire&#10;GET_LOCK / pg_try_advisory" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="294" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5c" value="DB 持锁会话 (pinned)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="294" width="240" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5d" value="template_reconciler 抢锁" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="294" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="r6a" value="节点视图拉取" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="240" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="r6b" value="/v1/nodes  GET" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="370" y="340" width="280" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="r6c" value="nodes" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="340" width="240" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="r6d" value="TC 拉 (替代原 30s DB 重载)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="340" width="200" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="er1a" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="r1a" target="r1b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er1b" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="r1b" target="r1c"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er2a" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="r2a" target="r2b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er2b" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="r2b" target="r2c"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er3a" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="r3a" target="r3b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er3b" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="r3b" target="r3c"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er4a" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="r4a" target="r4b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er4b" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="r4b" target="r4c"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er5a" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="r5a" target="r5b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er5b" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#9673a6;strokeWidth=2;" edge="1" parent="1" source="r5b" target="r5c"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er6a" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="r6a" target="r6b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er6b" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="r6b" target="r6c"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="er1c" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="r1c" target="r1d"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er2c" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="r2c" target="r2d"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er3c" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="r3c" target="r3d"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er4c" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="r4c" target="r4d"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="er5c" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="r5c" target="r5d"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="footer" value="写函数源码位置: updateTemplateImageJob (job_repo.go:24) · UpdateDefinitionStatus (store.go:790) / updateDefinitionFields (snapshot_ops.go:1031) · updateRootfsArtifact · UpsertReplica + localcache.RegisterTemplateReplica (cache.go:235) · claimAliasForReadyTemplate 必须在 UpdateDefinitionStatus(def_READY) 之前 (store.go:735)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="375" width="1220" height="22" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

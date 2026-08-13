@@ -1,0 +1,384 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-11T00:05:00.000Z" agent="CodeBuddy" version="24.0.0">
+  <diagram name="Create 模板 端到端时序 (callback)" id="create-e2e-sequence">
+    <mxGraphModel dx="2200" dy="1500" grid="1" gridSize="10" pageWidth="2200" pageHeight="1500" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="镜像中心 Create 模板 — 端到端时序 (callback 方案: 模板中心写到 def_BUILT 即返回, 下发由 CubeMaster 段接管)" style="text;html=1;align=center;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="0" y="20" width="2200" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="角色: Client / SDK / CubeUI / CubeMaster / 模板中心(TC) / Distributor / Cubelet / DB / Redis / ArtifactStore (cbs). 旁路: Reconciler 兜底" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;fontStyle=2" vertex="1" parent="1">
+          <mxGeometry x="0" y="50" width="2200" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 泳道 header (10 个) ===== -->
+        <mxCell id="hdr-c" value="Client" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="120" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-sdk" value="SDK" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="180" y="80" width="120" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-ui" value="CubeUI" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="320" y="80" width="120" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cm" value="CubeMaster" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="460" y="80" width="140" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-tc" value="模板中心 (TC)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="620" y="80" width="160" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-dist" value="Distributor&#10;(channel)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="800" y="80" width="120" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cub" value="Cubelet ×N" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e0e8ff;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="940" y="80" width="120" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-as" value="ArtifactStore&#10;(cbs)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0e8d0;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1080" y="80" width="120" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-db" value="DB" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1220" y="80" width="120" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-rds" value="Redis" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1360" y="80" width="120" height="34" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-rec" value="Reconciler&#10;(兜底)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1500" y="80" width="120" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-note" value="5 点原则" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1640" y="80" width="540" height="34" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 泳道生命线 (11 条) ===== -->
+        <mxCell id="ll-c" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="100" y="128" as="sourcePoint"/>
+            <mxPoint x="100" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-sdk" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="240" y="128" as="sourcePoint"/>
+            <mxPoint x="240" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-ui" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="380" y="128" as="sourcePoint"/>
+            <mxPoint x="380" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cm" style="endArrow=none;dashed=1;strokeColor=#6c8ebf;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="530" y="128" as="sourcePoint"/>
+            <mxPoint x="530" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-tc" style="endArrow=none;dashed=1;strokeColor=#82b366;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="700" y="128" as="sourcePoint"/>
+            <mxPoint x="700" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-dist" style="endArrow=none;dashed=1;strokeColor=#9673a6;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="860" y="128" as="sourcePoint"/>
+            <mxPoint x="860" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cub" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1000" y="128" as="sourcePoint"/>
+            <mxPoint x="1000" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-as" style="endArrow=none;dashed=1;strokeColor=#d6b656" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1140" y="128" as="sourcePoint"/>
+            <mxPoint x="1140" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-db" style="endArrow=none;dashed=1;strokeColor=#666666" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1280" y="128" as="sourcePoint"/>
+            <mxPoint x="1280" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-rds" style="endArrow=none;dashed=1;strokeColor=#666666" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1420" y="128" as="sourcePoint"/>
+            <mxPoint x="1420" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-rec" style="endArrow=none;dashed=1;strokeColor=#d79b00" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1560" y="128" as="sourcePoint"/>
+            <mxPoint x="1560" y="1300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== 段落分隔注释 ===== -->
+        <mxCell id="sec1" value="━━━━━━ 阶段 1: 入口 (Client / SDK / CubeUI → CubeMaster) ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="140" width="540" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec2" value="━━━━━━ 阶段 2: 模板中心段 (TC 写 image_jobs + mkfs + def_BUILT) ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="600" y="140" width="280" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec3" value="━━━━━━ 阶段 3: callback 通知 ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="800" y="140" width="180" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec4" value="━━━━━━ 阶段 4: 下发段 (CubeMaster 推 ext4 → Cubelet) ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="460" y="780" width="960" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="sec5" value="━━━━━━ 阶段 5: 终态 (def_READY + alias 可解析) ━━━━━━" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=10;fontStyle=1;fontColor=#ffffff" vertex="1" parent="1">
+          <mxGeometry x="40" y="1140" width="1600" height="22" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 主线消息 ===== -->
+
+        <!-- 1. Client → SDK -->
+        <mxCell id="m1" value="1. client.CreateTemplate(req) [SDK]" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="100" y="180" as="sourcePoint"/>
+            <mxPoint x="240" y="180" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 2. SDK → CubeMaster (HTTP) -->
+        <mxCell id="m2" value="2. POST /v1/templates" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="210" as="sourcePoint"/>
+            <mxPoint x="530" y="210" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 3. CubeUI 旁观 (同 HTTP) -->
+        <mxCell id="m3" value="3. CubeUI 也可直连 POST 监控 (同接口)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="380" y="240" as="sourcePoint"/>
+            <mxPoint x="530" y="240" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 4. CubeMaster 写 DB image_jobs (同步) -->
+        <mxCell id="m4" value="4. INSERT image_jobs (jobID, status=Pending, phase=Queued)" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="270" as="sourcePoint"/>
+            <mxPoint x="1280" y="270" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 5. CubeMaster → TC 异步触发 build -->
+        <mxCell id="m5" value="5. 异步: runTemplateImageJob(jobID, req) [进程内 dispatch]" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="300" as="sourcePoint"/>
+            <mxPoint x="700" y="300" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 6. TC → CubeMaster API → DB 写 PULLING -->
+        <mxCell id="m6" value="6. 调 master API: updateTemplateImageJob (PULLING progress=5)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="330" as="sourcePoint"/>
+            <mxPoint x="530" y="330" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 6'. CubeMaster 落 DB -->
+        <mxCell id="m6db" value="6'. UPDATE image_jobs (经 master 自己的 DB 模块写)" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="358" as="sourcePoint"/>
+            <mxPoint x="1280" y="358" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 7. TC 内部: preflight + pull + fingerprint (失败 alt) -->
+        <mxCell id="m7" value="7. preflight (CA/节点) + pull image + 算 fingerprint" style="endArrow=none;strokeColor=#82b366;strokeWidth=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="360" as="sourcePoint"/>
+            <mxPoint x="700" y="360" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m7f" value="7f. 失败 → 调 master API: 写 status=FAILED + 通知 SDK" style="endArrow=classic;html=1;strokeColor=#b85450;fontSize=10;dashed=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="385" as="sourcePoint"/>
+            <mxPoint x="530" y="385" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 8. TC → CubeMaster API → DB 写 UNPACKING -->
+        <mxCell id="m8" value="8. 调 master API: 写 UNPACKING progress=20 + artifact_id + fingerprint" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="410" as="sourcePoint"/>
+            <mxPoint x="530" y="410" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 9. TC → ArtifactStore mkfs + 落 cbs -->
+        <mxCell id="m9" value="9. mkfs ext4 + 算 sha + 写 vda 持久化到 cbs" style="endArrow=classic;html=1;strokeColor=#d6b656;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="440" as="sourcePoint"/>
+            <mxPoint x="1140" y="440" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m9f" value="9f. mkfs / cbs 失败 → cleanupFailedRootfsArtifact + 调 master API 写 FAILED" style="endArrow=classic;html=1;strokeColor=#b85450;fontSize=10;dashed=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="470" as="sourcePoint"/>
+            <mxPoint x="530" y="470" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 10. TC → CubeMaster API → DB 写 Built phase -->
+        <mxCell id="m10" value="10. 调 master API: 写 phase=Built progress=70 (新)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10;fontStyle=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="500" as="sourcePoint"/>
+            <mxPoint x="530" y="500" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 11. TC → CubeMaster API → DB 写 def_BUILT (新状态) -->
+        <mxCell id="m11" value="11. 调 master API: 写 template_definitions status=def_BUILT (新状态)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11;fontStyle=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="530" as="sourcePoint"/>
+            <mxPoint x="530" y="530" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m11f" value="11f. 写 def 失败 → 调 master API: 写 image_jobs status=FAILED" style="endArrow=classic;html=1;strokeColor=#b85450;fontSize=10;dashed=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="560" as="sourcePoint"/>
+            <mxPoint x="530" y="560" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 12. TC → Distributor 调 OnTemplateBuilt -->
+        <mxCell id="m12" value="12. OnTemplateBuilt(templateID, jobID)  非阻塞" style="endArrow=classic;html=1;strokeColor=#9673a6;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="600" as="sourcePoint"/>
+            <mxPoint x="860" y="600" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 13. Distributor → Reconciler (兜底) -->
+        <mxCell id="m13" value="13. channel 满 → fallbackEnqueue (reconciler 兜底)" style="endArrow=classic;html=1;strokeColor=#d79b00;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="630" as="sourcePoint"/>
+            <mxPoint x="1560" y="630" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 14. TC → CubeMaster API → DB 写 status=Built (模板中心段终态) -->
+        <mxCell id="m14" value="14. 调 master API: 写 image_jobs status=Built (模板中心段终态)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11;fontStyle=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="700" y="670" as="sourcePoint"/>
+            <mxPoint x="530" y="670" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <!-- 15. SDK 轮询 (阶段 1 返回) -->
+        <mxCell id="m15" value="15. SDK 轮询 GET /v1/templates/{id}  [DB 读, def_BUILT 可见]" style="endArrow=classic;html=1;strokeColor=#000000;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="700" as="sourcePoint"/>
+            <mxPoint x="1280" y="700" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== 阶段 4: 下发段 ===== -->
+        <mxCell id="m16" value="16. Distributor worker 取事件 → 解析目标节点 (按 instance_type 拿健康节点)" style="endArrow=none;strokeColor=#9673a6;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="860" y="810" as="sourcePoint"/>
+            <mxPoint x="860" y="810" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m17" value="17. UPDATE template_definitions status=def_DISTRIBUTING" style="endArrow=classic;html=1;strokeColor=#6c8ebf;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="840" as="sourcePoint"/>
+            <mxPoint x="1280" y="840" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m18" value="18. distributeRootfsArtifact  4 worker 并行调 cubelet" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="870" as="sourcePoint"/>
+            <mxPoint x="1000" y="870" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m19" value="19. gRPC CreateArtifactOnNode (url, sha256, token)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="900" as="sourcePoint"/>
+            <mxPoint x="1000" y="900" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m20" value="20. HTTP GET 拉 ext4 (从 cbs, 边下边算 sha)" style="endArrow=classic;html=1;strokeColor=#d6b656;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1000" y="930" as="sourcePoint"/>
+            <mxPoint x="1140" y="930" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m21" value="21. 写 .download → rename → 校验 sha256 → register LocalTemplate" style="endArrow=none;strokeColor=#6c8ebf;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1000" y="960" as="sourcePoint"/>
+            <mxPoint x="1000" y="960" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m22" value="22. ack: gRPC CreateArtifactOnNode resp {retCode, path}" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1000" y="990" as="sourcePoint"/>
+            <mxPoint x="530" y="990" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m23" value="23. UPSERT template_replicas (每节点一行) + Redis cache" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1020" as="sourcePoint"/>
+            <mxPoint x="1280" y="1020" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m23r" value="23r. UPSERT template_replicas 到 Redis (master cache)" style="endArrow=classic;html=1;strokeColor=#666666;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1050" as="sourcePoint"/>
+            <mxPoint x="1420" y="1050" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m24" value="24. summarizeStatus 聚合 (case A/B/C)" style="endArrow=none;strokeColor=#6c8ebf;fontStyle=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1080" as="sourcePoint"/>
+            <mxPoint x="530" y="1080" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== 阶段 5: 终态 ===== -->
+        <mxCell id="m25" value="25. case B 全成功 → claimAliasForReadyTemplate (在 def_READY 之前, 避免 publish-ordering 竞争)" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1170" as="sourcePoint"/>
+            <mxPoint x="1280" y="1170" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m26" value="26. UPDATE template_definitions status=def_READY" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=11;fontStyle=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1200" as="sourcePoint"/>
+            <mxPoint x="1280" y="1200" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m27" value="27. UPDATE image_jobs status=Ready progress=100 + result_json" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1230" as="sourcePoint"/>
+            <mxPoint x="1280" y="1230" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m28" value="28. SDK 轮询 → 看到 def_READY + alias 可解析" style="endArrow=classic;html=1;strokeColor=#000000;dashed=1;fontSize=10" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="1260" as="sourcePoint"/>
+            <mxPoint x="1280" y="1260" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- 失败路径聚合 -->
+        <mxCell id="m_af" value="case A 全失败 → UPDATE def=def_FAILED + image_jobs.status=Failed" style="endArrow=classic;html=1;strokeColor=#b85450;fontSize=10;dashed=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1100" as="sourcePoint"/>
+            <mxPoint x="1280" y="1100" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m_cf" value="case C 部分成功 → UPDATE def=def_PARTIALLY_READY (中间态, refreshSummary 兜底)" style="endArrow=classic;html=1;strokeColor=#d6b656;fontSize=10;dashed=1" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="530" y="1115" as="sourcePoint"/>
+            <mxPoint x="1280" y="1115" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===== 底部注释 ===== -->
+        <mxCell id="note_5p" value="5 点原则: ① TC 不直连 DB, 所有写库经 master API (gRPC/HTTP) / ② 由 CubeMaster 进程落 DB (走 master 自己的 db 模块) / ③ 双缓存各自维护 (Master 本地 localcache + Redis + TC 自身 tccache) / ④ alias 占位在 def_READY 之前 (publish-ordering, store.go:735) / ⑤ callback = 进程内 channel, 不走 RPC, channel 满走 reconciler 兜底" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="1320" width="1600" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend" value="图例: 黑=同步请求 / 黑虚=异步 / 灰=DB / 蓝虚=gRPC / 棕虚=cbs 下载 / 绿=TC 独立服务 / 紫=callback channel / 橙=reconciler 兜底 / 红=失败路径" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="1350" width="1600" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

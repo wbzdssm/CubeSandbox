@@ -1,0 +1,60 @@
+%{init: {"flowchart": {"htmlLabels": true, "curve": "linear"}, "themeVariables": {"fontSize": "12px"}}}
+flowchart TD
+    %% 主线
+    Start([POST /v1/templates]) --> V0[验证请求]
+    V0 -->|异常| E0[❌ 直接返回错误]
+    V0 -->|正常| W1[写 image_jobs<br/>phase=PULLING]
+    W1 --> C1{preflight?}
+    C1 -->|失败| E1[❌ phase=PULLING<br/>status=FAILED]
+    C1 -->|通过| P1[拉取镜像]
+    P1 -->|失败| E2[❌ phase=PULLING<br/>status=FAILED]
+    P1 -->|成功| FP[算 fingerprint<br/>+ artifact_id]
+    FP -->|hash 不等<br/>R3 #1105| R1[🔁 RETRY 回拉取]
+    R1 -.-> P1
+    FP -->|hash 相等| W2[写 image_jobs<br/>phase=UNPACKING]
+    W2 --> MK[mkfs ext4 + 算 sha]
+    MK -->|失败| E3[❌ phase=BUILDING_EXT4<br/>artifact=FAILED]
+    MK -->|成功| W3[写 image_jobs<br/>phase=Distributing]
+    W3 --> DS[分发 ext4 到节点]
+    DS -->|全失败<br/>expected&gt;0 ready=0| E4[❌ phase=DISTRIBUTING<br/>status=FAILED]
+    DS -->|部分成功| W4[写 image_jobs<br/>phase=CreatingTemplate]
+    DS -->|全部成功| W4
+    W4 --> NR[归一化存储请求]
+    NR -->|失败| E5[❌ phase=CreatingTemplate<br/>template_status=FAILED]
+    NR -->|成功| EF[写入 def_PENDING<br/>→ def_CREATING]
+    EF -->|失败| E6[❌ phase=CreatingTemplate<br/>template_status=FAILED]
+    EF -->|成功| CR[为节点创建副本]
+    CR -->|失败| E7[❌ phase=CreatingTemplate<br/>template_status=FAILED]
+    CR -->|成功| CLM["1. claimAlias<br/>(必须先于下面 2 步)"]
+    CLM -->|失败| E8[❌ cleanupFailedRootfsArtifact]
+    CLM --> SM["2. summarizeStatus(replicas)<br/>3 分支聚合"]
+    SM -->|A 全部失败| PU["def_FAILED"]
+    SM -->|B 全部成功| PR["claim alias + def_READY"]
+    SM -->|C 部分成功| PP["def_PARTIALLY_READY<br/>中间态, retry 后可能跳"]
+    CLM --> FN["3. finalizeTemplateReplicas"]
+    FN -->|失败| E9[❌ cleanupFailedRootfsArtifact]
+    FN -->|info.Status=Failed| EE[❌ jobStatus=Failed]
+    FN -->|最终 OK| PB[写 image_jobs<br/>status=Ready/Failed]
+    PB --> Done([def_READY + alias<br/>或 PARTIALLY_READY<br/>或 def_FAILED])
+
+    %% 旁支
+    Done -.->|PARTIALLY 中间态<br/>refreshReplicaSummary 重算| RR[🔁 部分副本 retry 成功<br/>→ 跳 def_READY]
+    RR -.-> Done
+
+    %% 颜色
+    classDef mainStyle fill:#dae8fc,stroke:#6c8ebf,stroke-width:1px
+    classDef writeStyle fill:#fff2cc,stroke:#d6b656,stroke-width:1px
+    classDef condStyle fill:#ffe6cc,strokeColor:#d79b00,stroke-width:2px
+    classDef failStyle fill:#f8cecc,stroke:#b85450,stroke-width:1px
+    classDef okStyle fill:#d5e8d4,stroke:#82b366,stroke-width:2px
+    classDef retryStyle fill:#ffe6cc,stroke:#d79b00,stroke-width:1px,stroke-dasharray: 3
+    classDef termStyle fill:#82b366,stroke:#82b366,stroke-width:2px,color:#fff
+    classDef failTermStyle fill:#b85450,stroke:#b85450,stroke-width:2px,color:#fff
+
+    class V0,P1,FP,MK,DS,NR,EF,CR mainStyle
+    class W1,W2,W3,W4,PB writeStyle
+    class C1 condStyle
+    class E0,E1,E2,E3,E4,E5,E6,E7,E8,E9,EE,PU failStyle
+    class PR,FN okStyle
+    class R1,RR retryStyle
+    class Start,Done termStyle

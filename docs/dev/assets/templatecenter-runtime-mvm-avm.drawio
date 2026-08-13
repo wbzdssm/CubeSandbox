@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T21:30:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="镜像中心运行时架构 (mvm/avm 双 VM)" id="image-template-runtime">
+    <mxGraphModel dx="1500" dy="780" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="780" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="镜像中心 Image Template 运行时架构 — 裸金属主机双 VM 分工 (mvm 跑容器 / avm 跑 PrepareImageJob)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1420" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="对应 Page 1 Job 阶段: PULLING → UNPACKING → BUILDING_EXT4 → GENERATING_JSON → DISTRIBUTING → CREATING_TEMPLATE → SNAPSHOTTING → REGISTERING" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="56" width="1420" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="bm" value="裸金属主机 (bare-metal host)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="1420" height="560" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cos" value="COS&#10;(对象存储)" style="shape=cylinder3;whiteSpace=wrap=html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="120" width="80" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="image_repo" value="镜像仓库&#10;(registry)" style="shape=cylinder3;whiteSpace=wrap=html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="200" width="80" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="mvm_bg" value="" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fffaf0;strokeColor=#d6b656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="600" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="mvm_h" value="mvm (Container VM, 跑容器)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d6b656;strokeColor=#d6b656;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="60" y="120" width="600" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="pod_bg" value="Pod" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="170" width="270" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="container1" value="container1" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="395" y="195" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="containerx" value="containerX" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="510" y="195" width="100" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="pod_label" value="Pod (k8s/workload)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#ffffff;strokeColor=none;fontSize=9;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="395" y="245" width="215" height="15" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="containerd" value="containerd" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="170" width="100" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="eklet" value="eklet-agent" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="170" width="80" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="snap" value="cube-agent-containerd-snapshotter" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="260" width="240" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="rootfs" value="rootfs&#10;(ext4)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=none;strokeColor=#6c8ebf;dashed=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="335" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="eni0" value="eni0" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="80" y="225" width="80" height="24" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="avm_bg" value="" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fffaf0;strokeColor=#d6b656;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="690" y="120" width="440" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="avm_h" value="avm (PrepareImageJob VM, 跑镜像制作)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d6b656;strokeColor=#d6b656;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="690" y="120" width="440" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cube_agent" value="cube-agent" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="710" y="170" width="100" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="prep" value="PrepareImageJob&#10;(image 制作业务)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="870" y="170" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="eni1" value="eni1" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="710" y="225" width="80" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="shared_dir" value="shared-dir&#10;(virtio-fs 共享)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=none;strokeColor=#6c8ebf;dashed=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="840" y="265" width="170" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="hypervisor_mvm" value="cube-hypervisor (mvm host)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="430" width="240" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="hypervisor_avm" value="cube-hypervisor (avm host)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="900" y="430" width="240" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="vda" value="vda&#10;(passthrough)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="350" y="430" width="80" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="cbs" value="cbs&#10;(远程块存储)" style="shape=cylinder3;whiteSpace=wrap=html=1;boundedLbl=1;backgroundOutline=1;size=15;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="350" y="495" width="80" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="low_plane" value="" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="490" width="1400" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="low_h" value="主机层 (host-plane)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#9673a6;strokeColor=#9673a6;fontSize=11;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="60" y="490" width="1400" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="cube_shim" value="cube-shim" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="535" width="100" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="cubelet" value="cubelet&#10;(主机代理, metadata + replica 元数据)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="535" width="170" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="image_accel" value="image-accel-service&#10;(镜像拉取加速)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="535" width="220" height="32" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="file_set" value="etc/lib /bin/dev/usr/lib64&#10;media/opt/home /tmp/var/proc/sys/data..." style="rounded=0;whiteSpace=wrap=html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="535" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="file_set_h" value="virtio-fs 共享 view" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#ffffff;strokeColor=#666666;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="575" width="280" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="eth0" value="eth0&#10;(外网)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="690" width="80" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend" value="组件颜色: 蓝=TC 内核组件  红=TS 业务(容器/制作)  紫=Hypervisor 层  黄=裸金属  灰=外部存储" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="675" width="380" height="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend2" value="⑥ 关键链路: ① snap 挂 rootfs  ② eni0 → cube-shim 网络  ③ cube-shim → cubelet 镜像元数据  ④ 上报 cubelet  ⑤ cubelet → image-accel 加速  ⑥ cubelet → cube-hypervisor avm 调度" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="430" y="675" width="640" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="① 挂 rootfs" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="snap" target="container1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e1b" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#b85450;" edge="1" parent="1" source="eklet" target="containerd"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e1c" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="containerd" target="snap"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e1d" value="" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="snap" target="rootfs"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e1e" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#b85450;" edge="1" parent="1" source="container1" target="rootfs"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e1f" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#b85450;" edge="1" parent="1" source="containerx" target="rootfs"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e2" value="② 网络" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="eni0" target="cube_shim"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="④ 元数据上报" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="eni0" target="cubelet"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="③ 镜像元数据" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="cube_shim" target="cubelet"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e5" value="⑤ 镜像加速" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="cubelet" target="image_accel"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e6" value="⑥ 跨 VM 调度" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#9673a6;strokeWidth=2;curved=1;" edge="1" parent="1" source="cubelet" target="hypervisor_avm"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_prep" value="拉镜像" style="endArrow=classic;html=1;rounded=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="prep" target="image_repo"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_cos" value="写产物" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="prep" target="cos"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_cube" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="cube_agent" target="prep"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_sd" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#b85450;" edge="1" parent="1" source="prep" target="shared_dir"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_eni1" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="eni1" target="hypervisor_avm"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_eni0" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="eni0" target="hypervisor_mvm"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_hyp_vda" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="hypervisor_mvm" target="vda"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_vda_cbs" value="passthrough" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="vda" target="cbs"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_hyp_vm1" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="hypervisor_mvm" target="mvm_bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_hyp_vm2" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="hypervisor_avm" target="avm_bg"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_virtio_rootfs" value="virtio" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#9673a6;strokeWidth=2;curved=1;" edge="1" parent="1" source="vda" target="rootfs"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_virtio_sd" value="virtio-fs" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#9673a6;strokeWidth=2;curved=1;" edge="1" parent="1" source="shared_dir" target="file_set"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_virtio_files" value="virtio-fs" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#9673a6;strokeWidth=2;curved=1;" edge="1" parent="1" source="file_set" target="snap"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_eth" value="出网" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="eth0" target="cubelet"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

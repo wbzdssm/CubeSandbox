@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="CodeBuddy" version="1.0">
+  <diagram name="CubeMaster 下发段 — 从 def_BUILT 到 def_READY" id="tc-distribute-flow">
+    <mxGraphModel dx="1500" dy="1000" grid="1" gridSize="10" pageWidth="1500" pageHeight="1000">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="CubeMaster 下发段 — 从 def_BUILT 到 def_READY (与模板中心段衔接)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1420" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="源: distributeRootfsArtifact + CreateArtifactOnNode. V0=验证入口; W=写库关键; C=判断菱形; E=失败处置; SM=聚合. 详见 templatecenter-distribute-flow-cases.md" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="54" width="1420" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="boundary" value="入口 = def_BUILT (由 templatecenter-make-only.drawio 写入). 出口 = def_READY / def_PARTIALLY_READY / def_FAILED" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="86" width="1420" height="26" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lg_main" value="分发主线 (蓝)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="120" width="100" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_write" value="写库关键 (黄)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1"><mxGeometry x="145" y="120" width="100" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_cond" value="判断 (橙)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1"><mxGeometry x="250" y="120" width="80" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_fail" value="分发失败 (红)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1"><mxGeometry x="335" y="120" width="100" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_ready" value="def_READY (绿)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=10;fontColor=#ffffff;" vertex="1" parent="1"><mxGeometry x="440" y="120" width="100" height="22" as="geometry"/></mxCell>
+
+        <!-- 主线入口椭圆 -->
+        <mxCell id="start" value="入口: def_BUILT&#10;(由模板中心段交付)" style="ellipse;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="160" width="200" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 主线 V0 验证 (1 行) -->
+        <mxCell id="v0" value="订阅 def_BUILT 事件" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="250" width="200" height="42" as="geometry"/>
+        </mxCell>
+
+        <!-- 主线 解析目标 (2 行描述) -->
+        <mxCell id="resolve" value="解析分发节点&#10;按 instance_type 拿健康节点" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="320" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_targets" value="没有健康节点&#10;expected=0&#10;def_BUILT 不会转 def_DISTRIBUTING&#10;悬挂态, 待人工介入" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="320" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- W 写 def_DISTRIBUTING (3 行: 写什么表/写什么状态/结果) -->
+        <mxCell id="w_distrib" value="写 def_DISTRIBUTING&#10;写 image_jobs phase=Distributing progress=85" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="410" width="200" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_w_distrib" value="写 def_DISTRIBUTING 失败&#10;DB 主从切换 / 行锁冲突 / 连接池耗尽&#10;悬挂态 → reconciler 兜底" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="410" width="240" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- 主线 distribute (3 行: 关键参数 + 描述 + 最终输出) -->
+        <mxCell id="distribute" value="distributeRootfsArtifact&#10;4 worker 并行调 cubelet&#10;CreateArtifactOnNode 推 ext4&#10;→ ready/expected/failed 汇总" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="495" width="200" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- 3 个分发失败子原因 (统一格式: 标题 + 详细) -->
+        <mxCell id="ed_a" value="分发失败原因&#10;&#10;OOM / cgroup 限额 / ENOSPC&#10;/ cbs 配额满&#10;retCode != 0" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="420" width="240" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="ed_atomic" value="replica.Status=FAILED&#10;replica.ErrorMessage=具体原因&#10;CleanupRequired=true&#10;await cleanupArtifactOnNodes" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="200" y="520" width="240" height="80" as="geometry"/>
+        </mxCell>
+
+        <!-- W 写 replicas + localcache + Redis (3 行) -->
+        <mxCell id="w_repl" value="写 template_replicas&#10;每节点一行 + localcache + Redis&#10;UpsertReplica 调用" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="605" width="200" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_w_repl" value="写 replicas 失败&#10;DB 约束 / 字段超长&#10;errors.Join + cleanup 失败的 ext4" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="605" width="240" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- C 判断菱形 (单行问号) -->
+        <mxCell id="summary" value="summarize 聚合?" style="rhombus;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="685" y="700" width="150" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 3 个聚合分支 (统一格式: 标题 + case 条件 + 后续) -->
+        <mxCell id="sA" value="case A 全失败&#10;expected&gt;0 &amp;&amp; ready==0&#10;→ UpdateDefinitionStatus(FAILED)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="700" width="240" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="sB" value="case B 全成功&#10;ready==expected&#10;→ claimAliasForReadyTemplate&#10;→ UpdateDefinitionStatus(READY)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="700" width="240" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="sC" value="case C 部分成功&#10;ready&gt;0 &amp;&amp; failed&gt;0&#10;→ UpdateDefinitionStatus(PARTIALLY_READY)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="800" width="240" height="75" as="geometry"/>
+        </mxCell>
+
+        <!-- claimAlias 顺序约束 -->
+        <mxCell id="order_note" value="约束: claimAlias 必须在 UpdateDefinitionStatus(READY) 之前&#10;(publish-ordering, store.go:735)&#10;否则 client 看到 READY 时 alias 还没占位 → 查不到 template" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="820" width="240" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- 3 个终态 -->
+        <mxCell id="done_ready" value="def_READY 终态&#10;replicas 全 Status=READY&#10;alias 已占位可被解析" style="ellipse;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=12;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="200" y="855" width="240" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="done_partial" value="def_PARTIALLY_READY&#10;中间态, 部分 nodes 就绪&#10;refreshSummary 监听 retry&#10;→ 升级 READY / 降级 FAILED" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="900" width="240" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="done_failed" value="def_FAILED 终态&#10;image_jobs.status=Failed&#10;phase=Distributing" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="820" width="200" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- PARTIALLY 重算 (橙虚线) -->
+        <mxCell id="rr" value="PARTIALLY 重算&#10;refreshTemplateReplicaSummary&#10;任一 replica 终态到达触发" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="1010" width="240" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 连线 ===== -->
+        <mxCell id="l_start_v0" value="事件触发" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="start" target="v0"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_v0_resolve" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="v0" target="resolve"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_resolve_fail" value="expected=0" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="resolve" target="e_targets"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_resolve_w" value="正常" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="resolve" target="w_distrib"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_w_distrib_fail" value="写 DB 失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="w_distrib" target="e_w_distrib"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_w_dist" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="w_distrib" target="distribute"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_dist_fail" value="分发失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="distribute" target="ed_a"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_dist_repl" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="distribute" target="w_repl"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_repl_sm" value="全部发出" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="w_repl" target="summary"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_w_repl_fail" value="写库失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="w_repl" target="e_w_repl"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_sm_A" value="case A" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="summary" target="sA"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_sm_B" value="case B" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="summary" target="sB"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_sm_C" value="case C" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;" edge="1" parent="1" source="summary" target="sC"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_A_fail" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="sA" target="done_failed"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_B_ready" value="→ def_READY" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="sB" target="done_ready"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_C_partial" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;" edge="1" parent="1" source="sC" target="done_partial"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_partial_rr" value="refreshSummary" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;strokeWidth=2;curved=1;" edge="1" parent="1" source="done_partial" target="rr"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_rr_ready" value="升级 READY" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#82b366;curved=1;" edge="1" parent="1" source="rr" target="done_ready"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="l_rr_fail" value="降级 FAILED" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;curved=1;" edge="1" parent="1" source="rr" target="done_failed"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="l_order_to_B" value="" style="endArrow=none;html=1;dashed=1;strokeColor=#d6b656;" edge="1" parent="1" source="order_note" target="sB"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="CodeBuddy" version="1.0">
+  <diagram name="模板中心 — 制作" id="tc-make-only">
+    <mxGraphModel dx="1500" dy="900" grid="1" gridSize="10" pageWidth="1500" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="镜像中心 — 模板中心制作主图 (制作完成 → def_BUILT 等 CubeMaster 下发)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=15;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1420" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="源: image_job_runner.go:21 runTemplateImageJob. V0=验证; W=写 image_jobs; C=判断; E=失败. 仅到 def_BUILT 为止. 详见 templatecenter-create-flow-cases.md" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="54" width="1420" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="boundary" value="主图终点 = def_BUILT (新状态, 产物在 cbs 已就绪, 等 CubeMaster 下发). 分发由 templatecenter-distribute-flow.drawio 单独画" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="86" width="1420" height="26" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="lg_main" value="主线 (蓝)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="120" width="100" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_write" value="写库关键 (黄)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1"><mxGeometry x="145" y="120" width="100" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_cond" value="判断 (橙)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1"><mxGeometry x="250" y="120" width="80" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_fail" value="失败 (红)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1"><mxGeometry x="335" y="120" width="80" height="22" as="geometry"/></mxCell>
+        <mxCell id="lg_built" value="制作完成 def_BUILT (深绿)" style="rounded=0;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=10;fontColor=#ffffff;" vertex="1" parent="1"><mxGeometry x="420" y="120" width="200" height="22" as="geometry"/></mxCell>
+
+        <mxCell id="start" value="POST /v1/templates" style="ellipse;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="660" y="160" width="180" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="v0" value="验证请求参数" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="240" width="180" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="e0" value="参数校验失败&#10;直接返回,不写 image_jobs" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="200" y="240" width="220" height="40" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="w1" value="写 image_jobs&#10;phase=PULLING progress=5" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="305" width="180" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_w1" value="第一次写库失败&#10;DB 切换 / 锁冲突 / 磁盘满&#10;log + return → 悬挂态&#10;reconciler 兜底" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="295" width="240" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="c1" value="preflight 通过?" style="rhombus;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="675" y="385" width="150" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" value="preflight 不通过&#10;CA 过期 / 节点不可达 / 实例类型不支持&#10;phase=PULLING status=FAILED" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="375" width="240" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1" value="从镜像仓库拉层" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="475" width="180" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" value="拉取镜像失败&#10;网络断 / 401 / 镜像删 / 远端 503&#10;phase=PULLING status=FAILED" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="465" width="240" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="ca" value="加载 Egress CA 证书" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="545" width="180" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_ca" value="CA 证书加载失败&#10;早暴露在 PULLING 阶段&#10;避免产物 fingerprint 不一致" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="540" width="240" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="fp" value="算 fingerprint + artifact_id" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="660" y="610" width="180" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="r1" value="fingerprint hash 不一致&#10;R3 #1105 → 剥 annotation 重算 → RETRY" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="610" width="240" height="55" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="w2" value="写 image_jobs&#10;phase=UNPACKING progress=20" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="680" width="180" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="mk" value="mkfs ext4 + 算 sha&#10;写 vda 持久化到 cbs&#10;内含 image.PrepareRootfsArtifact" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="660" y="755" width="200" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" value="mkfs / cbs 写失败&#10;磁盘满 / cbs 配额 / vda IO 错&#10;phase=BUILDING_EXT4 status=FAILED&#10;+ cleanupFailedRootfsArtifact" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="200" y="755" width="240" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="w3" value="写 image_jobs + rootfs_artifacts&#10;phase=Built progress=70&#10;(引入 Built phase 新值, 标识产物就绪)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="660" y="845" width="220" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_w3" value="W3 写库失败&#10;状态写不到 image_jobs&#10;悬挂态 → reconciler 兜底" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="850" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="def_built" value="写 template_definitions&#10;status=BUILT (新状态)&#10;(用 BUILT 标识产物已就绪, 未分发)" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=11;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="660" y="940" width="220" height="65" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_built" value="写 def_BUILT 失败&#10;DB 断 / 行锁冲突 / 字段错&#10;image_jobs 标 Failed" style="rounded=1;whiteSpace=wrap=html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="945" width="240" height="60" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="done" value="def_BUILT + 标记等分发&#10;(进入下发阶段, 由 CubeMaster 负责)&#10;image_jobs.status=Built phase=Built progress=70" style="ellipse;whiteSpace=wrap=html=1;fillColor=#82b366;strokeColor=#82b366;fontSize=12;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="660" y="1040" width="220" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_start_v0" value="request" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="start" target="v0"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_v0_e0" value="异常" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="v0" target="e0"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_v0_w1" value="正常" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="v0" target="w1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_w1_ew1" value="DB 写失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="w1" target="e_w1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_w1_c1" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="w1" target="c1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_e1" value="不通过" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="c1" target="e1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_p1" value="通过" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="c1" target="p1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_p1_e2" value="失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="p1" target="e2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_p1_ca" value="成功" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="p1" target="ca"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_ca_eca" value="CA 缺失" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="ca" target="e_ca"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_ca_fp" value="OK" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="ca" target="fp"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_fp_r1" value="R3 hash 不等" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;" edge="1" parent="1" source="fp" target="r1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_fp_w2" value="hash 相等" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="fp" target="w2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r1_p1" value="回到拉层" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#d79b00;strokeWidth=2;curved=1;" edge="1" parent="1" source="r1" target="p1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="e_w2_mk" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="w2" target="mk"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_mk_e3" value="mkfs / cbs 失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="mk" target="e3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_mk_w3" value="成功" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="mk" target="w3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_w3_ew3" value="写失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="w3" target="e_w3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_w3_def" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="w3" target="def_built"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_def_eb" value="写 def 失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="def_built" target="e_built"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_def_done" value="进入等待下发" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="def_built" target="done"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

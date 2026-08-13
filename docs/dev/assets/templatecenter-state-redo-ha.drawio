@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T18:00:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="Redo + R2 DB/FS 一致性" id="redo-ha">
+    <mxGraphModel dx="1100" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Page 3: Redo 流程 + R2 元数据/物理不一致 (DB vs FS) — 含 SELF_HEALING" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;" vertex="1" parent="1"><mxGeometry x="40" y="20" width="1000" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="t1" value="Redo 流程 (redo.go:187-400) - 多 replica, 走 summarizeStatus 聚合 (同 Page 1 Definition 层, 但用 refreshTemplateReplicaSummary 入口)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="80" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="R_NEED" value="NEEDS_REDO&#10;(源镜像变化 / 部分副本失败)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="130" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="R_START" value="SubmitRedo&#10;Status=Pending" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="240" y="130" width="140" height="50" as="geometry"/></mxCell>
+        <mxCell id="R_BUILD" value="ensureRootfsArtifact&#10;(BUILDING_EXT4)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="400" y="130" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="R_DIST" value="createTemplateReplicasOnNodes&#10;(DISTRIBUTING)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="590" y="130" width="190" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="R_BUILD_FAIL" value="JOB_FAILED&#10;(Phase=BUILDING_EXT4)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="400" y="210" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="R_DIST_FAIL" value="JOB_FAILED&#10;(Phase=DISTRIBUTING,&#10;expected&gt;0 &amp;&amp; ready==0)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="590" y="210" width="190" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="agg_title" value="summarizeStatus(replicas) 聚合判定 - 走 refreshTemplateReplicaSummary" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="290" width="380" height="22" as="geometry"/></mxCell>
+        <mxCell id="agg_input" value="输入: replicas[] (来自 createTemplateReplicasOnNodes 写入)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="320" width="380" height="40" as="geometry"/></mxCell>
+        <mxCell id="agg_a" value="分支 A&#10;successes == 0&#10;(全部失败)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="380" width="100" height="60" as="geometry"/></mxCell>
+        <mxCell id="agg_b" value="分支 B&#10;failures == 0&#10;(全部成功)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1"><mxGeometry x="160" y="380" width="100" height="60" as="geometry"/></mxCell>
+        <mxCell id="agg_c" value="分支 C&#10;default&#10;(部分成功)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="280" y="380" width="120" height="60" as="geometry"/></mxCell>
+
+        <mxCell id="def_FAILED" value="def_FAILED&#10;info.Status=FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="480" width="100" height="50" as="geometry"/></mxCell>
+        <mxCell id="def_READY" value="def_READY&#10;info.Status=READY&#10;+ claimAlias" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1" vertex="1" parent="1"><mxGeometry x="160" y="480" width="100" height="60" as="geometry"/></mxCell>
+        <mxCell id="def_PARTIALLY_READY" value="def_PARTIALLY_READY&#10;info.Status=PARTIALLY_READY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="280" y="480" width="120" height="60" as="geometry"/></mxCell>
+
+        <mxCell id="FINAL_READY" value="finalStatus=JobStatusReady&#10;Phase=READY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="160" y="580" width="180" height="40" as="geometry"/></mxCell>
+        <mxCell id="FINAL_FAILED" value="finalStatus=JobStatusFailed&#10;(info.Status=FAILED 时)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="40" y="580" width="100" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="R_FINAL" value="finalizeArtifact&#10;updateRootfsArtifact&#10;(ext4_sha256 写本机 DB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1"><mxGeometry x="800" y="130" width="200" height="50" as="geometry"/></mxCell>
+        <mxCell id="R_CLEANUP" value="cleanupTemplateReplicasOnNodes&#10;(清旧副本)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1"><mxGeometry x="800" y="210" width="200" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="e_r_need" value="源镜像变化" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="R_NEED" target="R_START"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r1" value="ensureRootfsArtifact" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="R_START" target="R_BUILD"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r_build_fail" value="失败" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="R_BUILD" target="R_BUILD_FAIL"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r2" value="buildRootfsArtifact" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="R_BUILD" target="R_FINAL"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r_cleanup" value="失败" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=1;" edge="1" parent="1" source="R_DIST" target="R_CLEANUP"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r_dist_fail" value="expected&gt;0 &amp;&amp; ready==0" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="R_DIST" target="R_DIST_FAIL"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_r3" value="创建 replicas" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="R_DIST" target="agg_input"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_agg_a" value="全部失败" style="endArrow=classic;html=1;rounded=0;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="agg_input" target="agg_a"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_agg_b" value="全部成功" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="agg_input" target="agg_b"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_agg_c" value="混合" style="endArrow=classic;html=1;rounded=0;strokeColor=#d6b656;strokeWidth=2;" edge="1" parent="1" source="agg_input" target="agg_c"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_agg_a_def" value="UpdateDefinitionStatus" style="endArrow=classic;html=1;rounded=0;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="agg_a" target="def_FAILED"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_agg_b_def" value="UpdateDefinitionStatus" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="agg_b" target="def_READY"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_agg_c_def" value="UpdateDefinitionStatus" style="endArrow=classic;html=1;rounded=0;strokeColor=#d6b656;strokeWidth=1;" edge="1" parent="1" source="agg_c" target="def_PARTIALLY_READY"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_def_b_final" value="info.Status!=FAILED" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="def_READY" target="FINAL_READY"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_def_a_final" value="info.Status==FAILED" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=1;" edge="1" parent="1" source="def_FAILED" target="FINAL_FAILED"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_def_c_final" value="info.Status!=FAILED" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="def_PARTIALLY_READY" target="FINAL_READY"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="agg_note" value="redo 也走 refreshTemplateReplicaSummary (redo.go:364), 跟 Page 1 创建流程共用 summarizeStatus 聚合. PARTIALLY_READY 是中间态, 可能因 retry 成功 → READY; 也可能因重试耗尽 → FAILED." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1"><mxGeometry x="430" y="480" width="570" height="40" as="geometry"/></mxCell>
+
+
+        <mxCell id="t2" value="R2 #1005/#852 根因: HA 下 DB 不跨 master 同步" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="340" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="M_A" value="master A&#10;redo 跑在这" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="390" width="130" height="60" as="geometry"/></mxCell>
+        <mxCell id="FS_SYNC" value="FS 同步&#10;(DRBD/GlusterFS)&#10;→ 文件新值 (6024f9)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1"><mxGeometry x="230" y="390" width="180" height="70" as="geometry"/></mxCell>
+        <mxCell id="M_B" value="master B&#10;本地 DB 还是旧值 (189ef95)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1"><mxGeometry x="470" y="390" width="160" height="60" as="geometry"/></mxCell>
+        <mxCell id="COMPUTE" value="compute node&#10;连 master B&#10;want=旧, got=新 → FAIL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1"><mxGeometry x="680" y="390" width="130" height="80" as="geometry"/></mxCell>
+
+        <mxCell id="e_sync" value="文件同步" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="M_A" target="FS_SYNC"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_fs_b" value="同步文件" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="FS_SYNC" target="M_B"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_b_compute" value="annotation 传旧 SHA" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="M_B" target="COMPUTE"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a_compute" value="annotation 传新 SHA" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="M_A" target="COMPUTE"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_db_async" value="DB 同步 (没有!)" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="M_A" target="M_B"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="t3" value="修复方案 C: OpenRootfsArtifact 入口 self-heal 状态机" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="510" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="SH_TRIGGER" value="OpenRootfsArtifact&#10;(任意节点入口)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="560" width="160" height="50" as="geometry"/></mxCell>
+        <mxCell id="SH_CHECK" value="比对 sha&#10;(本地 FS vs 本机 DB)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="220" y="560" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="SH_OK" value="sha 一致&#10;→ 直接返回文件" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1"><mxGeometry x="420" y="560" width="150" height="50" as="geometry"/></mxCell>
+        <mxCell id="SH_HEAL" value="SELF_HEALING&#10;拿 artifact 全局锁&#10;异步重算 sha" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="600" y="560" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="SH_DONE" value="sha 写回 DB&#10;+ self-heal 日志" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1"><mxGeometry x="800" y="560" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="SH_FAIL" value="重算失败&#10;→ 标记 SH_FAILED&#10;人工介入" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="600" y="640" width="170" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="e_sh_trigger" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="SH_TRIGGER" target="SH_CHECK"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_sh_ok" value="相等" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="SH_CHECK" target="SH_OK"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_sh_heal" value="不等" style="endArrow=classic;html=1;rounded=0;strokeColor=#d79b00;strokeWidth=2;" edge="1" parent="1" source="SH_CHECK" target="SH_HEAL"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_sh_done" value="重算成功" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="SH_HEAL" target="SH_DONE"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_sh_fail" value="重算失败" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="SH_HEAL" target="SH_FAIL"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="n_sh_summary" value="解决: #1005 (redo 后 SHA mismatch), #852 (Pod 重启后文件丢失)&#10;同源问题: 元数据(本机 DB)与物理文件(本机 FS)不在同一存储 → 同步窗口产生不一致" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="730" width="1000" height="60" as="geometry"/></mxCell>
+
+        <mxCell id="legend" value="图例: 蓝=流程触发 / 黄=比对/中间 / 橙=self-heal / 绿=成功 / 红=失败 | 虚线=非常规路径" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="820" width="1000" height="30" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

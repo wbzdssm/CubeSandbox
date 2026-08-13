@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T20:00:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="镜像中心状态机总览" id="state-summary">
+    <mxGraphModel dx="1300" dy="380" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="380" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="镜像中心 状态机总览 — 5 个 Case" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1220" height="32" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="case1_h" value="1. Create" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="240" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_def_pending" value="def_PENDING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="110" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_job_running" value="Job_RUNNING&#10;(7 step)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="150" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_def_creating" value="def_CREATING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="160" y="150" width="110" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_summary" value="summarizeStatus&#10;聚合判定" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="200" width="220" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_ready" value="def_READY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="240" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_partially" value="def_PARTIALLY" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="160" y="240" width="110" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_failed" value="def_FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="50" y="285" width="220" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_cancelled" value="CANCELLED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="50" y="325" width="100" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="c1_job_failed" value="JOB_FAILED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="160" y="150" width="110" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_c1_1" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="c1_def_pending" target="c1_def_creating"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_2" value="dequeue" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="c1_def_pending" target="c1_job_running"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_3" value="全部副本到达" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="c1_def_creating" target="c1_summary"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_4" value="B 全成功" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="c1_summary" target="c1_ready"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_5" value="C 混合" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;" edge="1" parent="1" source="c1_summary" target="c1_partially"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_6" value="A 全失败 / retry 耗尽" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="c1_summary" target="c1_failed"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_7" value="user abort" style="endArrow=classic;html=1;rounded=1;strokeColor=#d79b00;" edge="1" parent="1" source="c1_job_running" target="c1_cancelled"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c1_8" value="step 报错" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="c1_job_running" target="c1_job_failed"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="case2_h" value="2. Redo" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="290" y="70" width="240" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_need" value="NEEDS_REDO" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="110" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_submit" value="SubmitRedo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="410" y="110" width="110" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_build" value="BUILDING_EXT4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="150" width="110" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_dist" value="DISTRIBUTING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="420" y="150" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_summary" value="summarizeStatus&#10;复用 Case 1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="300" y="195" width="220" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_final" value="finalize&#10;ext4_sha256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="245" width="220" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_done" value="清理旧副本" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="290" width="220" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c2_fail" value="JOB_FAILED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="410" y="195" width="110" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_c2_1" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="c2_need" target="c2_submit"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c2_2" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="c2_submit" target="c2_build"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c2_3" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="c2_build" target="c2_dist"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c2_4" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="c2_dist" target="c2_summary"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c2_5" value="READY 分支" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="c2_summary" target="c2_final"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c2_6" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="c2_final" target="c2_done"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c2_7" value="expected&gt;0 &amp;&amp; ready==0" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="c2_dist" target="c2_fail"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="case3_h" value="3. Delete" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="540" y="70" width="240" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_src" value="def_READY /&#10;PARTIALLY / FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="550" y="110" width="115" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_select" value="selectJobsForCleanup&#10;改 PENDING→FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="680" y="110" width="95" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_cube_del" value="cubelet.Delete" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="550" y="170" width="80" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_db_del" value="deleteReplicas&#10;本地 DB" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="640" y="170" width="60" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_def_deleting" value="def_DELETING" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="610" y="220" width="110" height="32" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_dead" value="def_DELETED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="610" y="270" width="110" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c3_reject" value="❌ 拒绝: def_PENDING&#10;或 有 PENDING job" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="550" y="320" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_c3_1" value="user delete" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="c3_src" target="c3_select"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c3_2" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="c3_select" target="c3_cube_del"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c3_3" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="c3_select" target="c3_db_del"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c3_4" value="Status=DELETING" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="c3_select" target="c3_def_deleting"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c3_5" value="清理完成" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="c3_def_deleting" target="c3_dead"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="case4_h" value="4. Self-Heal (R2)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="790" y="70" width="230" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4_trig" value="TRIGGER&#10;DB-FS 不一致" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="800" y="110" width="100" height="42" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4_check" value="CHECK&#10;比对 cubelet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="910" y="110" width="100" height="42" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4_heal" value="HEAL&#10;重建 ext4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="170" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4_done" value="DONE" style="ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="910" y="170" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4_fail" value="HEAL_FAILED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="225" width="100" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="c4_note" value="关联: #852 #1005 #989 #499 #578" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="800" y="270" width="210" height="22" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_c4_1" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#9673a6;" edge="1" parent="1" source="c4_trig" target="c4_check"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c4_2" value="FS 缺" style="endArrow=classic;html=1;rounded=1;strokeColor=#d6b656;" edge="1" parent="1" source="c4_check" target="c4_heal"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c4_3" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="c4_heal" target="c4_done"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c4_4" value="重建失败" style="endArrow=classic;html=1;rounded=1;dashed=1;strokeColor=#b85450;" edge="1" parent="1" source="c4_heal" target="c4_fail"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="case5_h" value="5. Build Reconcile" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6c8ebf;strokeColor=#6c8ebf;fontSize=13;fontStyle=1;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="70" width="230" height="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_lock" value="抢锁&#10;tc_reconcile_building" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="110" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_skip" value="本轮跳过" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1155" y="110" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_scan" value="扫 PENDING/RUNNING&#10;超阈值" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="165" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_fail" value="超时行→FAILED" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1155" y="165" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_gc" value="artifact_gc&#10;扫 gc_deadline" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="220" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_clean" value="远程清理 cubelet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1155" y="220" width="100" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="c5_note" value="DB 锁 (trySessionLock): 跨 master 副本互斥&#10;周期: 10 分钟" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="1040" y="275" width="215" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e_c5_1" value="抢到" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="c5_lock" target="c5_scan"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c5_2" value="锁被占" style="endArrow=classic;html=1;rounded=1;strokeColor=#666666;" edge="1" parent="1" source="c5_lock" target="c5_skip"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c5_3" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#6c8ebf;" edge="1" parent="1" source="c5_scan" target="c5_gc"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c5_4" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#b85450;" edge="1" parent="1" source="c5_scan" target="c5_fail"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c5_5" value="" style="endArrow=classic;html=1;rounded=1;strokeColor=#82b366;" edge="1" parent="1" source="c5_gc" target="c5_clean"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="footer" value="状态写入: master DB (template_definitions / template_image_jobs / rootfs_artifacts) — TC 进程不直连 DB (5 点原则第 1 条) · 详见 templatecenter-state-readwrite.drawio" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="365" width="1220" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T19:00:00.000Z" agent="CodeBuddy" version="24.0.0">
+  <diagram id="seq-distribution-pull-tc-service" name="下发-拉取-上报 (TC 独立服务 + 双缓存)">
+    <mxGraphModel dx="1900" dy="1300" grid="1" gridSize="10" pageWidth="1900" pageHeight="1300" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="下发 → 拉取 → 上报 (TC 独立服务架构) — sequence-distribution-pull.drawio" style="text;html=1;align=center;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="0" y="20" width="1900" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-c" value="客户端" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cm" value="CubeMaster&#10;(内闭环, 多副本)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=2;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="160" y="75" width="160" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-mcache" value="Master 本地缓存&#10;imageCache + nodeCache" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="340" y="80" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-tc" value="镜像中心 (TC)&#10;(独立服务, API 调)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d0f0d0;strokeColor=#82b366;fontStyle=2;fontSize=11" vertex="1" parent="1">
+          <mxGeometry x="520" y="80" width="160" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-tccache" value="TC 自身缓存" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="700" y="80" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-db" value="DB" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="840" y="80" width="100" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-store" value="ArtifactStore" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f0e8d0;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="960" y="80" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-cub" value="Cubelet ×N" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e0e8ff;strokeColor=#6c8ebf;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1100" y="80" width="120" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="hdr-note" value="5 点原则 + R6 落点" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1240" y="80" width="640" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="ll-c" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="90" y="120" as="sourcePoint"/>
+            <mxPoint x="90" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cm" style="endArrow=none;dashed=1;strokeColor=#6c8ebf;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="240" y="120" as="sourcePoint"/>
+            <mxPoint x="240" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-mcache" style="endArrow=none;dashed=1;strokeColor=#d6b656" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="420" y="120" as="sourcePoint"/>
+            <mxPoint x="420" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-tc" style="endArrow=none;dashed=1;strokeColor=#82b366;strokeWidth=2" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="600" y="120" as="sourcePoint"/>
+            <mxPoint x="600" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-tccache" style="endArrow=none;dashed=1;strokeColor=#d6b656" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="760" y="120" as="sourcePoint"/>
+            <mxPoint x="760" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-db" style="endArrow=none;dashed=1;strokeColor=#666666" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="890" y="120" as="sourcePoint"/>
+            <mxPoint x="890" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-store" style="endArrow=none;dashed=1;strokeColor=#d6b656" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1020" y="120" as="sourcePoint"/>
+            <mxPoint x="1020" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="ll-cub" style="endArrow=none;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1">
+          <mxGeometry as="geometry">
+            <mxPoint x="1160" y="120" as="sourcePoint"/>
+            <mxPoint x="1160" y="1250" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="pre" value="✓ 阶段 0: 建模板已完 (ext4 落 ArtifactStore, imageCache 已写)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="135" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase1" value="阶段 1：触发 (沙箱请求走 master, 全部经 master API)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="170" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m1" value="1. POST /v1/sandboxes {template_id, ...}" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="90" y="205" as="sourcePoint"/>
+            <mxPoint x="240" y="205" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m2" value="2. master 路由: 沙箱 (本期下期) → CMS" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="235" as="sourcePoint"/>
+            <mxPoint x="240" y="255" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_5_2" value="⚠️ 5 点原则第 2 条: 全部经 master, 没有直连 TC 的入口" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1240" y="200" width="640" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase2" value="阶段 2：拼 ImageSpec (master 进程内, **完全不经 TC**)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="280" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m3" value="3. CMS 查 imageCache (节点→templateIDs 视图)" style="endArrow=classic;html=1;strokeColor=#d6b656;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="315" as="sourcePoint"/>
+            <mxPoint x="420" y="315" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m4" value="4. CMS 进程内 5 查 (别名解析 / 查 kind / 查 imageCache / 查副本 / 现算版本兼容)" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="345" as="sourcePoint"/>
+            <mxPoint x="240" y="365" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_5_1" value="✓ 5 点原则第 1 条: 沙箱走 imageCache 命中, TC 挂了不影响" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1240" y="335" width="640" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="m5" value="5. 查 ArtifactStore 拿 URL (从 definition 缓存)" style="endArrow=classic;html=1;strokeColor=#d6b656;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="400" as="sourcePoint"/>
+            <mxPoint x="1020" y="400" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m6" value="6. 构造 image_spec: {url, sha256, token, instance_type}" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="430" as="sourcePoint"/>
+            <mxPoint x="240" y="450" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase3" value="阶段 3：下发 (master 经 cubeletclient gRPC 通知)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="475" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m7" value="7. master 经 cubeletclient gRPC 通知 (image_spec 透传, 直连 Cubelet)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="510" as="sourcePoint"/>
+            <mxPoint x="1160" y="510" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_3_1" value="⚠️ 字节反向: master→Cubelet 是 gRPC 通知, 真正文件是 Cubelet 主动拉" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1240" y="500" width="640" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase4" value="阶段 4：拉取 (Cubelet 主动 HTTP 反向拉)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m8" value="8. ApplyImageSpec 落地后, EnsurePmemRootfs — 发现本地 pmem 不存在" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="575" as="sourcePoint"/>
+            <mxPoint x="1160" y="595" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m9" value="9. 读 image_spec.annotations → 取 RootfsArtifactURL" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="625" as="sourcePoint"/>
+            <mxPoint x="1160" y="645" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m10" value="10. rewriteDownloadHost(url) — MetaServerEndpoint 覆盖 host" style="endArrow=classic;html=1;strokeColor=#d6b656;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="670" as="sourcePoint"/>
+            <mxPoint x="1160" y="690" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m11" value="11. HTTP GET 拉 ext4 (反向, 边下边算 sha256)" style="endArrow=classic;html=1;strokeColor=#000000;dashed=1;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="720" as="sourcePoint"/>
+            <mxPoint x="1020" y="720" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m12" value="12. 下载 → 写 .download → sha256 校验 → rename → 写 pmem → register LocalTemplate" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="750" as="sourcePoint"/>
+            <mxPoint x="1160" y="770" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase5" value="阶段 5：上报 (心跳含 LocalTemplates, **只打 master**)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="795" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m13" value="13. 心跳构造: UpdateNodeStatusRequest.LocalTemplates = [...]" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="830" as="sourcePoint"/>
+            <mxPoint x="1160" y="850" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m14" value="14. gRPC UpdateNodeStatus (10s 一次, **直连 master**, 不经 TC)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;strokeWidth=2;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1160" y="880" as="sourcePoint"/>
+            <mxPoint x="240" y="880" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="phase6" value="阶段 6：落点 (master 写 DB + imageCache, ⚠️ R6: 投影丢字段)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="905" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m15" value="15. master: UPSERT t_cube_node_status.local_templates_json" style="endArrow=classic;html=1;strokeColor=#666666;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="935" as="sourcePoint"/>
+            <mxPoint x="890" y="935" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m16" value="16. localcache.UpsertNode(toSchedulerNode(snap)) — ⚠️ R6 #1: 白名单投影丢 LocalTemplates 字段" style="endArrow=classic;html=1;strokeColor=#b85450;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="965" as="sourcePoint"/>
+            <mxPoint x="420" y="965" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_r6_1" value="🎯 R6 #1: toSchedulerNode 白名单投影丢 LocalTemplates — DB 完整, imageCache 残缺" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1240" y="945" width="640" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m17" value="17. localcache.SyncNodeTemplates (imageCache 写, 进程内)" style="endArrow=classic;html=1;strokeColor=#000000;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="995" as="sourcePoint"/>
+            <mxPoint x="420" y="1015" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_r6_2" value="🎯 R6 #2: SyncNodeTemplates 存 templateIDs (StringSlice), 不是完整 LocalTemplate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1240" y="985" width="640" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="phase7" value="阶段 7：调度消费 (CMS 读 imageCache 节点→模板 视图)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="40" y="1040" width="1180" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="m18" value="18. CMS prefilter 读 localcache.Node, 用 templateIDs 选节点 — imageCache 命中即返" style="endArrow=classic;html=1;strokeColor=#82b366;strokeWidth=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="240" y="1075" as="sourcePoint"/>
+            <mxPoint x="420" y="1075" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_5_1_2" value="✓ 5 点原则第 1 条: imageCache 在 master 进程内, TC 挂了缓存依然命中, 沙箱创建不受影响" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="1240" y="1060" width="640" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="m19" value="19. (可选) TC 经 master API 拉节点视图 (替代原 30s DB 重载)" style="endArrow=classic;html=1;strokeColor=#6c8ebf;dashed=1;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="600" y="1105" as="sourcePoint"/>
+            <mxPoint x="240" y="1105" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="m20" value="20. 如果选不出 → EnsureTemplateLocalityReady DB fallback → 130400" style="endArrow=classic;html=1;strokeColor=#d6b656;fontSize=11" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="420" y="1130" as="sourcePoint"/>
+            <mxPoint x="420" y="1150" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n_r6_3" value="🎯 R6 #3 (运维视角): cubemastercli node list 走 /internal/node (无 LocalTemplates) / web 走 /internal/meta/nodes (有) — 工具能力不对等" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="1170" width="1820" height="25" as="geometry"/>
+        </mxCell>
+        <mxCell id="n_summary" value="R6 数据完整性总结 (5 点原则 v3 架构下):&#10;• ① DB (t_cube_node_status.local_templates_json): 完整 ✓&#10;• ② Master 进程内 snap.LocalTemplates (NodeSnapshot): 完整 ✓&#10;• ③ imageCache (localcache.Node 经 toSchedulerNode 投影): 残缺 (调度够用, 运维不够用)&#10;• ④ cubemastercli 可见性: 0 (cli 走 inner endpoint) — 见 templatecenter-api-surface-audit.md" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="1200" width="1820" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="legend" value="图例: 黑=同步 / 黑虚=异步 / 灰=DB / 蓝=gRPC / 棕=ArtifactStore / 绿=TC 独立服务 / 黄=5 点原则 / 红=R6 落点" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10" vertex="1" parent="1">
+          <mxGeometry x="40" y="1260" width="1820" height="20" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

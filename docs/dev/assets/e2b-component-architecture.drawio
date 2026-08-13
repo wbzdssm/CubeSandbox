@@ -1,0 +1,127 @@
+<mxfile host="app.diagrams.net" modified="2026-08-01T00:00:00.000Z" agent="CubeSandbox docs" version="24.0.0" type="device">
+  <diagram id="e2b-component-arch" name="e2b 组件架构">
+    <mxGraphModel dx="1422" dy="798" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1300" pageHeight="750" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="e2b 组件架构（来源：github.com/e2b-dev/infra/blob/main/docs/ARCHITECTURE.md）" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=13;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="10" width="800" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="grpAPI" value="API 节点" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFF2CC;strokeColor=#D6B656;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="580" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="grpSbx" value="Sandbox 节点 ×N" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="360" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="grpBuild" value="Build 节点" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="440" y="300" width="300" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="grpData" value="数据存储" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#666666;verticalAlign=top;align=left;spacingLeft=10;spacingTop=6;fontStyle=1;fontSize=12;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="550" width="1220" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nAPI" value="&lt;b&gt;API&lt;/b&gt;&lt;br&gt;REST :80&lt;br&gt;内部 gRPC :5009&lt;br&gt;edge gRPC :5109" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="220" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="nDash" value="dashboard-api :3010" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="90" width="300" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="nCP" value="client-proxy :3002（health :3003）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="136" width="300" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="nDRP" value="docker-reverse-proxy :5000" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D6B656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="300" y="182" width="300" height="36" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nOrch" value="&lt;b&gt;orchestrator&lt;/b&gt;&lt;br&gt;gRPC :5008&lt;br&gt;sandbox proxy :5007" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="340" width="320" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="nEnvd" value="envd :49983（VM 内）" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="430" width="320" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nTM" value="&lt;b&gt;template-manager&lt;/b&gt;&lt;br&gt;gRPC :5008&lt;br&gt;&lt;i&gt;orchestrator 同一二进制的另一个 role&lt;/i&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6C8EBF;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="340" width="260" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dPG" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&lt;br&gt;持久控制面状态" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="60" y="595" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="dRedis" value="&lt;b&gt;Redis&lt;/b&gt;&lt;br&gt;运行中 sandbox 的真相源&lt;br&gt;路由 catalog / P2P peer 注册 / 限流" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="290" y="595" width="270" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="dCH" value="&lt;b&gt;ClickHouse&lt;/b&gt;&lt;br&gt;metrics / events / 可选日志" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="590" y="595" width="220" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="dOS" value="&lt;b&gt;对象存储&lt;/b&gt;&lt;br&gt;GCS / S3 / local&lt;br&gt;模板与快照产物" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="840" y="595" width="200" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="dConsul" value="&lt;b&gt;Consul KV&lt;/b&gt;&lt;br&gt;网络 slot" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#FFFFFF;strokeColor=#666666;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="595" width="170" height="95" as="geometry" />
+        </mxCell>
+
+        <mxCell id="eApiOrch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1" source="nAPI" target="nOrch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eApiTM" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1" source="nAPI" target="nTM">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eOrchEnvd" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#333333;strokeWidth=2;" edge="1" parent="1" source="nOrch" target="nEnvd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="eApiPG" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=0.1;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nAPI" target="dPG">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="30" y="560" />
+              <mxPoint x="160" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eApiRedis" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.35;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nAPI" target="dRedis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eCpRedis" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nCP" target="dRedis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eApiCH" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nDRP" target="dCH">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="700" y="200" />
+              <mxPoint x="700" y="530" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eOrchOS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nEnvd" target="dOS">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="410" y="455" />
+              <mxPoint x="410" y="520" />
+              <mxPoint x="940" y="520" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eTMOS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nTM" target="dOS">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="eOrchConsul" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;dashed=1;" edge="1" parent="1" source="nOrch" target="dConsul">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1155" y="375" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="legend" value="实线箭头 = 请求调用　　虚线 = 读写数据存储" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=11;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="780" y="60" width="330" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="note1" value="要点：&#10;• template-manager 与 orchestrator 是同一个二进制的不同 role，都监听 5008&#10;• Redis 才是运行中 sandbox 的 source of truth，Postgres 只存持久控制面状态&#10;• 节点发现支持 Nomad / Kubernetes / 静态列表三种来源&#10;• 网络 slot 池化复用，分配走 Consul KV，可跨重启存活" style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#FFF9C4;strokeColor=#D6B656;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="780" y="90" width="480" height="128" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

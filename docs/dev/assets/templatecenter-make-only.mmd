@@ -1,0 +1,51 @@
+%%{init: {"theme": "default", "themeVariables": {"fontSize": "14px"}}}%%
+flowchart TD
+    Start([POST /v1/templates])
+
+    %% === 主线 (蓝) ===
+    Start --> V0[验证请求参数]
+    V0 -->|正常| W1[写 image_jobs<br/>phase=PULLING progress=5]
+    V0 -->|异常| E0[参数校验失败<br/>不写 image_jobs]
+
+    W1 --> C1{preflight 通过?}
+    C1 -->|否| E1[preflight 不通过<br/>CA 过期/节点不可达]
+    C1 -->|是| P1[从镜像仓库拉层]
+
+    P1 -->|成功| CA[加载 Egress CA 证书]
+    P1 -->|失败| E2[拉取镜像失败<br/>网络/401/镜像删]
+
+    CA -->|成功| FP[算 fingerprint + artifact_id]
+    CA -->|CA 缺| ECA[CA 加载失败<br/>早暴露在 PULLING]
+
+    FP --> W2[写 image_jobs<br/>phase=UNPACKING progress=20]
+    W2 --> MK[mkfs ext4 + 算 sha<br/>写 vda 持久化到 cbs]
+
+    MK -->|成功| W3[写 image_jobs + rootfs_artifacts<br/>phase=Built progress=70]
+
+    %% === 终态: 制作完成 = def_BUILT (深绿椭圆) ===
+    W3 --> UpdateDef[写 template_definitions<br/>status=BUILT]
+    UpdateDef --> Done([def_BUILT<br/>模板中心制作完成<br/>产物在 cbs 已就绪])
+
+    %% === 失败节点 (红) ===
+    W1 -.->|写失败| EW1[第一次写库失败<br/>log + return → 悬挂态<br/>reconciler 兜底]
+    MK -.->|mkfs / cbs 失败| E3[磁盘满 / cbs 配额 / vda IO 错<br/>+ cleanupFailedRootfsArtifact]
+    UpdateDef -.->|写 def 失败| EBUILT[写 def_BUILT 失败<br/>同 template redo 锁冲突 / DB 断]
+
+    %% === 旁支 (橙虚线) ===
+    FP -.->|R3 hash 不等| R1[fingerprint hash 不一致<br/>R3 #1105 RETRY → 拉层重算]
+
+    %% === 样式定义 ===
+    classDef mainLine fill:#dae8fc,stroke:#6c8ebf,color:#000000
+    classDef writeKey fill:#fff2cc,stroke:#d6b656,color:#000000
+    classDef judge fill:#ffe6cc,stroke:#d79b00,color:#000000
+    classDef fail fill:#f8cecc,stroke:#b85450,color:#000000
+    classDef built fill:#82b366,stroke:#82b366,color:#ffffff
+    classDef retry fill:#ffe6cc,stroke:#d79b00,color:#000000,stroke-dasharray: 5 5
+    classDef userOp fill:#e1d5e7,stroke:#9673a6,color:#000000
+
+    class Start,Done built
+    class V0,P1,CA,FP,MK mainLine
+    class W1,W2,W3,UpdateDef writeKey
+    class C1,SM judge
+    class E0,EW1,E1,E2,ECA,E3,EBUILT fail
+    class R1 retry

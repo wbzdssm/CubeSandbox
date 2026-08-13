@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-10T18:00:00.000Z" agent="CodeBuddy" version="1.0" type="device">
+  <diagram name="Snapshot 模板 Commit 状态机" id="snapshot-commit">
+    <mxGraphModel dx="1100" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Page 2: Snapshot 模板 Commit 状态机 + R3 #1105 fingerprint 根因 — 单 replica, 不走 summarizeStatus 聚合, 直接 def_READY / def_FAILED" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=16;" vertex="1" parent="1"><mxGeometry x="40" y="20" width="1000" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="t_main" value="Snapshot Commit 主流程 (snapshot_ops.go:271-388) — 单 replica, definition 直接 updateDefinitionFields(StatusReady/StatusFailed)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="80" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="S_PENDING" value="def_PENDING&#10;(snapshot 记录入库)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="130" width="160" height="50" as="geometry"/></mxCell>
+        <mxCell id="S_COMMIT" value="CommitSandbox&#10;(sync RPC 到 cubelet)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1"><mxGeometry x="240" y="130" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="S_REPLICA" value="UpsertReplica&#10;(registerTemplateReplicaForSnapshot)&#10;setTemplateLocalityCache" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="440" y="130" width="180" height="70" as="geometry"/></mxCell>
+        <mxCell id="S_READY" value="def_READY&#10;updateDefinitionFields(StatusReady)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="650" y="130" width="170" height="60" as="geometry"/></mxCell>
+        <mxCell id="S_FAILED" value="def_FAILED&#10;(last_error = cause.Error())" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="240" y="240" width="170" height="60" as="geometry"/></mxCell>
+        <mxCell id="S_DELETING" value="def_DELETING&#10;(DeleteTemplate 触发)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="1"><mxGeometry x="650" y="240" width="170" height="50" as="geometry"/></mxCell>
+        <mxCell id="S_DELETED" value="def_DELETED&#10;(终态)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="850" y="240" width="150" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="e_s1" value="commit 触发" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=1;" edge="1" parent="1" source="S_PENDING" target="S_COMMIT"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_replica" value="retCode==Success" style="endArrow=classic;html=1;rounded=0;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1" source="S_COMMIT" target="S_REPLICA"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_ok" value="replica 写入 OK" style="endArrow=classic;html=1;rounded=0;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1" source="S_REPLICA" target="S_READY"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_fail" value="retCode!=0&#10;→ failSnapshotCreateJob (snapshot_ops.go:765-792)" style="endArrow=classic;html=1;rounded=0;strokeColor=#b85450;strokeWidth=2;" edge="1" parent="1" source="S_COMMIT" target="S_FAILED"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_replica_fail" value="UpsertReplica 失败&#10;→ failSnapshotCreateJob" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=1;" edge="1" parent="1" source="S_REPLICA" target="S_FAILED"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_def_fail" value="updateDefinitionFields 失败&#10;→ failSnapshotCreateJob" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#b85450;strokeWidth=1;" edge="1" parent="1" source="S_READY" target="S_FAILED"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_del_ready" value="delete READY" style="endArrow=classic;html=1;rounded=0;strokeColor=#666666;strokeWidth=1;" edge="1" parent="1" source="S_READY" target="S_DELETING"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_del_fail" value="delete FAILED" style="endArrow=classic;html=1;rounded=0;strokeColor=#666666;strokeWidth=1;" edge="1" parent="1" source="S_FAILED" target="S_DELETING"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_del_done" value="清理完成" style="endArrow=classic;html=1;rounded=0;strokeColor=#666666;strokeWidth=2;" edge="1" parent="1" source="S_DELETING" target="S_DELETED"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="n_fail4" value="failSnapshotCreateJob 4 步 (snapshot_ops.go:765-792):&#10;1. cubelet.CleanupTemplate (远端 RPC, 仅当 snapshotID/nodeIP 非空)&#10;2. deleteReplicasByTemplateID (本地 DB)&#10;3. updateDefinitionFields(Status=FAILED, last_error=cause) + updateTemplateImageJob(Status=FAILED)&#10;4. invalidateTemplateCaches (Redis 缓存清理)&#10;⚠️ 任一步骤失败: 各自 errors.Join 累加, 不阻塞其他步" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="440" y="320" width="380" height="100" as="geometry"/></mxCell>
+
+        <mxCell id="n_r3_hash" value="R3 #1105 hash 不一致 ≠ 状态机节点&#10;实际路径: commitRsp.GetRet().GetRetCode() != Success → failSnapshotCreateJob → def_FAILED&#10;没有 RETRY 状态节点. 若想 retry, 用户重新发起 commit (snapshot 每次 commit 都生成新 snapshotID)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="320" width="380" height="80" as="geometry"/></mxCell>
+
+        
+
+        <mxCell id="t_r3" value="R3 #1105 根因 + 修复后 retry 流转" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="460" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="n_r3_1" value="Layer 1 (snapshot_ops.go:165-168):&#10;generateSnapshotID() → 写 annotation → 算 fingerprint&#10;fingerprint hash 包含 CubeAnnotationAppSnapshotTemplateID&#10;客户端 retry 时不知道这个值, hash 必然不一致" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="510" width="380" height="90" as="geometry"/></mxCell>
+        <mxCell id="n_r3_2" value="Layer 2 (snapshot_ops.go:835 + store.go:329-341):&#10;retry 路径: buildSnapshotRequests(originReq, &quot;&quot;)&#10;空 snapshotID 被 NormalizeRequest 替换成新随机 tpl- id&#10;两次重建 hash 必然不同" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1"><mxGeometry x="440" y="510" width="400" height="90" as="geometry"/></mxCell>
+        <mxCell id="R3_FIX" value="修复: hash 前剥掉&#10;CubeAnnotationAppSnapshotTemplateID&#10;→ retry 时 hash 一致 → 走 RETRY 成功流转" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" vertex="1" parent="1"><mxGeometry x="860" y="510" width="180" height="90" as="geometry"/></mxCell>
+
+        <mxCell id="t_recon" value="对账/reconcile (master 内部发起, 调 TC API)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;" vertex="1" parent="1"><mxGeometry x="40" y="640" width="1000" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="recon_pending" value="PENDING 5min 超时&#10;(调度卡死)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="40" y="690" width="180" height="50" as="geometry"/></mxCell>
+        <mxCell id="recon_action" value="master → 调 TC API&#10;cancel + 清理&#10;→ def_FAILED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="260" y="690" width="200" height="50" as="geometry"/></mxCell>
+        <mxCell id="recon_building" value="BUILDING 1h 无心跳&#10;(TC 副本宕了)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="500" y="690" width="200" height="50" as="geometry"/></mxCell>
+        <mxCell id="recon_building_action" value="master → 调其他 TC&#10;接管 + 重新拉进度&#10;→ S_COMMIT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1"><mxGeometry x="740" y="690" width="240" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="legend" value="图例: 蓝粗=正常 / 橙粗=retry / 红=fail / 绿=ready / 灰=delete | 椭圆=终态, 矩形=中间态" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1"><mxGeometry x="40" y="780" width="1000" height="30" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
