@@ -76,3 +76,29 @@ func RegisterCubeRoutes(g *gin.RouterGroup) {
 	g.GET(VolumeAction+"/:volume_id", handleGetVolume)
 	g.DELETE(VolumeAction+"/:volume_id", handleDeleteVolume)
 }
+
+// RegisterTemplateRoutes registers ONLY the template-related routes onto g.
+// Used by the standalone CubeTemplateCenter process — sandbox / snapshot /
+// volume CRUD stay with CubeMaster and are NOT registered here.
+//
+// Mirrors the Template + Artifact/CA + RootfsArtifact block of
+// RegisterCubeRoutes. Keep in sync with that function.
+func RegisterTemplateRoutes(g *gin.RouterGroup) {
+	// Template CRUD + build status
+	g.POST(TemplateAction, createTemplateGinHandler)
+	g.GET(TemplateAction, getTemplateGinHandler)
+	g.DELETE(TemplateAction, deleteTemplateGinHandler)
+	g.GET(TemplateCompatAction, getTemplateCompatGinHandler)
+	g.POST(TemplateCompatAction, updateTemplateCompatGinHandler)
+	g.POST(TemplateRedoAction, handleRedoTemplateAction)
+	g.GET(TemplateBuildStatusAction+"/:build_id/status", handleTemplateBuildStatusAction)
+	g.GET(TemplateFromImageAction, getTemplateFromImageGinHandler)
+	g.POST(TemplateFromImageAction, createTemplateFromImageGinHandler)
+	g.GET(TemplateArtifactDownloadAction, downloadTemplateArtifactGinHandler)
+	g.HEAD(TemplateArtifactDownloadAction, headTemplateArtifactGinHandler)
+
+	// Artifact / CA download
+	g.GET(CADownloadActionPrefix+":filename", downloadCAGinHandler)
+	g.HEAD(CADownloadActionPrefix+":filename", headCAGinHandler)
+	g.GET(RootfsArtifactAction, handleRootfsArtifactAction)
+}
