@@ -4,9 +4,12 @@ go 1.25.7
 
 require (
 	github.com/gin-gonic/gin v1.11.0
+	github.com/pkg/errors v0.9.1
+	github.com/prometheus/client_golang v1.23.2
 	github.com/tencentcloud/CubeSandbox/CubeDB v0.0.0-00010101000000-000000000000
 	github.com/tencentcloud/CubeSandbox/CubeMaster v0.0.0-00010101000000-000000000000
 	github.com/tencentcloud/CubeSandbox/cubelog v0.1.1-0.20260113105508-a996703fa42f
+	gorm.io/gorm v1.25.10
 )
 
 require (
@@ -67,9 +70,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pressly/goose/v3 v3.27.1 // indirect
-	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.67.2 // indirect
 	github.com/prometheus/procfs v0.20.1 // indirect
@@ -102,7 +103,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.1 // indirect
 	gorm.io/driver/postgres v1.6.0 // indirect
-	gorm.io/gorm v1.25.10 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 	k8s.io/api v0.34.1 // indirect
 	k8s.io/apimachinery v0.34.1 // indirect
