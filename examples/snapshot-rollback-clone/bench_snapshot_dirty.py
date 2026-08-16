@@ -1,5 +1,6 @@
 # Copyright (c) 2024 Tencent Inc.
 # SPDX-License-Identifier: Apache-2.0
+SWEEP = [{"-d": 0}, {"-d": 10}, {"-d": 100}, {"-d": 1024}]
 """
 bench_snapshot_dirty.py — Snapshot latency vs dirty-page size benchmark (single size).
 

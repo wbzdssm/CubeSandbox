@@ -6,3 +6,7 @@ __pycache__/
 dist/
 build/
 .venv/
+
+# Local env files (may contain API keys); keep .env.example tracked.
+.env
+!.env.example
