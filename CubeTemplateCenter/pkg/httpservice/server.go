@@ -28,6 +28,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/cube"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/middleware"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/api"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -110,6 +111,10 @@ func (s *internalHttp) registerRoutes() {
 	// only the template-related handlers under /cube/template* — see
 	// CubeMaster/pkg/service/httpservice/cube/routes.go.
 	cube.RegisterTemplateRoutes(root.Group(cube.CubeURI()))
+
+	// Internal build-submission API (remote build mode): CubeMaster pushes
+	// jobs to POST /tc/api/v1/build; TC builds and calls back.
+	api.RegisterInternalRoutes(root)
 }
 
 // healthHandler implements design §4.3 "GET /health":

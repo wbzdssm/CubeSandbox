@@ -1,5 +1,5 @@
-# Build artifacts
-build/
+# Build artifacts (root output dir only — must not ignore pkg/build)
+/build/
 
 # Editor
 .idea/
