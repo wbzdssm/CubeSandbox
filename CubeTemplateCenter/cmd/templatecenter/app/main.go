@@ -101,7 +101,10 @@ func coreInit(ctx context.Context, cfg *config.Config) error {
 
 	// Templatecenter is the business core: pulls image, builds ext4, runs
 	// fingerprint, writes rootfs_artifacts + image_jobs + template_definitions.
-	if err := templatecenter.Init(ctx); err != nil {
+	// Use InitForTemplateCenter (not Init) so snapshot-side hooks
+	// (sandbox.SetAfterDestroySandboxSuccessHook, sandboxspec hooks, snapshot
+	// reconciler) are NOT registered — those belong to CubeMaster.
+	if err := templatecenter.InitForTemplateCenter(ctx); err != nil {
 		return fmt.Errorf("templatecenter init: %w", err)
 	}
 

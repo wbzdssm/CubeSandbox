@@ -24,8 +24,10 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/recov"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/nodemeta"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/cube"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/middleware"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -102,11 +104,41 @@ func (s *internalHttp) registerRoutes() {
 	root := s.engine.Group("")
 	root.Use(middleware.GinRequestMiddleware())
 	root.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	root.GET("/health", s.healthHandler)
 
 	// 镜像中心 12 端点 (design §4.1). cube.RegisterTemplateRoutes registers
 	// only the template-related handlers under /cube/template* — see
 	// CubeMaster/pkg/service/httpservice/cube/routes.go.
 	cube.RegisterTemplateRoutes(root.Group(cube.CubeURI()))
+}
+
+// healthHandler implements design §4.3 "GET /health":
+// ready 条件包含"节点视图已加载".
+//
+// Returns:
+//   - 200: ready (node view loaded, templatecenter store initialized)
+//   - 503: not ready (one of the dependencies not yet up)
+func (s *internalHttp) healthHandler(c *gin.Context) {
+	checks := gin.H{}
+
+	nodeReady := nodemeta.Ready()
+	checks["nodemeta"] = nodeReady
+
+	storeReady := templatecenter.IsReady()
+	checks["templatecenter_store"] = storeReady
+
+	if nodeReady && storeReady {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ok",
+			"checks": checks,
+		})
+		return
+	}
+
+	c.JSON(http.StatusServiceUnavailable, gin.H{
+		"status": "not_ready",
+		"checks": checks,
+	})
 }
 
 func (s *internalHttp) Start() error {
