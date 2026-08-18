@@ -102,3 +102,11 @@ func RegisterTemplateRoutes(g *gin.RouterGroup) {
 	g.HEAD(CADownloadActionPrefix+":filename", headCAGinHandler)
 	g.GET(RootfsArtifactAction, handleRootfsArtifactAction)
 }
+
+// RegisterInternalTemplateRoutes registers internal callbacks used by the
+// remote build mode (CubeTemplateCenter -> CubeMaster status reports).
+// Mounted on CubeMaster only — see pkg/server/server.go. These routes are
+// NOT part of the public /cube API surface.
+func RegisterInternalTemplateRoutes(g *gin.RouterGroup) {
+	g.POST("/internal/template/jobs/:job_id/status", handleTemplateJobStatusCallback)
+}

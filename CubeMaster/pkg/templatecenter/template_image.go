@@ -97,6 +97,19 @@ func SubmitTemplateFromImage(ctx context.Context, req *types.CreateTemplateFromI
 }
 
 func SubmitTemplateFromImageWithEnvdPayload(ctx context.Context, req *types.CreateTemplateFromImageReq, downloadBaseURL string, envdPayload *EnvdInjectionPayload) (*types.TemplateImageJobInfo, error) {
+	return submitTemplateFromImage(ctx, req, downloadBaseURL, envdPayload, true)
+}
+
+// SubmitTemplateFromImageWithoutBuild validates the request and persists the
+// image_jobs record (PENDING) but does NOT start the in-process build
+// goroutine. It is the entry point of the remote build mode: the caller
+// (HTTP handler) forwards the job to CubeTemplateCenter, which builds the
+// artifact and reports status back via the internal callback.
+func SubmitTemplateFromImageWithoutBuild(ctx context.Context, req *types.CreateTemplateFromImageReq, downloadBaseURL string) (*types.TemplateImageJobInfo, error) {
+	return submitTemplateFromImage(ctx, req, downloadBaseURL, nil, false)
+}
+
+func submitTemplateFromImage(ctx context.Context, req *types.CreateTemplateFromImageReq, downloadBaseURL string, envdPayload *EnvdInjectionPayload, startBuild bool) (*types.TemplateImageJobInfo, error) {
 	if !isReady() {
 		return nil, ErrTemplateStoreNotInitialized
 	}
@@ -170,13 +183,15 @@ func SubmitTemplateFromImageWithEnvdPayload(ctx context.Context, req *types.Crea
 	if reusedExistingJob {
 		return GetTemplateImageJobInfo(ctx, jobID)
 	}
-	go runTemplateImageJob(detachTemplateImageJobContext(ctx, "template_image_create", map[string]any{
-		"job_id":          jobID,
-		"template_id":     normalized.TemplateID,
-		"attempt_no":      attemptNo,
-		"retry_of_job_id": retryOfJobID,
-		"image":           normalized.SourceImageRef,
-	}), jobID, normalized, downloadBaseURL, envdPayload)
+	if startBuild {
+		go runTemplateImageJob(detachTemplateImageJobContext(ctx, "template_image_create", map[string]any{
+			"job_id":          jobID,
+			"template_id":     normalized.TemplateID,
+			"attempt_no":      attemptNo,
+			"retry_of_job_id": retryOfJobID,
+			"image":           normalized.SourceImageRef,
+		}), jobID, normalized, downloadBaseURL, envdPayload)
+	}
 	return GetTemplateImageJobInfo(ctx, jobID)
 }
 

@@ -90,6 +90,16 @@ type CommonConf struct {
 	ReportGWRedisGetMetric          bool              `yaml:"report_gw_redis_get_metric"`
 	EnableGetStatusFromCubelet      bool              `yaml:"enable_get_status_from_cubelet"`
 	DisableHardDelete               bool              `yaml:"disable_hard_delete"`
+
+	// TemplateBuildMode selects where template-from-image builds run:
+	//   - "local" (default): build in-process, exactly as before
+	//   - "remote": validate + persist the job, then forward the build to
+	//     CubeTemplateCenter and wait for its status callback
+	TemplateBuildMode string `yaml:"template_build_mode"`
+	// TemplateCenterEndpoint is the base URL of the CubeTemplateCenter
+	// process (e.g. "http://templatecenter:8090"). Required when
+	// template_build_mode is "remote".
+	TemplateCenterEndpoint string `yaml:"template_center_endpoint"`
 	CollectSandboxMemoryWhitelist   []string          `yaml:"collect_sandbox_memory_whitelist"`
 	EnableAllCollectSandboxMemory   bool              `yaml:"enable_all_collect_sandbox_memory"`
 	FilterErrMsgErrorCode           map[int]bool      `yaml:"filter_err_msg_error_code"`

@@ -91,7 +91,14 @@ func createTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interfac
 		"Action":       "CreateTemplateFromImage",
 		"TemplateID":   req.TemplateID,
 	}))
-	job, err := templatecenter.SubmitTemplateFromImageWithEnvdPayload(ctx, req, requestBaseURL(r), envdPayload)
+	var job *types.TemplateImageJobInfo
+	if remoteTemplateBuildEnabled() {
+		// Remote build mode (gray rollout): validate + persist the job here,
+		// then let CubeTemplateCenter do the actual build and call back.
+		job, err = templatecenter.SubmitTemplateFromImageWithoutBuild(ctx, req, requestBaseURL(r))
+	} else {
+		job, err = templatecenter.SubmitTemplateFromImageWithEnvdPayload(ctx, req, requestBaseURL(r), envdPayload)
+	}
 	if err != nil {
 		return &types.CreateTemplateFromImageRes{
 			RequestID: req.RequestID,
@@ -100,6 +107,9 @@ func createTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interfac
 				RetMsg:  err.Error(),
 			},
 		}
+	}
+	if remoteTemplateBuildEnabled() {
+		go forwardBuildJobToTemplateCenter(job.JobID, req, requestBaseURL(r), envdPayload)
 	}
 	rt.RetCode = int64(errorcode.ErrorCode_Success)
 	return &types.CreateTemplateFromImageRes{
