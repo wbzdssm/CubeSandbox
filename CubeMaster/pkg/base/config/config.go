@@ -95,11 +95,26 @@ type CommonConf struct {
 	//   - "local" (default): build in-process, exactly as before
 	//   - "remote": validate + persist the job, then forward the build to
 	//     CubeTemplateCenter and wait for its status callback
+	//
+	// Ignored when TemplateRouteMode is "proxy" (the whole request is handed
+	// to CubeTemplateCenter, which then decides how to build).
 	TemplateBuildMode string `yaml:"template_build_mode"`
 	// TemplateCenterEndpoint is the base URL of the CubeTemplateCenter
 	// process (e.g. "http://templatecenter:8090"). Required when
-	// template_build_mode is "remote".
+	// template_build_mode is "remote" or template_route_mode is "proxy".
 	TemplateCenterEndpoint string `yaml:"template_center_endpoint"`
+	// TemplateRouteMode selects who serves the public template endpoints:
+	//   - "local" (default): CubeMaster handles them in-process, i.e. the
+	//     behaviour that shipped before the template center split
+	//   - "proxy": CubeMaster reverse-proxies every /cube/template* request to
+	//     CubeTemplateCenter verbatim and returns its response unchanged
+	//
+	// "proxy" exists so template ownership can move to CubeTemplateCenter
+	// WITHOUT touching any caller: SDKs and cubemastercli keep talking to
+	// CubeMaster. It is the dress rehearsal for fully removing the template
+	// implementation from CubeMaster in the next iteration -- and it is
+	// reversible by flipping this one value back to "local".
+	TemplateRouteMode string `yaml:"template_route_mode"`
 	CollectSandboxMemoryWhitelist   []string          `yaml:"collect_sandbox_memory_whitelist"`
 	EnableAllCollectSandboxMemory   bool              `yaml:"enable_all_collect_sandbox_memory"`
 	FilterErrMsgErrorCode           map[int]bool      `yaml:"filter_err_msg_error_code"`

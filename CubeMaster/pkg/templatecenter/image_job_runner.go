@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter/image"
@@ -130,6 +131,34 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 	}); err != nil {
 		logger.Errorf("update job artifact fail: %v", err)
 	}
+	_ = finishTemplateImageJobAfterArtifact(ctx, jobID, req, artifact, generatedReq, builtFreshArtifact)
+}
+
+// finishTemplateImageJobAfterArtifact runs every step that follows a ready
+// rootfs artifact: distribute to nodes, write template_definitions, create
+// replicas, claim the alias, aggregate status and write the job's terminal row.
+//
+// Extracted from runTemplateImageJob so the remote build path
+// (ResumeTemplateImageJobAfterRemoteBuild) executes the exact same logic —
+// duplicating it would let local and remote modes drift apart.
+//
+// builtFreshArtifact tells the failure paths whether this call owns the
+// artifact (and may therefore delete it) or merely reused an existing one.
+// The returned error mirrors what was written into the job row; the job status
+// is always persisted, so callers may simply log it.
+func finishTemplateImageJobAfterArtifact(
+	ctx context.Context,
+	jobID string,
+	req *types.CreateTemplateFromImageReq,
+	artifact *models.RootfsArtifact,
+	generatedReq *types.CreateCubeSandboxReq,
+	builtFreshArtifact bool,
+) error {
+	logger := log.G(ctx).WithFields(map[string]any{
+		"job_id":      jobID,
+		"template_id": req.TemplateID,
+		"artifact_id": artifact.ArtifactID,
+	})
 	readyTargets, expected, ready, failed, distErr := distributeRootfsArtifact(ctx, req, generatedReq, artifact, req.TemplateID, jobID)
 	if err := updateTemplateImageJob(ctx, jobID, map[string]any{
 		"phase":               JobPhaseCreatingTemplate,
@@ -147,13 +176,14 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 				logger.Errorf("cleanup fresh rootfs artifact after distribution failure fail: %v", cleanupErr)
 			}
 		}
+		failErr := fmt.Errorf("artifact distribution failed on all %d nodes: %v", expected, distErr)
 		_ = updateTemplateImageJob(ctx, jobID, map[string]any{
 			"status":        JobStatusFailed,
 			"phase":         JobPhaseDistributing,
 			"progress":      100,
-			"error_message": fmt.Sprintf("artifact distribution failed on all %d nodes: %v", expected, distErr),
+			"error_message": failErr.Error(),
 		})
-		return
+		return failErr
 	}
 	var info *TemplateInfo
 	storedReq, err := normalizeStoredTemplateRequest(generatedReq)
@@ -165,7 +195,7 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 			"template_status": StatusFailed,
 			"error_message":   err.Error(),
 		})
-		return
+		return err
 	}
 	if _, err := ensureTemplateDefinitionWithOptions(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, constants.GetAppSnapshotVersion(generatedReq.Annotations), definitionCreateOptions{}); err != nil {
 		_ = updateTemplateImageJob(ctx, jobID, map[string]any{
@@ -175,7 +205,7 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 			"template_status": StatusFailed,
 			"error_message":   err.Error(),
 		})
-		return
+		return err
 	}
 	replicas, persistErr := createTemplateReplicasOnNodes(ctx, req.TemplateID, generatedReq, readyTargets, replicaRunOptions{
 		ArtifactID: artifact.ArtifactID,
@@ -203,7 +233,7 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 			"template_status": StatusFailed,
 			"error_message":   err.Error(),
 		})
-		return
+		return err
 	}
 	// Alias was already claimed by finalizeTemplateReplicas (before the READY
 	// status was published) to avoid the create/claim publish-ordering race.
@@ -231,6 +261,10 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 		"result_json":     string(resultPayload),
 		"error_message":   errorMessage,
 	})
+	if jobStatus == JobStatusFailed {
+		return fmt.Errorf("template creation failed: %s", errorMessage)
+	}
+	return nil
 }
 
 func errorString(err error) string {

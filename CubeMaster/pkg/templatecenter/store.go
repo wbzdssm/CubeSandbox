@@ -281,6 +281,12 @@ func initCommon(ctx context.Context, includeSnapshotSide bool) error {
 		}
 		if includeSnapshotSide {
 			startSnapshotReconciler(ctx)
+			// CubeMaster only. The stuck-job sweep replays the post-build
+			// pipeline (artifact registration + distribution + template
+			// definition), which is CubeMaster's responsibility -- the
+			// standalone CubeTemplateCenter process must never write that
+			// state, so it does not run this.
+			startImageJobReconciler(ctx)
 		}
 		startArtifactGC(ctx)
 		scheduleInitialCompatScan(ctx)
@@ -328,6 +334,13 @@ func isReady() bool {
 // its /health endpoint without probing via ListTemplates.
 func IsReady() bool {
 	return isReady()
+}
+
+// GetDB exposes the initialized gorm handle. The standalone
+// CubeTemplateCenter process needs it for the DB session locks used by its
+// background reconciler (design §7.2 / §9.3). Returns nil before Init.
+func GetDB() *gorm.DB {
+	return store.db
 }
 
 func NormalizeRequest(req *sandboxtypes.CreateCubeSandboxReq) (*sandboxtypes.CreateCubeSandboxReq, string, error) {
