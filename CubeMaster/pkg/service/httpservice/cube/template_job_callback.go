@@ -5,9 +5,9 @@
 package cube
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -112,17 +112,25 @@ func handleTemplateJobStatusCallback(c *gin.Context) {
 	// writing template_definitions / replicas, claiming the alias) is
 	// CubeMaster's job and runs here.
 	//
-	// Detach from the request context: the resume pipeline performs
-	// cross-node RPCs and must not be canceled when this HTTP handler
-	// returns. TC only needs the acknowledgement that the report landed.
+	// The resume context is detached from the request (the pipeline performs
+	// cross-node RPCs and must not be canceled when this handler returns) but
+	// still carries a RequestTrace, like every other detached template job.
 	if status, _ := payload["status"].(string); strings.EqualFold(status, templatecenter.JobStatusBuilt) {
 		result := remoteBuildResultFromPayload(payload)
-		resumeCtx := log.WithLogger(context.Background(), log.G(ctx).WithFields(map[string]any{
-			"job_id":      jobID,
-			"artifact_id": result.ArtifactID,
-			"build_mode":  "remote",
-		}))
+		resumeCtx := templatecenter.DetachRemoteBuildResumeContext(ctx, jobID, result.ArtifactID)
 		go func() {
+			// Without this, a panic anywhere in the resume pipeline takes the
+			// whole CubeMaster process down: it runs on a bare goroutine, so
+			// gin's recovery middleware does not cover it. The job is left in
+			// BUILT on purpose — the image-job reconciler replays resume for
+			// jobs stuck in BUILT, which is a safer outcome than marking a
+			// job FAILED from inside a recover.
+			defer func() {
+				if r := recover(); r != nil {
+					log.G(resumeCtx).Errorf("resume remote-built template job panic: job_id=%s err=%v\n%s",
+						jobID, r, string(debug.Stack()))
+				}
+			}()
 			if err := templatecenter.ResumeTemplateImageJobAfterRemoteBuild(resumeCtx, jobID, result); err != nil {
 				log.G(resumeCtx).Errorf("resume remote-built template job fail: job_id=%s err=%v", jobID, err)
 			}

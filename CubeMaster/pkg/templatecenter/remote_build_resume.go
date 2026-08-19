@@ -71,6 +71,22 @@ func (r *RemoteBuildResult) Validate() error {
 	return nil
 }
 
+// DetachRemoteBuildResumeContext derives the context the resume goroutine runs
+// on. It must be detached from the HTTP request (returning the callback
+// response must not cancel a cross-node distribution) but it must still carry a
+// CubeLog.RequestTrace, exactly like every other detached template job.
+//
+// This is not cosmetic: log.G(ctx) on a context without a trace loses the
+// request labels and the trace-scoped log sink, which is what made a failing
+// resume look completely silent in templatecenter-req.log.
+func DetachRemoteBuildResumeContext(ctx context.Context, jobID, artifactID string) context.Context {
+	return detachTemplateImageJobContext(ctx, "template_image_resume_remote", map[string]any{
+		"job_id":      jobID,
+		"artifact_id": artifactID,
+		"build_mode":  "remote",
+	})
+}
+
 // ResumeTemplateImageJobAfterRemoteBuild continues a template build that was
 // performed by the standalone CubeTemplateCenter process.
 //
@@ -92,6 +108,11 @@ func (r *RemoteBuildResult) Validate() error {
 // status=BUILT. Errors are reported into the job row, so the caller only needs
 // to log them.
 func ResumeTemplateImageJobAfterRemoteBuild(ctx context.Context, jobID string, result *RemoteBuildResult) error {
+	// Logged unconditionally and BEFORE any early return: a resume that bails
+	// out at the guards below used to produce no trace at all, which is
+	// indistinguishable from the goroutine never having run.
+	log.G(ctx).Infof("resume remote-built template job: start job_id=%s", jobID)
+
 	if !isReady() {
 		return ErrTemplateStoreNotInitialized
 	}
@@ -135,6 +156,7 @@ func ResumeTemplateImageJobAfterRemoteBuild(ctx context.Context, jobID string, r
 	})
 
 	// Step 1 + 2: register the artifact row and derive the create request.
+	logger.Infof("resume step 1/3: register remote-built artifact")
 	artifact, generatedReq, err := registerRemoteBuiltArtifact(ctx, req, result)
 	if err != nil {
 		failErr := fmt.Errorf("register remote artifact: %w", err)
@@ -164,7 +186,15 @@ func ResumeTemplateImageJobAfterRemoteBuild(ctx context.Context, jobID string, r
 
 	// Step 3: distribute to nodes. builtFreshArtifact is always true here: TC
 	// just produced this ext4, so on failure the artifact is ours to clean up.
-	return finishTemplateImageJobAfterArtifact(ctx, jobID, req, artifact, generatedReq, true)
+	logger.Infof("resume step 2/3: artifact registered, entering distribution: artifact_status=%s ext4_size_bytes=%d",
+		artifact.Status, artifact.Ext4SizeBytes)
+	err = finishTemplateImageJobAfterArtifact(ctx, jobID, req, artifact, generatedReq, true)
+	if err != nil {
+		logger.Errorf("resume step 3/3 failed: %v", err)
+		return err
+	}
+	logger.Infof("resume step 3/3: template is READY")
+	return nil
 }
 
 // registerRemoteBuiltArtifact claims the artifact row (same FOR UPDATE guard
