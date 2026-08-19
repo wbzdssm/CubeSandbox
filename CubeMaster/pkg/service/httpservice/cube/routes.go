@@ -49,28 +49,20 @@ func RegisterCubeRoutes(g *gin.RouterGroup) {
 	g.DELETE(SnapshotAction+"/:snapshot_id", deleteSnapshotGinHandler)
 	g.GET(OperationAction+"/:operation_id", handleSnapshotOperationAction)
 
-	// Template control plane. Served in-process by default; when
-	// template_route_mode=proxy every one of these is reverse-proxied to
-	// CubeTemplateCenter instead, transparently to the caller.
-	//
-	// The handler is picked at registration time, so switching modes needs a
-	// restart -- deliberate: flipping ownership mid-flight would split a
-	// single template's writes across two processes.
-	templateHandler := func(local gin.HandlerFunc) gin.HandlerFunc {
-		if templateRouteProxyEnabled() {
-			return templateProxyHandler
-		}
-		return local
-	}
-	g.POST(TemplateAction, templateHandler(createTemplateGinHandler))
-	g.GET(TemplateAction, templateHandler(getTemplateGinHandler))
-	g.DELETE(TemplateAction, templateHandler(deleteTemplateGinHandler))
-	g.GET(TemplateCompatAction, templateHandler(getTemplateCompatGinHandler))
-	g.POST(TemplateCompatAction, templateHandler(updateTemplateCompatGinHandler))
-	g.POST(TemplateRedoAction, templateHandler(handleRedoTemplateAction))
-	g.GET(TemplateBuildStatusAction+"/:build_id/status", templateHandler(handleTemplateBuildStatusAction))
-	g.GET(TemplateFromImageAction, templateHandler(getTemplateFromImageGinHandler))
-	g.POST(TemplateFromImageAction, templateHandler(createTemplateFromImageGinHandler))
+	// Template control plane. Served in-process by CubeMaster. When
+	// templatecenter_enabled is true, createTemplateFromImageGinHandler hands
+	// the BUILD to CubeTemplateCenter (see template_from_image_remote.go) while
+	// CubeMaster keeps serving the API -- the build is data-plane work, the
+	// control plane stays here.
+	g.POST(TemplateAction, createTemplateGinHandler)
+	g.GET(TemplateAction, getTemplateGinHandler)
+	g.DELETE(TemplateAction, deleteTemplateGinHandler)
+	g.GET(TemplateCompatAction, getTemplateCompatGinHandler)
+	g.POST(TemplateCompatAction, updateTemplateCompatGinHandler)
+	g.POST(TemplateRedoAction, handleRedoTemplateAction)
+	g.GET(TemplateBuildStatusAction+"/:build_id/status", handleTemplateBuildStatusAction)
+	g.GET(TemplateFromImageAction, getTemplateFromImageGinHandler)
+	g.POST(TemplateFromImageAction, createTemplateFromImageGinHandler)
 
 	// Data plane: NOT proxied even in proxy mode. Artifacts are multi-GB files
 	// on the disk CubeMaster and CubeTemplateCenter share (§9.7), so serving

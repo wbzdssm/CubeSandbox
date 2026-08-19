@@ -27,7 +27,7 @@ import (
 // handler kicked off ResumeTemplateImageJobAfterRemoteBuild in a goroutine.
 // That goroutine is in-memory state, so it is lost whenever CubeMaster
 // restarts -- including the restart that happens when an operator flips
-// template_build_mode back to "local".
+// templatecenter_enabled back to false.
 //
 // Without a sweep the job would sit at BUILT forever: no timeout, no error,
 // and a client polling for READY/FAILED would poll indefinitely. This
@@ -226,7 +226,7 @@ func resumeStuckBuiltJobs(ctx context.Context) error {
 			// of leaving the job stuck: the client sees why and can retry.
 			msg := fmt.Sprintf(
 				"build finished but the post-build step was lost (likely a CubeMaster restart, "+
-					"e.g. a template_build_mode switch) and cannot be replayed: %v. retry the build", err)
+					"e.g. a templatecenter_enabled switch) and cannot be replayed: %v. retry the build", err)
 			logger.Errorf("job %s: %s", job.JobID, msg)
 			if updErr := updateTemplateImageJob(ctx, job.JobID, map[string]any{
 				"status":        JobStatusFailed,
