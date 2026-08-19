@@ -108,6 +108,11 @@ class Config:
     http_timeout: int = int(os.environ.get("HTTP_TIMEOUT", "30"))
     poll_interval: float = float(os.environ.get("POLL_INTERVAL", "3"))
     delete_settle: int = int(os.environ.get("DELETE_SETTLE", "15"))
+    # Boundary rows whose acceptance would start a distinct full build (every
+    # exposed_ports / writable_layer_size / instance_type variant is its own
+    # template spec fingerprint) are skipped unless this is on. Submitting all
+    # of them takes hours and one of them asks for 1000Ti.
+    full_boundaries: bool = os.environ.get("FULL_BOUNDARIES", "").lower() in ("1", "true", "yes")
 
     def entry_url(self, entry: str) -> str:
         return {
@@ -489,16 +494,26 @@ class Database:
 # list length.
 # --------------------------------------------------------------------------
 VOLATILE_KEY_PATTERNS = [
-    re.compile(r"^(id|job_id|jobID|template_id|templateID|artifact_id|build_id|buildID)$", re.I),
-    re.compile(r"^(request_?id|requestID|snapshot_id|parent_.*_id)$", re.I),
+    # Ids, matched as a whole key OR as a suffix, so derived names like
+    # resolved_template_id / parent_job_id are covered too. Missing the suffix
+    # form made every read report a difference purely because the two runs
+    # created different templates.
+    re.compile(r"(^|_)(id|job_?id|template_?id|artifact_?id|build_?id|"
+               r"request_?id|snapshot_?id)$", re.I),
     re.compile(r"(_at|_time|_unix|timestamp|deadline)$", re.I),
     re.compile(r"(token|fingerprint|sha256|digest|checksum)$", re.I),
     re.compile(r"^(node_id|node_ip|host_ip|host_id|ins_id|ins_ip|master_node_ip|local_ip)$", re.I),
     re.compile(r"^(ext4_path|ext4_size_bytes|artifact_path|store_path)$", re.I),
     re.compile(r"^(display_name|alias|aliases|name|version)$", re.I),
     re.compile(r"^(progress|pull_.*|.*_node_count|elapsed_ms|duration.*)$", re.I),
+    # Human-readable diagnostics. These embed ids and aliases verbatim, so
+    # comparing the text is meaningless — but the SHAPE still matters, and the
+    # normalizer preserves it: <empty> vs <value> keeps "did this fail" while
+    # discarding "which template it was about". The semantic outcome is compared
+    # separately from ret_code / HTTP status.
+    re.compile(r"(^|_)(msg|message|error|last_error|reason|detail|details)$", re.I),
     re.compile(r"^(image_config_json|create_request|createRequest|generated_request_json|"
-               r"result_json|request_json|payload_json|logs|message)$", re.I),
+               r"result_json|request_json|payload_json|logs)$", re.I),
 ]
 
 

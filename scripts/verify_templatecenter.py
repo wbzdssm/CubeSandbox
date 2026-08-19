@@ -102,7 +102,17 @@ EXPECTED_FACT_DIVERGENCE = {
     "checks",            # /health composition depends on the TC switch
     "unsupported",
     "exception",
+    "identifier",        # echoed back for readability, not an outcome
+    "boundary",
+    "why",
 }
+
+# Boundary-phase bookkeeping. Whether a costly row was submitted depends on
+# --full-boundaries, which is an operator choice rather than a property of the
+# link, so comparing two runs made with different policies must not drown in it.
+POLICY_FACTS = {"skipped_by_policy", "costly", "full_boundaries", "submitted",
+                "rows", "accepted"}
+EXPECTED_FACT_DIVERGENCE |= POLICY_FACTS
 
 # Recorded per state transition, so the count differs by design. Compared as a
 # trajectory note instead of record by record.
@@ -283,6 +293,18 @@ def compare(a: dict[str, Any], b: dict[str, Any]) -> tuple[list[str], list[str]]
                              f"{lb}={bool(fb.get('unsupported'))})")
             continue
 
+        # A row skipped by --full-boundaries policy has no response at all, so
+        # comparing outcomes would report "no-call vs ok" for what is really just
+        # a different operator choice. Skipped on either side means the pair
+        # carries no information.
+        if fa.get("skipped_by_policy") or fb.get("skipped_by_policy"):
+            if bool(fa.get("skipped_by_policy")) != bool(fb.get("skipped_by_policy")):
+                notes.append(f"{op}: exercised in one run only "
+                             f"({la} skipped={bool(fa.get('skipped_by_policy'))}, "
+                             f"{lb} skipped={bool(fb.get('skipped_by_policy'))}); "
+                             "pass --full-boundaries to both runs to compare it")
+            continue
+
         # 1) Semantic outcome. A call that succeeds on one link and fails on the
         #    other is the strongest possible signal, in any dialect.
         oa, ob = outcome_of(ra.get("response")), outcome_of(rb.get("response"))
@@ -353,6 +375,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         cfg.image = args.image
     if args.build_timeout:
         cfg.build_timeout = args.build_timeout
+    if args.full_boundaries:
+        cfg.full_boundaries = True
 
     rec = Recorder(cfg, args.link, print_raw=not args.quiet_raw,
                    print_limit=0 if args.full else args.print_limit)
@@ -486,6 +510,10 @@ def main() -> int:
                        help="characters per raw value when printing (default 1200)")
     p_run.add_argument("--image", help="override the source image")
     p_run.add_argument("--build-timeout", type=int, help="seconds to wait for a build")
+    p_run.add_argument("--full-boundaries", action="store_true",
+                       help="also submit boundary rows whose acceptance starts a "
+                            "distinct full build (slow: every exposed_ports / "
+                            "writable_layer_size variant is its own fingerprint)")
     p_run.set_defaults(func=cmd_run)
 
     p_cmp = sub.add_parser("compare", help="compare two recorded runs")

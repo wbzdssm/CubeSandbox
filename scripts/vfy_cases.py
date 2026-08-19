@@ -39,6 +39,7 @@ from vfy_core import (
     info,
     section,
 )
+from vfy_boundaries import HOSTILE_IDENTIFIERS, create_boundary_rows
 from vfy_links import CreateSpec
 from vfy_verifier import Recorder
 
@@ -55,27 +56,80 @@ class Scenario:
         self.name = ""
         self.artifact_id = ""
         self.download_token = ""
+        # Aliases claimed by accepted boundary rows. Tracked so the cleanup can
+        # release them even when the delete-by-id already succeeded.
+        self._probe_aliases: set[str] = set()
 
     # =====================================================================
-    # 1. Negative / edge probes
+    # 1. Input boundary probes
     # =====================================================================
     def probes(self) -> None:
-        section("1. edge-input probes (recorded, not judged)")
+        section("1. input boundary probes (recorded, not judged)")
         r = self.r
-        r.add("probe.unknown_template", "get a template id that does not exist",
-              self.link.probe_unknown_template())
-        r.add("probe.unknown_job", "get a build/job id that does not exist",
-              self.link.probe_unknown_job())
-        r.add("probe.empty_image", "create with an empty image reference",
-              self.link.probe_empty_image())
+        rows = create_boundary_rows(self.cfg.image, self.cfg.instance_type)
+        submitted = skipped = accepted = 0
 
-        # Name/alias grammar is ^[a-z0-9][a-z0-9-]{0,63}$ and must not start
-        # with tpl-/snap-. Both rules are worth recording because the name is
-        # what survives a rebuild.
-        for bad, why in (("Bad_Name", "uppercase+underscore"),
-                         ("tpl-reserved", "reserved prefix")):
-            r.add("probe.bad_name", f"create with an invalid name ({why})",
-                  self.link.probe_bad_name(bad))
+        for spec in rows:
+            case, why, fields = spec["case"], spec["why"], spec["fields"]
+
+            if spec["costly"] and not self.cfg.full_boundaries:
+                # Recorded rather than dropped, so the trace still shows the row
+                # exists and why it was not exercised.
+                r.add(f"probe.create.{case}", why,
+                      facts={"skipped_by_policy": True, "costly": True},
+                      note="acceptance would trigger a distinct full build; "
+                           "enable with --full-boundaries")
+                skipped += 1
+                continue
+
+            call = self.link.create_probe(fields)
+            rec = r.add(f"probe.create.{case}", why, call,
+                        facts={"boundary": case, "costly": spec["costly"]})
+            submitted += 1
+
+            # An accepted row created a real template AND started a real build.
+            # It is deleted immediately and deliberately NOT polled: waiting for
+            # every accepted boundary row to finish would take hours.
+            ident, name = _created_identity(rec, call)
+            if ident:
+                accepted += 1
+                rec.facts["accepted"] = True
+                rec.note = (rec.note + " " if rec.note else "") + \
+                    "accepted: template deleted immediately, its build was not awaited"
+                cleanup = self.link.delete_probe(ident)
+                r.add(f"probe.create.{case}.cleanup",
+                      f"delete the template this boundary row created ({ident})",
+                      cleanup)
+                if name:
+                    self._probe_aliases.add(name)
+
+        r.add("probe.create.summary", "boundary rows for create-from-image",
+              facts={"rows": len(rows), "submitted": submitted,
+                     "skipped_by_policy": skipped, "accepted": accepted,
+                     "full_boundaries": self.cfg.full_boundaries})
+
+        self._identifier_probes()
+
+    def _identifier_probes(self) -> None:
+        """Read and delete by identifiers that must never reach a path or a query.
+
+        The artifact store is addressed by id and ids are interpolated into SQL
+        in places, so a traversal or a quote that escaped would be a security
+        bug, not a validation nicety. These cost nothing: none of them can match
+        a real template.
+        """
+        r = self.r
+        for case, ident in HOSTILE_IDENTIFIERS:
+            r.add(f"probe.read_id.{case}", f"read a template by a {case} identifier",
+                  self.link.get_probe(ident), facts={"identifier": repr(ident)})
+        for case, ident in HOSTILE_IDENTIFIERS:
+            r.add(f"probe.job_id.{case}", f"read a build job by a {case} identifier",
+                  self.link.job_probe(ident), facts={"identifier": repr(ident)})
+        # Delete is the dangerous one: a traversal here would delete files, and a
+        # SQL tautology could match every row.
+        for case, ident in HOSTILE_IDENTIFIERS:
+            r.add(f"probe.delete_id.{case}", f"delete by a {case} identifier",
+                  self.link.delete_probe(ident), facts={"identifier": repr(ident)})
 
     # =====================================================================
     # 2. World before
@@ -202,8 +256,30 @@ class Scenario:
 
         r.add("read.download_head", "HEAD the artifact download (on CubeMaster)",
               self.link.head_download(self.artifact_id, self.download_token))
-        r.add("read.download_bad_token", "HEAD the artifact download with a wrong token",
-              self.link.head_download(self.artifact_id, "wrong-token"))
+
+        # The download endpoint serves raw bytes off disk and is authorised by
+        # nothing but this token, so its boundaries are security boundaries.
+        for case, token in (
+            ("wrong-token", "wrong-token"),
+            ("empty-token", ""),
+            ("token-prefix", self.download_token[:8] if self.download_token else "x"),
+            ("token-with-wildcard", "%"),
+            ("token-sql-tautology", "' OR '1'='1"),
+        ):
+            r.add(f"read.download_token.{case}",
+                  f"HEAD the artifact download with a {case}",
+                  self.link.head_download(self.artifact_id, token))
+
+        # A traversal in the artifact id must not escape the artifact store.
+        for case, artifact_id in (
+            ("path-traversal", "../../../../etc/passwd"),
+            ("absolute-path", "/etc/passwd"),
+            ("absent", "rfs-0000000000000000000000000000"),
+            ("empty", ""),
+        ):
+            r.add(f"read.download_artifact.{case}",
+                  f"HEAD the artifact download with a {case} artifact id",
+                  self.link.head_download(artifact_id, self.download_token))
 
     # =====================================================================
     # 5. Rebuild / redo
@@ -218,6 +294,55 @@ class Scenario:
               self.link.rebuild(self.template_id))
         r.add("rebuild.db", "DB fan-out right after the rebuild request",
               db=r.db_snapshot(job_id=self.job_id, template_id=self.template_id))
+
+        # Rebuilding something that is not there, and rebuilding the one that is
+        # already rebuilding. The second is the interesting one: it must be
+        # either rejected as a conflict or coalesced, never allowed to run two
+        # builds over the same template.
+        r.add("rebuild.absent", "rebuild a template id that does not exist",
+              self.link.rebuild("tpl-0000000000000000000000000000"))
+        r.add("rebuild.again_immediately",
+              "rebuild the same template while the previous rebuild is in flight",
+              self.link.rebuild(self.template_id))
+        r.add("rebuild.concurrent_db",
+              "DB fan-out after two rebuilds were requested back to back",
+              db=r.db_snapshot(job_id=self.job_id, template_id=self.template_id))
+
+    # =====================================================================
+    # 5b. Alias uniqueness
+    # =====================================================================
+    def alias_conflict(self) -> None:
+        """Claiming an alias that is already taken.
+
+        The alias is the only user-chosen key in the system, so its uniqueness
+        is what stops two templates from being addressable by the same name.
+        This runs after the main create, when the alias is definitely claimed.
+        """
+        section("5c. alias uniqueness")
+        r = self.r
+        if not self.name:
+            r.add("conflict.alias", "skipped: no alias was claimed", note="no name")
+            return
+
+        call = self.link.create_probe({
+            "image": self.cfg.image,
+            "instance_type": self.cfg.instance_type,
+            "writable_layer_size": "1G",
+            "name": self.name,
+            "request_id": f"{r.tag}-alias-conflict",
+        })
+        rec = r.add("conflict.alias",
+                    f"create a second template claiming the alias {self.name!r}", call)
+        ident, _ = _created_identity(rec, call)
+        if ident:
+            # Accepted, so the alias is NOT unique. Recorded as a fact rather
+            # than judged, and cleaned up so the run stays repeatable.
+            rec.facts["alias_reuse_accepted"] = True
+            r.add("conflict.alias.cleanup",
+                  f"delete the duplicate-alias template ({ident})",
+                  self.link.delete_probe(ident))
+        else:
+            rec.facts["alias_reuse_accepted"] = False
 
     # =====================================================================
     # 6. Same spec again: dedup must land on the same artifact
@@ -308,6 +433,43 @@ class Scenario:
                   "placement_rows": len(after.get(TBL_PLACEMENT) or []),
                   "replica_status": _histogram(after.get(TBL_REPLICA) or []),
               })
+
+        # Deleting the same thing twice. A second delete must be a clean
+        # "already gone", not a 500 and not a success that implies it deleted
+        # something. Retries and concurrent cleanups make this happen for real.
+        rec = r.add("delete.again", "delete the same template a second time",
+                    self.link.delete_probe(target))
+        rec.facts["second_delete_looks_absent"] = _looks_absent(rec)
+        if name:
+            r.add("delete.by_name_after_delete",
+                  "delete by the alias of an already-deleted template",
+                  self.link.delete_probe(name))
+
+        # The build job survives its template by design (build history), so
+        # reading it after the delete must still work rather than 500.
+        if self.job_id:
+            r.add("delete.job_after", "read the build job after its template was deleted",
+                  self.link.get_job(self.job_id, template_id))
+
+        # The alias must be reusable once released, otherwise a name is
+        # effectively burned by its first use.
+        if name:
+            call = self.link.create_probe({
+                "image": self.cfg.image,
+                "instance_type": self.cfg.instance_type,
+                "writable_layer_size": "1G",
+                "name": name,
+                "request_id": f"{r.tag}-alias-reclaim",
+            })
+            rec = r.add("delete.alias_reclaimable",
+                        f"claim the alias {name!r} again after the delete", call)
+            ident, _ = _created_identity(rec, call)
+            rec.facts["alias_reclaimed"] = bool(ident)
+            if ident:
+                r.add("delete.alias_reclaim_cleanup",
+                      f"delete the template that reclaimed the alias ({ident})",
+                      self.link.delete_probe(ident))
+
         r.created.pop(0)
 
     # =====================================================================
@@ -321,13 +483,20 @@ class Scenario:
     # ---- cleanup -------------------------------------------------------
     def cleanup(self) -> None:
         r = self.r
-        if not r.created:
+        if not r.created and not self._probe_aliases:
             return
         section("cleanup")
         for template_id, name in list(r.created):
             target = template_id or name
             r.add("cleanup.delete", f"cleanup {target}", self.link.delete(target))
         r.created.clear()
+        # Aliases claimed by accepted boundary rows. Deleting by id normally
+        # releases them, but a partially-applied create can leave the alias
+        # behind, and a burned alias would break the next run.
+        for alias in sorted(self._probe_aliases):
+            r.add("cleanup.alias", f"release the boundary alias {alias!r}",
+                  self.link.delete_probe(alias))
+        self._probe_aliases.clear()
 
 
 def _histogram(rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -336,6 +505,33 @@ def _histogram(rows: list[dict[str, Any]]) -> dict[str, int]:
         key = str(row.get("status", "?"))
         hist[key] = hist.get(key, 0) + 1
     return dict(sorted(hist.items()))
+
+
+def _created_identity(rec: Any, call: Any) -> tuple[str, str]:
+    """Best-effort (identifier, alias) of whatever a create actually created.
+
+    A boundary row that turned out to be ACCEPTED has made a real template and
+    started a real build, so it must be cleaned up. The id may arrive as a
+    template id or only as a job id depending on the link, and the response
+    shape differs per dialect, so every plausible source is consulted rather
+    than assuming one.
+    """
+    facts = getattr(rec, "facts", None) or {}
+    template_id = str(facts.get("template_id") or "").strip()
+    if template_id:
+        return template_id, str(facts.get("name") or "").strip()
+
+    resp = (getattr(call, "response", None) or {})
+    if resp.get("error"):
+        return "", ""
+    body = resp.get("json")
+    if isinstance(body, dict):
+        job = body.get("job") if isinstance(body.get("job"), dict) else body
+        for key in ("template_id", "templateID", "templateId"):
+            value = str(job.get(key) or "").strip()
+            if value:
+                return value, ""
+    return "", ""
 
 
 def _looks_absent(call: Any) -> bool:
@@ -357,6 +553,7 @@ ORDER = [
     ("create", Scenario.create),
     ("read_created", Scenario.read_created),
     ("rebuild", Scenario.rebuild),
+    ("alias_conflict", Scenario.alias_conflict),
     ("dedup", Scenario.dedup),
     ("delete", Scenario.delete),
     ("list_after", Scenario.list_after),

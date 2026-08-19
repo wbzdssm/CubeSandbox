@@ -308,6 +308,129 @@ check("flatten distinguishes empty containers",
       flatten({"a": []}) != flatten({"a": {}}),
       f"{flatten({'a': []})} vs {flatten({'a': {}})}")
 
+# =====================================================================
+# boundary tables and the policy-skip path
+# =====================================================================
+from vfy_boundaries import (  # noqa: E402
+    ALIAS_MAX,
+    ALIAS_TOO_LONG,
+    HOSTILE_IDENTIFIERS,
+    create_boundary_rows,
+)
+from vfy_links import OMIT, HTTP_FIELD_NAMES, SDK_FIELD_NAMES, _Omit  # noqa: E402
+
+rows = create_boundary_rows("nginx:latest", "cubebox")
+cases = [r["case"] for r in rows]
+
+check("boundary cases are unique", len(cases) == len(set(cases)),
+      f"duplicates: {[c for c in cases if cases.count(c) > 1]}")
+check("every boundary row explains itself", all(r["why"] for r in rows))
+check("every boundary row carries a cost flag",
+      all(isinstance(r["costly"], bool) for r in rows))
+
+# A boundary is only informative in pairs. If the accepted side were missing,
+# "everything is rejected" would look identical to "the rule is enforced".
+check("alias boundary covers the accepted side",
+      any(c.startswith("alias-") and "too-long" not in c and "uppercase" not in c
+          for c in cases))
+check("alias length boundary is paired",
+      len(ALIAS_MAX) == 64 and len(ALIAS_TOO_LONG) == 65,
+      f"{len(ALIAS_MAX)} / {len(ALIAS_TOO_LONG)}")
+check("port range boundary is paired on both ends",
+      {"ports-min", "ports-max", "ports-zero", "ports-above-max"} <= set(cases))
+check("custom port count boundary is paired",
+      {"ports-three-custom", "ports-four-custom"} <= set(cases))
+check("the reserved port exemption is covered",
+      "ports-three-custom-plus-reserved" in cases)
+check("reserved alias prefixes are covered and so is their near-miss",
+      {"alias-reserved-tpl-prefix", "alias-reserved-snap-prefix",
+       "alias-tpl-without-hyphen"} <= set(cases))
+check("required fields are probed both omitted and empty",
+      {"image-omitted", "image-empty", "size-omitted", "size-empty",
+       "request-id-omitted", "request-id-empty"} <= set(cases))
+
+# Rows that would trigger a real build must be tagged, or a default run would
+# take hours; rows that cannot be accepted must NOT be tagged, or the cheap
+# cases would be needlessly skipped.
+costly = {r["case"] for r in rows if r["costly"]}
+check("fingerprint-changing rows are marked costly",
+      {"ports-min", "ports-max", "size-absurd", "instance-type-unknown"} <= costly,
+      f"missing: {{'ports-min','ports-max','size-absurd','instance-type-unknown'}} - {costly}")
+check("rows that can only be rejected are not marked costly",
+      not ({"image-empty", "image-omitted", "ports-zero", "ports-above-max",
+            "ports-four-custom", "alias-uppercase", "size-empty"} & costly),
+      f"wrongly costly: {{'image-empty','ports-zero','alias-uppercase'}} & {costly}")
+
+# OMIT must survive into "field absent", which is a different boundary from
+# "field empty": the server may well answer differently to each.
+omitted = [r for r in rows if isinstance(r["fields"].get("image"), _Omit)]
+check("OMIT is used to express an absent field", len(omitted) == 1, str(len(omitted)))
+check("OMIT is not equal to an empty string", OMIT != "" and OMIT is not None)
+check("field maps cover every logical key used by the table",
+      all(k in HTTP_FIELD_NAMES for r in rows for k in r["fields"]),
+      f"unmapped: {{k for r in rows for k in r['fields']}} - {set(HTTP_FIELD_NAMES)}")
+check("the SDK map omits request_id, which CubeAPI does not accept",
+      "request_id" not in SDK_FIELD_NAMES and "request_id" in HTTP_FIELD_NAMES)
+
+ids = [c for c, _ in HOSTILE_IDENTIFIERS]
+check("hostile identifier cases are unique", len(ids) == len(set(ids)))
+check("path traversal and SQL injection are both probed",
+      {"path-traversal", "sql-tautology"} <= set(ids))
+check("empty and whitespace identifiers are probed",
+      {"empty", "whitespace"} <= set(ids))
+
+# A row skipped by policy has no response. Comparing it against a submitted one
+# must be a note, not a divergence, or every default-vs-full comparison would be
+# flooded with false positives.
+a_skip = run("master-local")
+b_full = run("master-remote")
+a_skip["records"].append(rec(20, "probe.create.ports-max", "65535 is valid", None,
+                            facts={"skipped_by_policy": True, "costly": True}))
+b_full["records"].append(rec(20, "probe.create.ports-max", "65535 is valid",
+                            envelope(200), facts={"costly": True}))
+hard, notes = compare(a_skip, b_full)
+check("a policy-skipped row is not a divergence", not hard, f"got: {hard}")
+check("a policy-skipped row is surfaced as a note",
+      any("exercised in one run only" in n for n in notes), str(notes))
+
+# But when both runs exercised it, a real difference must still be caught.
+a_both = run("master-local")
+b_both = run("master-remote")
+a_both["records"].append(rec(20, "probe.create.ports-max", "65535 is valid",
+                             envelope(200), facts={"costly": True}))
+b_both["records"].append(rec(20, "probe.create.ports-max", "65535 is valid",
+                             envelope(130400), facts={"costly": True}))
+hard, _ = compare(a_both, b_both)
+check("a boundary outcome flip is caught when both runs exercised it",
+      any("outcome differs" in h for h in hard), f"got: {hard}")
+
+# =====================================================================
+# normalization of per-run values
+#
+# These two were found by running the harness against a stub server: both links
+# behaved identically, yet the comparison reported eight divergences purely
+# because two runs create different ids. A comparison tool that cries wolf on
+# every run is as useless as one that never fires, so they are pinned here.
+# =====================================================================
+check("derived id keys normalize as ids",
+      normalize({"resolved_template_id": "tpl-aaa"})
+      == normalize({"resolved_template_id": "tpl-bbb"}),
+      "a suffix like _template_id must be recognised, not just the bare key")
+check("parent/child id keys normalize as ids",
+      normalize({"parent_job_id": "job-1"}) == normalize({"parent_job_id": "job-2"}))
+check("ret_msg normalizes: it embeds the id it is about",
+      normalize({"ret_msg": "template 'tpl-aaa' not found"})
+      == normalize({"ret_msg": "template 'tpl-bbb' not found"}))
+check("error_message normalizes for the same reason",
+      normalize({"error_message": "node 10.0.0.1 refused"})
+      == normalize({"error_message": "node 10.0.0.2 refused"}))
+# ...but the SHAPE must survive, or "it failed" would compare equal to "it did
+# not". The semantic outcome is compared separately, from ret_code.
+check("an empty message stays distinguishable from a non-empty one",
+      normalize({"ret_msg": ""}) != normalize({"ret_msg": "boom"}))
+check("an empty error stays distinguishable from a non-empty one",
+      normalize({"error_message": ""}) != normalize({"error_message": "boom"}))
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} self-test(s) FAILED: {FAILURES}")

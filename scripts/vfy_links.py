@@ -41,6 +41,43 @@ SDK_PATH = os.path.join(
 )
 
 
+class _Omit:
+    """Sentinel meaning "leave this field out of the request entirely".
+
+    Distinct from None and from "": a missing required field, a null one and an
+    empty one are three different boundaries and the server may well answer
+    differently to each.
+    """
+
+    def __repr__(self) -> str:
+        return "<OMIT>"
+
+
+OMIT = _Omit()
+
+# Logical boundary-table field names -> wire names per dialect.
+#
+# /cube/* is snake_case with `alias` and a mandatory `requestID`; CubeAPI is
+# camelCase with `name` and no request id (the SDK does not expose one). Keeping
+# the tables in logical names is what lets one boundary row drive both links.
+HTTP_FIELD_NAMES = {
+    "image": "source_image_ref",
+    "name": "alias",
+    "instance_type": "instance_type",
+    "writable_layer_size": "writable_layer_size",
+    "exposed_ports": "exposed_ports",
+    "request_id": "requestID",
+}
+
+SDK_FIELD_NAMES = {
+    "image": "image",
+    "name": "name",
+    "instance_type": "instance_type",
+    "writable_layer_size": "writable_layer_size",
+    "exposed_ports": "exposed_ports",
+}
+
+
 @dataclass
 class CreateSpec:
     """One template request expressed link-independently.
@@ -101,17 +138,33 @@ class Link:
         """Is the template control plane actually mounted at this entry?"""
         raise NotImplementedError
 
-    # -- negative probes (recorded as data, not asserted) ---------------
-    def probe_unknown_template(self) -> LinkCall:
+    # -- boundary probes ------------------------------------------------
+    #
+    # Data-driven on purpose. The boundary tables live in vfy_boundaries.py and
+    # hold LOGICAL field names; each link maps them onto its own wire names.
+    # Hard-coding one method per boundary (probe_empty_image, probe_bad_name,
+    # ...) stopped scaling at about six cases and made every new boundary a
+    # change in three files.
+    def create_probe(self, fields: dict[str, Any]) -> LinkCall:
+        """Submit a create built from a boundary table row.
+
+        Recognised logical keys: image, name, instance_type,
+        writable_layer_size, exposed_ports, request_id. A key whose value is
+        OMIT is left out of the request entirely, which is itself a boundary
+        (a missing required field is not the same as an empty one).
+        """
         raise NotImplementedError
 
-    def probe_unknown_job(self) -> LinkCall:
+    def get_probe(self, ident: str) -> LinkCall:
+        """Read a template by an arbitrary (possibly hostile) identifier."""
         raise NotImplementedError
 
-    def probe_empty_image(self) -> LinkCall:
+    def job_probe(self, job_id: str, template_id: str = "") -> LinkCall:
+        """Read a build job by an arbitrary identifier."""
         raise NotImplementedError
 
-    def probe_bad_name(self, name: str) -> LinkCall:
+    def delete_probe(self, ident: str) -> LinkCall:
+        """Delete by an arbitrary identifier."""
         raise NotImplementedError
 
     # -- lifecycle ------------------------------------------------------
@@ -170,27 +223,27 @@ class HttpLink(Link):
         # not 404 proves the route exists at this entry.
         return self._call(r, mounted=r.error is None and r.http_status != 404)
 
-    def probe_unknown_template(self) -> LinkCall:
+    def create_probe(self, fields: dict[str, Any]) -> LinkCall:
+        body: dict[str, Any] = {}
+        for logical, value in fields.items():
+            if isinstance(value, _Omit):
+                continue
+            wire = HTTP_FIELD_NAMES.get(logical, logical)
+            body[wire] = value
+        return self._call(self.client.call("POST", "/cube/template/from-image", body=body))
+
+    def get_probe(self, ident: str) -> LinkCall:
         return self._call(self.client.call(
-            "GET", "/cube/template", query={"template_id": "tpl-does-not-exist-xyz"}))
+            "GET", "/cube/template", query={"template_id": ident}))
 
-    def probe_unknown_job(self) -> LinkCall:
+    def job_probe(self, job_id: str, template_id: str = "") -> LinkCall:
         return self._call(self.client.call(
-            "GET", "/cube/template/from-image", query={"job_id": "job-absent-xyz"}))
+            "GET", "/cube/template/from-image", query={"job_id": job_id}))
 
-    def probe_empty_image(self) -> LinkCall:
-        return self._call(self.client.call("POST", "/cube/template/from-image", body={
-            "requestID": "vfy-neg-empty-image",
-            "source_image_ref": "",
-            "instance_type": self.cfg.instance_type,
-        }))
-
-    def probe_bad_name(self, name: str) -> LinkCall:
-        return self._call(self.client.call("POST", "/cube/template/from-image", body={
-            "requestID": "vfy-neg-bad-name",
-            "source_image_ref": self.cfg.image,
-            "instance_type": self.cfg.instance_type,
-            "alias": name,
+    def delete_probe(self, ident: str) -> LinkCall:
+        return self._call(self.client.call("DELETE", "/cube/template", body={
+            "RequestID": "vfy-delete-probe",
+            "template_id": ident,
         }))
 
     def list_templates(self) -> LinkCall:
@@ -379,31 +432,39 @@ class SdkLink(Link):
         call.facts["mounted"] = call.response is not None and call.response.get("error") is None
         return call
 
-    # -- negative probes -------------------------------------------------
-    def probe_unknown_template(self) -> LinkCall:
+    # -- boundary probes -------------------------------------------------
+    def create_probe(self, fields: dict[str, Any]) -> LinkCall:
+        kwargs: dict[str, Any] = {}
+        for logical, value in fields.items():
+            if isinstance(value, _Omit):
+                continue
+            wire = SDK_FIELD_NAMES.get(logical)
+            if wire is None:
+                # request_id has no SDK equivalent; dropping it silently would
+                # misrepresent the row, so it is recorded as unmapped.
+                continue
+            kwargs[wire] = value
+        # Some rows are rejected by the SDK's own local validation before any
+        # request is sent (image missing/empty). That is a real difference from
+        # the HTTP link and is recorded, not smoothed over.
+        return self._invoke(f"Template.build(**{kwargs!r})", "/templates", kwargs,
+                            lambda: self.sdk.build(config=self.sdk_cfg, **kwargs))[0]
+
+    def get_probe(self, ident: str) -> LinkCall:
+        return self._invoke(f"Template.get({ident!r})", f"/templates/{ident}", {},
+                            lambda: self.sdk.get(ident, config=self.sdk_cfg))[0]
+
+    def job_probe(self, job_id: str, template_id: str = "") -> LinkCall:
+        # CubeAPI scopes builds under a template, so a job probe needs both ids.
+        tpl = template_id or "tpl-absent-xyz"
         return self._invoke(
-            "Template.get('tpl-does-not-exist-xyz')", "/templates/tpl-does-not-exist-xyz", {},
-            lambda: self.sdk.get("tpl-does-not-exist-xyz", config=self.sdk_cfg))[0]
+            f"Template.get_build_status({tpl!r}, {job_id!r})",
+            f"/templates/{tpl}/builds/{job_id}/status", {},
+            lambda: self.sdk.get_build_status(tpl, job_id, config=self.sdk_cfg))[0]
 
-    def probe_unknown_job(self) -> LinkCall:
-        return self._invoke(
-            "Template.get_build_status('tpl-absent-xyz','job-absent-xyz')",
-            "/templates/tpl-absent-xyz/builds/job-absent-xyz/status", {},
-            lambda: self.sdk.get_build_status("tpl-absent-xyz", "job-absent-xyz",
-                                              config=self.sdk_cfg))[0]
-
-    def probe_empty_image(self) -> LinkCall:
-        # The SDK validates locally and raises ValueError before any request:
-        # a legitimate difference from the HTTP link, recorded as such.
-        return self._invoke("Template.build(image='')", "/templates", {"image": ""},
-                            lambda: self.sdk.build(image="", config=self.sdk_cfg))[0]
-
-    def probe_bad_name(self, name: str) -> LinkCall:
-        return self._invoke(f"Template.build(name={name!r})", "/templates",
-                            {"image": self.cfg.image, "name": name},
-                            lambda: self.sdk.build(image=self.cfg.image, name=name,
-                                                   instance_type=self.cfg.instance_type,
-                                                   config=self.sdk_cfg))[0]
+    def delete_probe(self, ident: str) -> LinkCall:
+        return self._invoke(f"Template.delete({ident!r})", f"/templates/{ident}", {},
+                            lambda: self.sdk.delete(ident, config=self.sdk_cfg))[0]
 
     # -- lifecycle -------------------------------------------------------
     def list_templates(self) -> LinkCall:
