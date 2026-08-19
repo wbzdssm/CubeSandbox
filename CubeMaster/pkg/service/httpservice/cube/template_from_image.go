@@ -134,14 +134,7 @@ func getTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interface{}
 	}
 	job, err := templatecenter.GetTemplateImageJobInfo(r.Context(), jobID)
 	if err != nil {
-		code := int(errorcode.ErrorCode_MasterInternalError)
-		switch {
-		case errors.Is(err, templatecenter.ErrTemplateImageJobNotFound):
-			// "no such job" is a client-side fact, not a server fault.
-			code = int(errorcode.ErrorCode_NotFound)
-		case errors.Is(err, templatecenter.ErrTemplateStoreNotInitialized):
-			code = int(errorcode.ErrorCode_DBError)
-		}
+		code := templateImageJobErrorCode(err)
 		rt.RetCode = int64(code)
 		return &types.CreateTemplateFromImageRes{
 			Ret: &types.Ret{
@@ -157,6 +150,27 @@ func getTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interface{}
 			RetMsg:  "success",
 		},
 		Job: job,
+	}
+}
+
+// templateImageJobErrorCode maps a build-job lookup error to a ret code.
+//
+// Shared by every handler that reads a job so they cannot disagree on what an
+// absent job means. Anything unrecognised stays MasterInternalError: guessing
+// a client-side code for an unknown failure would hide real server faults.
+func templateImageJobErrorCode(err error) int {
+	switch {
+	case err == nil:
+		return int(errorcode.ErrorCode_Success)
+	case errors.Is(err, templatecenter.ErrTemplateImageJobNotFound):
+		// "no such job" is a client-side fact, not a server fault. Returning
+		// MasterInternalError here made every probe for a missing job look like
+		// CubeMaster had broken.
+		return int(errorcode.ErrorCode_NotFound)
+	case errors.Is(err, templatecenter.ErrTemplateStoreNotInitialized):
+		return int(errorcode.ErrorCode_DBError)
+	default:
+		return int(errorcode.ErrorCode_MasterInternalError)
 	}
 }
 

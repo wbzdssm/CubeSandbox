@@ -211,13 +211,7 @@ func handleTemplateBuildStatusAction(c *gin.Context) {
 	}
 	job, err := templatecenter.GetTemplateImageJobInfo(c.Request.Context(), buildID)
 	if err != nil {
-		code := int(errorcode.ErrorCode_MasterInternalError)
-		switch {
-		case errors.Is(err, templatecenter.ErrTemplateImageJobNotFound):
-			code = int(errorcode.ErrorCode_NotFound)
-		case errors.Is(err, templatecenter.ErrTemplateStoreNotInitialized):
-			code = int(errorcode.ErrorCode_DBError)
-		}
+		code := templateImageJobErrorCode(err)
 		if rt != nil {
 			rt.RetCode = int64(code)
 		}

@@ -24,12 +24,17 @@ const (
 	// doubling, 6 attempts span ~15s of wall time — long enough to ride out a
 	// CubeMaster rolling restart without holding the build goroutine forever.
 	reportMaxAttempts = 6
-	reportBaseBackoff = 500 * time.Millisecond
-	reportMaxBackoff  = 5 * time.Second
 	// terminalReportMaxAttempts is used for terminal reports (BUILT / FAILED).
 	// Losing a terminal report leaves the job stuck in RUNNING until the
 	// reconciler times it out, so it is worth retrying much harder.
 	terminalReportMaxAttempts = 12
+)
+
+// Backoff schedule. These are variables rather than constants purely so tests
+// can shrink them; nothing in production reassigns them.
+var (
+	reportBaseBackoff = 500 * time.Millisecond
+	reportMaxBackoff  = 5 * time.Second
 )
 
 // Reporter reports build status back to CubeMaster.

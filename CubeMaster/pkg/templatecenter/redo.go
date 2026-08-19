@@ -192,17 +192,25 @@ func rootfsArtifactReusableForRedo(ctx context.Context, artifactID string) bool 
 	}
 	artifact, err := getRootfsArtifactByID(ctx, artifactID)
 	if err != nil || artifact == nil {
+		// Includes gorm.ErrRecordNotFound, which is the exact state the
+		// all-nodes-failed cleanup leaves behind.
 		return false
 	}
-	switch strings.ToUpper(strings.TrimSpace(artifact.Status)) {
-	case ArtifactStatusReady:
-		return true
-	default:
-		// PENDING/BUILDING is somebody else's in-flight build, and
-		// FAILED/CLEANUP_PENDING/ORPHANED must never be reused (the files are
-		// gone or going). In every one of those cases rebuilding is correct.
-		return false
-	}
+	return artifactStatusReusableForRedo(artifact.Status)
+}
+
+// artifactStatusReusableForRedo is the status half of the decision above, kept
+// separate from the DB lookup so the state matrix can be tested directly.
+//
+// Only READY means "the ext4 exists and is complete". Everything else must
+// rebuild:
+//   - PENDING/BUILDING belongs to an in-flight build owned by someone else;
+//     reusing it would read a half-written file.
+//   - FAILED/CLEANUP_PENDING/ORPHANED means the files are gone or going.
+//   - an unknown status is treated as not reusable, so adding a state to the
+//     schema can never silently turn into "reuse it".
+func artifactStatusReusableForRedo(status string) bool {
+	return strings.EqualFold(strings.TrimSpace(status), ArtifactStatusReady)
 }
 
 func failRedoTemplateImageJob(ctx context.Context, jobID, phase, message string) {

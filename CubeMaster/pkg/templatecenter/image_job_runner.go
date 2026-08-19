@@ -134,6 +134,45 @@ func runTemplateImageJob(ctx context.Context, jobID string, req *types.CreateTem
 	_ = finishTemplateImageJobAfterArtifact(ctx, jobID, req, artifact, generatedReq, builtFreshArtifact)
 }
 
+// distributionFailure decides whether a distribution outcome is terminal, and
+// returns the error to record when it is (nil means "keep going").
+//
+// Kept as a pure function so the whole outcome matrix is testable without a DB.
+//
+// There is deliberately NO minimum node count: expected==1 is a perfectly
+// valid single-node deployment and 1 ready of 1 expected is success. What
+// matters is only whether any node ended up ready.
+//
+// The two zero-ready cases are distinguished because they need different
+// diagnoses, and conflating them is what made this failure mode opaque:
+//
+//	expected == 0  distribution never reached a node at all — no healthy node
+//	               for the instance type, a distribution_scope matching
+//	               nothing, or an artifact that failed the readiness guard.
+//	               distErr is wrapped with %w so callers can still match it.
+//	expected  > 0  every node was tried and every node failed.
+//
+// The earlier guard read `expected > 0 && ready == 0`, so the expected==0 case
+// fell through it: the job still ended FAILED (summarizeStatus of zero replicas
+// is FAILED), but only after writing a template_definition for a template that
+// cannot have replicas, and finalizeTemplateReplicas then overwrote
+// error_message with a generic "failed on all nodes", destroying the only
+// explanation of what actually went wrong.
+func distributionFailure(expected, ready int32, distErr error) error {
+	if ready > 0 {
+		return nil
+	}
+	if expected == 0 {
+		// distErr is always set on this path today; keep a usable message if a
+		// future caller ever returns zero targets without an error.
+		if distErr == nil {
+			distErr = ErrNoTemplateNodes
+		}
+		return fmt.Errorf("artifact distribution did not reach any node: %w", distErr)
+	}
+	return fmt.Errorf("artifact distribution failed on all %d node(s): %v", expected, distErr)
+}
+
 // finishTemplateImageJobAfterArtifact runs every step that follows a ready
 // rootfs artifact: distribute to nodes, write template_definitions, create
 // replicas, claim the alias, aggregate status and write the job's terminal row.
@@ -176,31 +215,8 @@ func finishTemplateImageJobAfterArtifact(
 	}); err != nil {
 		logger.Errorf("update distribution status fail: %v", err)
 	}
-	// Any outcome with zero ready nodes is terminal. Note there is no minimum
-	// node count: expected==1 is a perfectly valid single-node deployment, and
-	// one ready node out of one is success.
-	//
-	// The guard used to read `expected > 0 && ready == 0`, which silently let
-	// through the case where distribution never reached a node at all
-	// (expected==0: no healthy node for the instance type, a
-	// distribution_scope matching nothing, or an artifact that failed the
-	// readiness guard). That path still ended FAILED — summarizeStatus of zero
-	// replicas is FAILED — but only after writing a template_definition for a
-	// template that can have no replicas, and the generic "creation failed on
-	// all nodes" message then overwrote distErr, destroying the only
-	// explanation of what actually went wrong.
-	if ready == 0 {
-		var failErr error
-		if expected == 0 {
-			// distErr is always set on this path, but keep a usable message if
-			// a future caller ever returns zero targets without an error.
-			if distErr == nil {
-				distErr = ErrNoTemplateNodes
-			}
-			failErr = fmt.Errorf("artifact distribution did not reach any node: %w", distErr)
-		} else {
-			failErr = fmt.Errorf("artifact distribution failed on all %d node(s): %v", expected, distErr)
-		}
+	// Zero ready nodes is terminal, whatever the reason.
+	if failErr := distributionFailure(expected, ready, distErr); failErr != nil {
 		logger.Errorf("%v; template_definitions/replicas are intentionally NOT written for this job", failErr)
 		// Persist the diagnosis BEFORE cleaning up. Cleanup deletes this
 		// template's per-node replica rows along with the artifact, so the
