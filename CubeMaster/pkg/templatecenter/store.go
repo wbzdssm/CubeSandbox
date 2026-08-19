@@ -73,11 +73,15 @@ const (
 var (
 	ErrTemplateStoreNotInitialized = errors.New("template store is not initialized")
 	ErrTemplateNotFound            = errors.New("template not found")
-	ErrTemplateIDRequired          = errors.New("template id is required")
-	ErrTemplateHasNoReadyReplica   = errors.New("template has no ready replica")
-	ErrNoTemplateNodes             = errors.New("no healthy nodes available for template creation")
-	ErrDuplicateTemplate           = errors.New("template already exists")
-	ErrTemplateAttemptInProgress   = errors.New("template attempt is already in progress")
+	// ErrTemplateImageJobNotFound is the domain-level "no such build job".
+	// Handlers must be able to answer NotFound without importing gorm, so the
+	// repository translates gorm.ErrRecordNotFound into this.
+	ErrTemplateImageJobNotFound  = errors.New("template image job not found")
+	ErrTemplateIDRequired        = errors.New("template id is required")
+	ErrTemplateHasNoReadyReplica = errors.New("template has no ready replica")
+	ErrNoTemplateNodes           = errors.New("no healthy nodes available for template creation")
+	ErrDuplicateTemplate         = errors.New("template already exists")
+	ErrTemplateAttemptInProgress = errors.New("template attempt is already in progress")
 )
 
 type localStore struct {

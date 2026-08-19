@@ -259,6 +259,12 @@ func GetTemplateImageJobInfo(ctx context.Context, jobID string) (*types.Template
 	record := &models.TemplateImageJob{}
 	if err := store.db.WithContext(ctx).Table(constants.TemplateImageJobTableName).
 		Where("job_id = ?", jobID).First(record).Error; err != nil {
+		// Translate the driver-level miss into a domain error. Leaking
+		// gorm.ErrRecordNotFound made every handler classify "this job does not
+		// exist" as an internal error and answer 500 instead of NotFound.
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("%w: job_id=%s", ErrTemplateImageJobNotFound, jobID)
+		}
 		return nil, err
 	}
 	info, err := jobModelToInfo(ctx, record)

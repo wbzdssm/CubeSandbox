@@ -135,9 +135,14 @@ func getTemplateFromImage(r *http.Request, rt *CubeLog.RequestTrace) interface{}
 	job, err := templatecenter.GetTemplateImageJobInfo(r.Context(), jobID)
 	if err != nil {
 		code := int(errorcode.ErrorCode_MasterInternalError)
-		if errors.Is(err, templatecenter.ErrTemplateStoreNotInitialized) {
+		switch {
+		case errors.Is(err, templatecenter.ErrTemplateImageJobNotFound):
+			// "no such job" is a client-side fact, not a server fault.
+			code = int(errorcode.ErrorCode_NotFound)
+		case errors.Is(err, templatecenter.ErrTemplateStoreNotInitialized):
 			code = int(errorcode.ErrorCode_DBError)
 		}
+		rt.RetCode = int64(code)
 		return &types.CreateTemplateFromImageRes{
 			Ret: &types.Ret{
 				RetCode: code,
