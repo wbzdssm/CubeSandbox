@@ -8,6 +8,19 @@ common:
   collect_metric_interval: 1s
   default_headless_service_nodes_num: 1
   enable_check_com_net_id_param: false
+  # Template build / route wiring. Both default to "local", which is the
+  # pre-split behaviour: CubeMaster builds the ext4 in-process and serves the
+  # public template API itself.
+  #
+  # templateCenter.enabled alone does NOT change CubeMaster's behaviour -- it
+  # only starts the TC process. These two keys are what hand work over to it,
+  # which is why they are derived from the same value.
+  template_build_mode: {{ include "cube.templateBuildMode" . | quote }}
+  template_route_mode: {{ include "cube.templateRouteMode" . | quote }}
+{{- $tcEndpoint := include "cube.templateCenterEndpoint" . }}
+{{- if $tcEndpoint }}
+  template_center_endpoint: {{ $tcEndpoint | quote }}
+{{- end }}
 
 log:
   module: "cubemaster"

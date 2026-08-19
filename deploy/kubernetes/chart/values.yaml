@@ -233,6 +233,12 @@ controlPlane:
     args: []
     env: []
     nodeIPs: []
+    # Bypass the migration content preflight. Rarely needed: an applied version
+    # that is absent from this image's migrations tree is only reported, so a
+    # database migrated by a different build line no longer blocks startup.
+    # Enable this only to bypass a real content drift (a migration edited after
+    # being applied), which stays fatal by design.
+    skipMigrationFingerprintCheck: false
     service:
       type: ClusterIP
       port: 8089
@@ -270,20 +276,53 @@ controlPlane:
   # Standalone template build service (CubeTemplateCenter).
   #
   # Off by default. With it disabled CubeMaster builds template ext4 images
-  # in-process, which is the pre-split behaviour; enabling this only changes
-  # WHERE the build runs once CubeMaster is also told to use it via
-  # controlPlane.master.env CUBE_TEMPLATE_BUILD_MODE / conf template_build_mode.
+  # in-process, which is the pre-split behaviour; enabling this changes WHERE
+  # the build runs.
   #
-  # Enabling it requires BOTH sides:
-  #   1. templateCenter.enabled=true here
-  #   2. CubeMaster conf: template_build_mode: remote
-  #      template_center_endpoint: <the ClusterIP Service URL>
-  # Turning on only one leaves the other side doing what it did before.
+  # Both sides are wired from these values -- no manual conf editing. Setting
+  # enabled=true starts TC and, via buildMode/routeMode below, renders
+  # template_build_mode / template_route_mode / template_center_endpoint into
+  # CubeMaster's conf. Setting enabled=false forces both modes back to "local",
+  # so the two sides can never end up half-switched.
   templateCenter:
     enabled: false
-    # replicas is intentionally absent: TC is always exactly one instance.
-    # Artifacts sit on a node-local disk with no cross-node sharing layer, so a
-    # second replica could not read the first one's output (design 9.7).
+    # There is deliberately NO `replicas` key: TC is always exactly one instance,
+    # hardcoded in the Deployment. Setting it here is rejected by validate.yaml
+    # rather than silently ignored.
+    #
+    # Why one instance only:
+    #   - the ext4 artifacts live on a node-local disk behind a ReadWriteOnce
+    #     PVC, so a second replica on another node cannot read what the first
+    #     built, and every download of those artifacts would 404;
+    #   - even co-located on one node, two TC processes would race on the same
+    #     artifact directory: the per-artifact build lock is in-process only, so
+    #     one could wipe files the other is still exporting;
+    #   - a build is in-memory progress state, so a second replica cannot take
+    #     over an interrupted build anyway -- the reconciler replays it instead.
+    # Availability is carried by CubeMaster, which is the stateless half.
+    #
+    # Where template-from-image builds run, as seen by CubeMaster
+    # (conf common.template_build_mode):
+    #   remote -- CubeMaster validates + persists the job, forwards the build to
+    #             TC and waits for its status callback. Default when enabled.
+    #   local  -- CubeMaster builds in-process. Use this to run TC only for
+    #             schema migration / the reconciler while keeping builds here.
+    # Forced to "local" whenever enabled=false, since a remote mode with no
+    # endpoint fails every template create.
+    buildMode: remote
+    # Who serves the public /cube/template* endpoints
+    # (conf common.template_route_mode):
+    #   local -- CubeMaster serves them in-process. Default; it owns the control
+    #            plane and drives distribution after TC reports BUILT.
+    #   proxy -- CubeMaster reverse-proxies every /cube/template* request to TC.
+    # Independent of buildMode. Also forced to "local" when enabled=false.
+    routeMode: local
+    # Bypass the migration content preflight. Rarely needed: an applied version
+    # that is absent from this image's migrations tree is only reported, so a
+    # database ahead of the binary no longer blocks startup. Enable this only to
+    # bypass a real content drift (a migration edited after being applied), which
+    # stays fatal by design.
+    skipMigrationFingerprintCheck: false
     command: []
     args: []
     env: []

@@ -102,17 +102,28 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
+            # Shared CubeDB with CubeMaster: both migrate it and race for the
+            # migration lock. A version applied by one image but absent from the
+            # other's migrations tree is only reported now, not fatal, so this
+            # escape hatch is no longer needed for that case and stays off.
+            #
+            # Enable it only to bypass a real content drift (a migration edited
+            # after it was applied), which remains a startup failure by design.
+            {{- if .Values.controlPlane.templateCenter.skipMigrationFingerprintCheck }}
+            - name: CUBEMASTER_MIGRATION_SKIP_FINGERPRINT_CHECK
+              value: "true"
+            {{- end }}
             {{- with .Values.controlPlane.templateCenter.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           ports:
-            - name: tc-http
+            - name: templatecenter
               containerPort: {{ .Values.controlPlane.templateCenter.service.port }}
           {{- if .Values.controlPlane.templateCenter.probes.readiness.enabled }}
           readinessProbe:
             httpGet:
               path: {{ .Values.controlPlane.templateCenter.probes.readiness.path | quote }}
-              port: tc-http
+              port: templatecenter
             initialDelaySeconds: {{ .Values.controlPlane.templateCenter.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.controlPlane.templateCenter.probes.readiness.periodSeconds }}
             failureThreshold: {{ .Values.controlPlane.templateCenter.probes.readiness.failureThreshold }}
@@ -121,7 +132,7 @@ spec:
           livenessProbe:
             httpGet:
               path: {{ .Values.controlPlane.templateCenter.probes.liveness.path | quote }}
-              port: tc-http
+              port: templatecenter
             # Long period and a high threshold on purpose: a restart mid-build
             # abandons the ext4 and leaves the job for the reconciler to fail, so
             # the liveness probe must not fire on a busy process.
@@ -187,9 +198,9 @@ spec:
     {{- include "cube.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: templatecenter
   ports:
-    - name: tc-http
+    - name: templatecenter
       port: {{ .Values.controlPlane.templateCenter.service.port }}
-      targetPort: tc-http
+      targetPort: templatecenter
       {{- with .Values.controlPlane.templateCenter.service.nodePort }}
       nodePort: {{ . }}
       {{- end }}
@@ -217,9 +228,9 @@ spec:
     {{- include "cube.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: templatecenter
   ports:
-    - name: tc-http
+    - name: templatecenter
       protocol: TCP
       port: {{ .Values.controlPlane.templateCenter.internalLoadBalancer.port }}
-      targetPort: tc-http
+      targetPort: templatecenter
 {{- end }}
 {{- end }}

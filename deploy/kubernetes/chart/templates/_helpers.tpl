@@ -528,7 +528,42 @@ routing control-plane-internal traffic through a load balancer would add a hop
 and a failure domain for no benefit.
 */ -}}
 {{- define "cube.templateCenterEndpoint" -}}
+{{- if and .Values.controlPlane.templateCenter.enabled (not .Values.externalControlPlane.enabled) -}}
 {{- printf "http://%s.%s.svc.%s:%v" (include "cube.templateCenterName" .) .Release.Namespace (include "cube.clusterDomain" .) .Values.controlPlane.templateCenter.service.port -}}
+{{- end -}}
+{{- end -}}
+
+{{- /*
+Where template-from-image builds run, as seen by CubeMaster.
+
+"remote" only once TC is actually deployed: emitting remote while TC is absent
+would make every template create fail with an empty template_center_endpoint.
+templateCenter.buildMode may force "local" to keep TC running (schema migration,
+reconciler) while CubeMaster keeps building in-process.
+*/ -}}
+{{- define "cube.templateBuildMode" -}}
+{{- $requested := .Values.controlPlane.templateCenter.buildMode | default "remote" -}}
+{{- if and .Values.controlPlane.templateCenter.enabled (include "cube.templateCenterEndpoint" .) -}}
+{{- $requested -}}
+{{- else -}}
+{{- "local" -}}
+{{- end -}}
+{{- end -}}
+
+{{- /*
+Who serves the public /cube/template* endpoints.
+
+Independent of the build mode: proxy hands the whole request to TC, local keeps
+CubeMaster as the front door while the build may still be remote. Guarded by the
+same "is TC reachable" condition, since proxy without an endpoint 503s.
+*/ -}}
+{{- define "cube.templateRouteMode" -}}
+{{- $requested := .Values.controlPlane.templateCenter.routeMode | default "local" -}}
+{{- if and .Values.controlPlane.templateCenter.enabled (include "cube.templateCenterEndpoint" .) -}}
+{{- $requested -}}
+{{- else -}}
+{{- "local" -}}
+{{- end -}}
 {{- end -}}
 
 {{- /*
