@@ -307,21 +307,25 @@ variable "cubetemplatecenter_image" {
 
 variable "deploy_templatecenter" {
   description = <<-EOT
-    Deploy CubeTemplateCenter as a standalone template build service.
+    Not supported by this Terraform module. Kept only so an existing tfvars file
+    fails with this explanation instead of "unsupported argument".
 
-    Default false keeps the pre-split behaviour, where cube-master builds template
-    ext4 images in-process. Setting this true only DEPLOYS TC; cube-master must
-    additionally be told to use it (template_build_mode=remote plus
-    template_center_endpoint). Flipping just one of the two silently leaves the
-    other side doing what it did before.
+    CubeTemplateCenter must be deployed with the Helm chart
+    (deploy/kubernetes/chart, controlPlane.templateCenter.enabled=true).
 
-    Requires use_cfs=true. TC writes the ext4 and cube-master serves it to
-    Cubelet, so both need the same artifact directory; without CFS each Pod gets
-    its own emptyDir and every artifact download would 404. A plan-time
-    precondition enforces this rather than letting it fail at runtime.
+    Terraform support was removed because getting it right needs guardrails this
+    module cannot express as cheaply as the chart does: TC has to be a single
+    replica pinned to the node holding CubeMaster's artifact volume, and
+    CubeMaster has to be switched to template_build_mode=remote in the same
+    change. Deploying only one half leaves a silently broken template pipeline.
   EOT
   type        = bool
   default     = false
+
+  validation {
+    condition     = var.deploy_templatecenter == false
+    error_message = "deploy_templatecenter is not supported by this Terraform module. Deploy CubeTemplateCenter with the Helm chart instead: helm upgrade --install cube deploy/kubernetes/chart --set controlPlane.templateCenter.enabled=true. Leave this false (or remove it) to continue with cube-master building template images in-process."
+  }
 }
 
 variable "templatecenter_serve_public_api" {
