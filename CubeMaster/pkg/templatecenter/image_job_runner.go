@@ -293,6 +293,10 @@ func finishTemplateImageJobAfterArtifact(
 	// Alias was already claimed by finalizeTemplateReplicas (before the READY
 	// status was published) to avoid the create/claim publish-ordering race.
 	resultPayload, _ := json.Marshal(info)
+	// Keep TC's BUILT report if this job was built remotely: writing the
+	// template payload straight over result_json used to erase the only durable
+	// proof of where the ext4 came from, on failed jobs too.
+	resultPayload = preserveRemoteBuildReport(ctx, jobID, resultPayload)
 	jobStatus := JobStatusReady
 	jobPhase := JobPhaseReady
 	if info.Status == StatusFailed {

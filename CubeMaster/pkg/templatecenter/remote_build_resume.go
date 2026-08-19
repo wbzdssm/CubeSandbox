@@ -71,6 +71,68 @@ func (r *RemoteBuildResult) Validate() error {
 	return nil
 }
 
+// remoteBuildReportKey is where TC's BUILT report is preserved inside the job's
+// final result_json.
+const remoteBuildReportKey = "remote_build_report"
+
+// preserveRemoteBuildReport folds a remote BUILT report into the job's final
+// result_json instead of letting it be overwritten.
+//
+// The status callback stores TC's raw BUILT payload in result_json, which is the
+// only durable record that the ext4 was produced by CubeTemplateCenter rather
+// than in-process — it carries the ext4 sha256, size and image config TC
+// measured itself. The finalize step then writes the template payload to the
+// same column, so that evidence used to be destroyed on every job, including the
+// failed ones where it is most needed for diagnosis.
+//
+// Returns finalResult unchanged on any problem: the primary payload must never
+// be lost in order to keep a diagnostic.
+func preserveRemoteBuildReport(ctx context.Context, jobID string, finalResult []byte) []byte {
+	record, err := getTemplateImageJobRecordByID(ctx, jobID)
+	if err != nil || record == nil {
+		return finalResult
+	}
+	return mergeRemoteBuildReport(record.ResultJSON, finalResult)
+}
+
+// mergeRemoteBuildReport is the decision half of preserveRemoteBuildReport,
+// separated from the DB read so the matrix is testable.
+//
+// Returns finalResult unchanged whenever there is nothing worth keeping or
+// anything fails to parse: the payload being stored is the primary record and
+// must never be sacrificed in order to retain a diagnostic.
+func mergeRemoteBuildReport(prior string, finalResult []byte) []byte {
+	prior = strings.TrimSpace(prior)
+	if prior == "" {
+		// A local build never wrote a BUILT report.
+		return finalResult
+	}
+
+	var priorPayload map[string]any
+	if err := json.Unmarshal([]byte(prior), &priorPayload); err != nil || priorPayload == nil {
+		return finalResult
+	}
+	// Only a BUILT report is worth keeping. Anything else is either already a
+	// finalize payload (a retry writing over its own output) or unrecognised.
+	if status, _ := priorPayload["status"].(string); !strings.EqualFold(status, JobStatusBuilt) {
+		return finalResult
+	}
+	// Defensive: never nest a report inside a report, which would grow the
+	// column on every finalize.
+	delete(priorPayload, remoteBuildReportKey)
+
+	var merged map[string]any
+	if err := json.Unmarshal(finalResult, &merged); err != nil || merged == nil {
+		return finalResult
+	}
+	merged[remoteBuildReportKey] = priorPayload
+	combined, err := json.Marshal(merged)
+	if err != nil {
+		return finalResult
+	}
+	return combined
+}
+
 // DetachRemoteBuildResumeContext derives the context the resume goroutine runs
 // on. It must be detached from the HTTP request (returning the callback
 // response must not cancel a cross-node distribution) but it must still carry a
