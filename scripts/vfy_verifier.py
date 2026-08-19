@@ -1,282 +1,251 @@
 # Copyright (c) 2026 Tencent Inc.
 # SPDX-License-Identifier: Apache-2.0
-"""Verifier: runs the whole template API surface against one entry point.
+"""Recorder: walks the lifecycle through one link and stores the RAW data.
 
-Split out of verify_templatecenter.py to keep each module readable; the CLI
-lives in the main script.
+The recorder is intentionally dumb. It does not know what a correct response
+looks like; it knows how to capture one. For every operation it stores:
+
+  * the request exactly as the link sent it
+  * the response verbatim (parsed JSON and the raw text, plus the error when
+    the call blew up)
+  * `SELECT *` of every DB row the operation could have touched
+
+Only two things can make a run stop early: the entry point not answering at
+all, or the build never reaching a terminal state. Those are recorded in
+`trace.problems` because they make the run unusable as comparison input - they
+are not "test failures".
 """
 
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
 from vfy_core import (
     JOB_TERMINAL,
-    RET_NOT_FOUND,
-    RET_PARAMS_ERROR,
-    RET_SUCCESS,
-    SHAPES,
+    LINKS,
     TBL_ARTIFACT,
     TBL_DEFINITION,
     TBL_IMAGE_JOB,
+    TBL_PLACEMENT,
     TBL_REPLICA,
-    Client,
+    C,
     Config,
     Database,
-    HttpResult,
-    Step,
+    Record,
     Trace,
-    fail,
+    UnsafeQueryValue,
     info,
-    normalize,
-    ok,
-    ret_name,
+    render_record,
     section,
-    vlog,
     warn,
 )
+from vfy_links import Link, LinkCall, build_link
 
 
-class Verifier:
-    """Runs the template API surface against one entry point and records a
-    comparable trace."""
-
-    def __init__(self, cfg: Config, shape: str, read_only: bool = False):
+class Recorder:
+    def __init__(self, cfg: Config, link_name: str, print_raw: bool = True,
+                 print_limit: int = 1200):
         self.cfg = cfg
-        self.shape = shape
-        self.read_only = read_only
-        self.entry = cfg.api_url(SHAPES[shape]["entry"])
-        self.client = Client(self.entry, cfg.http_timeout)
-        # The artifact download endpoint is never proxied and always lives on
-        # CubeMaster (design 9.7), so it needs its own client.
-        self.master = Client(cfg.master_url, cfg.http_timeout)
+        self.link_name = link_name
+        self.link: Link = build_link(cfg, link_name)
         self.db = Database(cfg)
+        self.print_raw = print_raw
+        self.print_limit = print_limit
+        self.started = time.time()
+        self.seq = 0
         self.trace = Trace(
-            shape=shape,
-            entry_url=self.entry,
+            link=link_name,
+            via=self.link.via,
+            entry_url=self.link.entry,
             started_at=time.strftime("%Y-%m-%dT%H:%M:%S"),
         )
-        self.created: list[tuple[str, str]] = []
+        # Per-run tag so parallel runs and reruns never collide on an alias.
         self.tag = f"vfy{int(time.time()) % 100000}"
+        self.created: list[tuple[str, str]] = []
 
-    # ---- step plumbing -------------------------------------------------
-    def step(
-        self,
-        name: str,
-        api: str = "",
-        response: HttpResult | None = None,
-        db: dict | None = None,
-        passed: bool = True,
-        detail: str = "",
-        notes: list[str] | None = None,
-    ) -> Step:
-        s = Step(
-            name=name,
-            api=api,
-            passed=passed,
-            detail=detail,
-            response=self._resp_snapshot(response) if response else None,
+    # ---- recording -----------------------------------------------------
+    def add(self, op: str, label: str, call: LinkCall | None = None,
+            db: dict[str, Any] | None = None, facts: dict[str, Any] | None = None,
+            note: str = "") -> Record:
+        self.seq += 1
+        merged: dict[str, Any] = {}
+        if call is not None:
+            merged.update(call.facts)
+            if call.unsupported:
+                merged["unsupported"] = True
+        if facts:
+            merged.update(facts)
+        rec = Record(
+            seq=self.seq,
+            op=op,
+            label=label,
+            via=self.link.via,
+            at_ms=int((time.time() - self.started) * 1000),
+            request=call.request if call else None,
+            response=call.response if call else None,
             db=db,
-            notes=notes or [],
+            facts=merged,
+            note=note or (call.note if call else ""),
         )
-        self.trace.steps.append(s)
-        (ok if passed else fail)(f"{name}{' - ' + detail if detail else ''}")
-        return s
+        self.trace.records.append(rec)
+        if self.print_raw:
+            print(render_record(rec, self.print_limit))
+        return rec
 
-    def skip(self, name: str, why: str) -> Step:
-        s = Step(name=name, passed=True, skipped=True, detail=why)
-        self.trace.steps.append(s)
-        warn(f"{name} - SKIP: {why}")
-        return s
+    def problem(self, msg: str) -> None:
+        self.trace.problems.append(msg)
+        warn(msg)
 
-    @staticmethod
-    def _resp_snapshot(r: HttpResult) -> dict[str, Any]:
-        """Keep both the raw outcome (for humans debugging a failure) and the
-        normalized body (what the diff compares)."""
-        return {
-            "method": r.method,
-            "path": r.path,
-            "http_status": r.http_status,
-            "ret_code": r.ret_code,
-            "ret_name": ret_name(r.ret_code) if r.ret_code is not None else None,
-            "has_error": r.error is not None,
-            "error": r.error,
-            "normalized_body": normalize(r.body) if isinstance(r.body, dict) else None,
-            "body_keys": sorted(r.body.keys()) if isinstance(r.body, dict) else None,
-        }
+    # ---- DB capture ----------------------------------------------------
+    def db_snapshot(self, job_id: str = "", template_id: str = "",
+                    artifact_id: str = "") -> dict[str, Any]:
+        """Raw `SELECT *` fan-out for the ids known so far.
 
-    def expect_ret(
-        self, name: str, api: str, r: HttpResult, want: int, db: dict | None = None
-    ) -> bool:
-        if r.error:
-            self.step(name, api, r, db, False, f"transport error: {r.error}")
-            return False
-        good = r.ret_code == want
-        detail = "" if good else f"expected ret={ret_name(want)}, got {r.describe()}"
-        self.step(name, api, r, db, good, detail)
-        return good
-
-    # ---- DB snapshots --------------------------------------------------
-    def snapshot_job(self, job_id: str) -> dict[str, Any]:
-        """Capture the job row plus everything it fans out to. This is the
-        'state at each stage' view the diff relies on."""
+        Everything is captured by id rather than by a curated column list on
+        purpose: a column that silently stops being written after the split is
+        exactly what this tool must surface, and a hand-written projection
+        would hide it.
+        """
         snap: dict[str, Any] = {}
-        job = self.db.one(
-            "SELECT job_id, template_id, status, phase, progress, artifact_id, "
-            "artifact_status, error_message, expected_node_count, ready_node_count, "
-            "failed_node_count, template_status, source_image_digest, "
-            "template_spec_fingerprint, updated_at "
-            f"FROM {TBL_IMAGE_JOB} WHERE job_id='{job_id}'"
-        )
-        snap["job"] = job or {}
-        if not job:
+        if not self.db.enabled:
             return snap
-
-        artifact_id = (job.get("artifact_id") or "").strip()
-        if artifact_id:
-            snap["artifact"] = (
-                self.db.one(
-                    "SELECT artifact_id, status, ext4_size_bytes, ext4_sha256, "
-                    "CASE WHEN download_token IS NULL OR download_token='' "
-                    "THEN 0 ELSE 1 END AS has_token, "
-                    "CASE WHEN image_config_json IS NULL OR image_config_json='' "
-                    "THEN 0 ELSE 1 END AS has_image_config, "
-                    "CASE WHEN generated_request_json IS NULL OR generated_request_json='' "
-                    "THEN 0 ELSE 1 END AS has_generated_request, "
-                    "cube_egress_ca_baked, gc_deadline "
-                    f"FROM {TBL_ARTIFACT} WHERE artifact_id='{artifact_id}'"
-                )
-                or {}
-            )
-
-        template_id = (job.get("template_id") or "").strip()
-        if template_id:
-            snap["replicas"] = self.db.query(
-                "SELECT node_id, status, phase, artifact_id, error_message "
-                f"FROM {TBL_REPLICA} WHERE template_id='{template_id}' ORDER BY node_id"
-            )
-            snap["definition"] = (
-                self.db.one(
-                    "SELECT template_id, instance_type, status, "
-                    "CASE WHEN request_json IS NULL OR request_json='' "
-                    "THEN 0 ELSE 1 END AS has_request "
-                    f"FROM {TBL_DEFINITION} WHERE template_id='{template_id}'"
-                )
-                or {}
-            )
+        try:
+            if job_id:
+                rows = self.db.rows_where(TBL_IMAGE_JOB, "job_id", job_id)
+                snap[TBL_IMAGE_JOB] = rows
+                if rows and not template_id:
+                    template_id = (rows[0].get("template_id") or "").strip()
+                if rows and not artifact_id:
+                    artifact_id = (rows[0].get("artifact_id") or "").strip()
+            if artifact_id:
+                snap[TBL_ARTIFACT] = self.db.rows_where(TBL_ARTIFACT, "artifact_id", artifact_id)
+                snap[TBL_PLACEMENT] = self.db.rows_where(
+                    TBL_PLACEMENT, "artifact_id", artifact_id, order_by="node_id")
+            if template_id:
+                snap[TBL_DEFINITION] = self.db.rows_where(
+                    TBL_DEFINITION, "template_id", template_id)
+                snap[TBL_REPLICA] = self.db.rows_where(
+                    TBL_REPLICA, "template_id", template_id, order_by="node_id")
+        except UnsafeQueryValue as e:
+            warn(f"db snapshot skipped: {e}")
         return snap
 
-    @staticmethod
-    def normalize_snapshot(snap: dict[str, Any]) -> dict[str, Any]:
-        """Normalize a DB snapshot for cross-link comparison.
+    def db_job_row(self, job_id: str) -> dict[str, str]:
+        if not job_id or not self.db.enabled:
+            return {}
+        try:
+            return self.db.one_where(TBL_IMAGE_JOB, "job_id", job_id)
+        except UnsafeQueryValue as e:
+            warn(f"db read skipped: {e}")
+            return {}
 
-        Replica rows collapse into a status histogram on purpose: node identity
-        and row order legitimately differ between runs, the status distribution
-        must not.
-        """
-        out: dict[str, Any] = {}
-        for key in ("job", "artifact", "definition"):
-            if key in snap:
-                out[key] = normalize(snap[key])
-        if "replicas" in snap:
-            rows = snap["replicas"] or []
-            hist: dict[str, int] = {}
-            for row in rows:
-                status = row.get("status", "?")
-                hist[status] = hist.get(status, 0) + 1
-            out["replica_count"] = len(rows)
-            out["replica_status_histogram"] = dict(sorted(hist.items()))
-        return out
+    # ---- environment ---------------------------------------------------
+    def capture_environment(self) -> bool:
+        """Record what this environment looks like. Returns False only when the
+        entry point cannot serve the template control plane at all, since then
+        there is nothing to record."""
+        meta = LINKS[self.link_name]
+        section(f"Environment - link={self.link_name} entry={self.link.entry}")
+        info(meta["desc"])
+        info(f"requires: {meta['requires']}")
 
-    # ---- polling -------------------------------------------------------
-    def wait_terminal(self, job_id: str, timeout: int) -> tuple[str, list[str]]:
-        """Poll until the job is terminal, recording the phase trajectory.
-
-        The trajectory is the most valuable comparison artifact: it shows local
-        and remote taking different internal routes to the same outcome (remote
-        passes through BUILT, local does not).
-        """
-        deadline = time.time() + timeout
-        track: list[str] = []
-        last = ""
-        status = ""
-        while time.time() < deadline:
-            r = self.client.call(
-                "GET", "/cube/template/from-image", query={"job_id": job_id}
-            )
-            status, phase = "", ""
-            if isinstance(r.body, dict):
-                job = r.body.get("job") or {}
-                status = str(job.get("status", "")).upper()
-                phase = str(job.get("phase", "")).upper()
-            marker = f"{status}/{phase}"
-            if status and marker != last:
-                track.append(marker)
-                vlog(f"  job {job_id[:12]}: {marker}")
-                last = marker
-            if status in JOB_TERMINAL:
-                return status, track
-            time.sleep(self.cfg.poll_interval)
-        track.append("TIMEOUT")
-        return status or "TIMEOUT", track
-
-    # ---- preflight -----------------------------------------------------
-    def preflight(self) -> bool:
-        section(f"Preflight - shape={self.shape} entry={self.entry}")
-        info(SHAPES[self.shape]["desc"])
-        info(f"requires: {SHAPES[self.shape]['requires']}")
-
-        healthy = True
-        for label, url in (
-            ("CubeMaster", self.cfg.master_url),
-            ("CubeTemplateCenter", self.cfg.tc_url),
-        ):
-            r = Client(url, 5).call("GET", "/health")
-            up = r.http_status == 200
-            # TC readiness includes the node view only when it serves the
-            # public API, so /health reveals whether that switch took effect.
-            checks = (r.body or {}).get("checks") if isinstance(r.body, dict) else None
-            self.step(
-                f"health: {label}",
-                "GET /health",
-                r,
-                None,
-                up,
-                "" if up else f"unreachable ({r.describe()})",
-                notes=[f"checks={checks}"] if checks else [],
-            )
-            healthy = healthy and up
-
-        if not healthy:
-            return False
+        reachable_entry = False
+        for label, call in self.link.health():
+            rec = self.add("env.health", f"health: {label}", call)
+            # /health on TC also reveals whether CUBE_TC_SERVE_TEMPLATE_API took
+            # effect, because the node-view check is only registered then.
+            if call.response and isinstance(call.response.get("json"), dict):
+                rec.facts["checks"] = call.response["json"].get("checks")
+            if label in ("CubeMaster", "CubeAPI") and call.facts.get("reachable"):
+                reachable_entry = True
 
         if not self.db.available():
-            self.step(
-                "database reachable", "", None, None, False,
-                f"cannot query via docker exec {self.cfg.mysql_container}",
-            )
-            return False
-        self.step("database reachable", "", None, None, True)
+            self.db.enabled = False
+            self.problem(
+                f"database not queryable via `docker exec {self.cfg.mysql_container}`; "
+                "continuing with API-only records (DB sections will be empty)")
+        self.add("env.database", "database reachable",
+                 facts={"reachable": self.db.enabled})
 
-        # Probe that the entry point really serves the template control plane.
-        # A 404 here is the most common misconfiguration: forgetting
-        # CUBE_TC_SERVE_TEMPLATE_API on the TC side.
-        probe = self.client.call(
-            "GET", "/cube/template", query={"template_id": "__vfy_absent__"}
-        )
-        mounted = probe.http_status != 404
-        detail = ""
+        call = self.link.probe_control_plane()
+        rec = self.add("env.control_plane", "template control plane mounted at entry", call)
+        mounted = bool(rec.facts.get("mounted"))
         if not mounted:
-            detail = "entry does not serve /cube/template (HTTP 404)"
-            if self.shape in ("tc", "master-proxy"):
-                detail += "; set CUBE_TC_SERVE_TEMPLATE_API=true on CubeTemplateCenter"
-        self.step(
-            "template routes mounted at entry",
-            "GET /cube/template",
-            probe,
-            None,
-            mounted,
-            detail,
-        )
-        return mounted
+            hint = ""
+            if self.link_name in ("tc", "master-proxy"):
+                hint = "; set CUBE_TC_SERVE_TEMPLATE_API=true on CubeTemplateCenter"
+            elif self.link.via == "sdk":
+                hint = f"; check CubeAPI at {self.cfg.cubeapi_url}"
+            self.problem(f"entry does not serve the template control plane{hint}")
+        return mounted and reachable_entry
+
+    # ---- polling -------------------------------------------------------
+    def poll_until_terminal(self, job_id: str, template_id: str,
+                            timeout: int) -> tuple[str, list[str]]:
+        """Poll the job and record EVERY state transition with the DB row as it
+        was at that moment.
+
+        The transition timeline is the single most informative artifact this
+        tool produces: local and remote reach READY through different internal
+        routes (remote passes through BUILT), and a stall shows up as a state
+        that stops advancing rather than as an opaque timeout.
+        """
+        deadline = time.time() + timeout
+        timeline: list[str] = []
+        last = ""
+        status = ""
+        polls = 0
+        while time.time() < deadline:
+            call = self.link.get_job(job_id, template_id)
+            polls += 1
+            if call.unsupported:
+                self.add("create.poll", "poll job (unsupported by link)", call)
+                return "UNKNOWN", timeline
+
+            status = str(call.facts.get("status", "")).upper()
+            phase = str(call.facts.get("phase", "")).upper()
+            marker = f"{status}/{phase}"
+
+            if status and marker != last:
+                # Only transitions are recorded: a 200-poll build would
+                # otherwise bury the interesting rows under identical ones.
+                row = self.db_job_row(job_id)
+                self.add(
+                    "create.poll", f"state transition -> {marker}", call,
+                    db={TBL_IMAGE_JOB: [row]} if row else None,
+                    facts={"transition": marker, "poll_number": polls},
+                )
+                timeline.append(marker)
+                last = marker
+
+            if status in JOB_TERMINAL:
+                return status, timeline
+            time.sleep(self.cfg.poll_interval)
+
+        timeline.append("TIMEOUT")
+        self.problem(f"job {job_id} did not reach a terminal state within {timeout}s "
+                     f"(last state {last or 'unknown'})")
+        return status or "TIMEOUT", timeline
+
+    # ---- summary -------------------------------------------------------
+    def summarize(self) -> None:
+        section(f"Recorded - link={self.link_name}")
+        by_op: dict[str, int] = {}
+        for rec in self.trace.records:
+            by_op[rec.op] = by_op.get(rec.op, 0) + 1
+        print(f"  records : {len(self.trace.records)}")
+        for op in sorted(by_op):
+            print(f"    {op:<24} {by_op[op]}")
+        ctx = self.trace.context
+        if ctx:
+            print("  context :")
+            for k in sorted(ctx):
+                print(f"    {k:<24} {json.dumps(ctx[k], ensure_ascii=False, default=str)[:200]}")
+        if self.trace.problems:
+            print(f"\n  {C.Y}problems (this run may not be comparable):{C.X}")
+            for p in self.trace.problems:
+                print(f"    - {p}")
+        else:
+            print(f"  {C.G}no problems: this run is usable as comparison input{C.X}")

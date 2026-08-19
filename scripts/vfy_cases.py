@@ -1,9 +1,25 @@
 # Copyright (c) 2026 Tencent Inc.
 # SPDX-License-Identifier: Apache-2.0
-"""Test cases: the full template API surface, plus stage-by-stage state capture.
+"""The lifecycle walk: what gets recorded, in what order.
 
-Each case is a method on Cases and is registered in ORDER at the bottom.
-Cases are ordered so later ones can reuse artifacts created by earlier ones.
+Every step is an observation. Nothing here decides whether a value is correct;
+the `op` names are stable so that two runs through different links line up and
+`verify_templatecenter.py compare` can do that job.
+
+Order matters and is not arbitrary:
+
+  1. probe.*    Negative/edge inputs first: they need no state, and an error
+                that used to be a clean ret_code turning into a 500 after the
+                split is the cheapest regression to catch.
+  2. read.list  The world before we touch it.
+  3. create.*   Submit, then record EVERY state transition with the DB row as
+                it was at that instant, then the settled fan-out.
+  4. read.*     Every read path against the thing we just created, including
+                the artifact data plane.
+  5. rebuild.*  A write that is not a create.
+  6. dedup.*    Same spec again: must land on the same artifact_id.
+  7. delete.*   Delete, then the post-delete state of the API AND of every
+                table - "delete left rows behind" is invisible from the API.
 """
 
 from __future__ import annotations
@@ -13,456 +29,335 @@ from typing import Any
 
 from vfy_core import (
     JOB_BUILT,
-    JOB_FAILED,
-    JOB_READY,
-    RET_NOT_FOUND,
-    RET_PARAMS_ERROR,
-    RET_SUCCESS,
     TBL_ARTIFACT,
+    TBL_DEFINITION,
+    TBL_IMAGE_JOB,
+    TBL_PLACEMENT,
+    TBL_REPLICA,
     Config,
+    UnsafeQueryValue,
     info,
     section,
-    vlog,
 )
-from vfy_verifier import Verifier
+from vfy_links import CreateSpec
+from vfy_verifier import Recorder
 
 
-class Cases:
-    """Holds the case implementations. `v` is the Verifier doing the work."""
+class Scenario:
+    """Holds the ids discovered while walking, so later steps can reuse them."""
 
-    def __init__(self, v: Verifier):
-        self.v = v
-        self.cfg: Config = v.cfg
-        # Carried between cases.
-        self.job_id: str = ""
-        self.template_id: str = ""
-        self.alias: str = ""
-        self.artifact_id: str = ""
-        self.download_token: str = ""
+    def __init__(self, rec: Recorder):
+        self.r = rec
+        self.cfg: Config = rec.cfg
+        self.link = rec.link
+        self.job_id = ""
+        self.template_id = ""
+        self.name = ""
+        self.artifact_id = ""
+        self.download_token = ""
 
     # =====================================================================
-    # Group 1: negative / validation paths
-    #
-    # These run first because they need no state and they catch the most
-    # common regression: an error that used to be a clean ret_code turning
-    # into a 500 or a transport failure after the split.
+    # 1. Negative / edge probes
     # =====================================================================
-    def case_validation(self) -> None:
-        section("Group 1: parameter validation (no side effects)")
-        v = self.v
+    def probes(self) -> None:
+        section("1. edge-input probes (recorded, not judged)")
+        r = self.r
+        r.add("probe.unknown_template", "get a template id that does not exist",
+              self.link.probe_unknown_template())
+        r.add("probe.unknown_job", "get a build/job id that does not exist",
+              self.link.probe_unknown_job())
+        r.add("probe.empty_image", "create with an empty image reference",
+              self.link.probe_empty_image())
 
-        r = v.client.call("GET", "/cube/template", query={"template_id": "tpl-does-not-exist-xyz"})
-        v.expect_ret("GET template: unknown id -> NotFound", "GET /cube/template", r, RET_NOT_FOUND)
+        # Name/alias grammar is ^[a-z0-9][a-z0-9-]{0,63}$ and must not start
+        # with tpl-/snap-. Both rules are worth recording because the name is
+        # what survives a rebuild.
+        for bad, why in (("Bad_Name", "uppercase+underscore"),
+                         ("tpl-reserved", "reserved prefix")):
+            r.add("probe.bad_name", f"create with an invalid name ({why})",
+                  self.link.probe_bad_name(bad))
 
-        r = v.client.call("GET", "/cube/rootfs-artifact")
-        v.expect_ret(
-            "GET rootfs-artifact: missing artifact_id -> ParamsError",
-            "GET /cube/rootfs-artifact", r, RET_PARAMS_ERROR,
+    # =====================================================================
+    # 2. World before
+    # =====================================================================
+    def list_before(self) -> None:
+        section("2. list templates (before)")
+        self.r.add("read.list_before", "list templates before creating anything",
+                   self.link.list_templates())
+
+    # =====================================================================
+    # 3. Create and follow the whole build
+    # =====================================================================
+    def create(self) -> None:
+        section("3. create from image, following every state transition")
+        r = self.r
+        self.name = f"{r.tag}-main"
+        spec = CreateSpec(
+            image=self.cfg.image,
+            instance_type=self.cfg.instance_type,
+            name=self.name,
+            request_id=f"{r.tag}-create",
         )
+        call = self.link.create(spec)
+        rec = r.add("create.submit", "submit create-from-image", call)
 
-        r = v.client.call("GET", "/cube/rootfs-artifact", query={"artifact_id": "rfs-absent-xyz"})
-        v.expect_ret(
-            "GET rootfs-artifact: unknown id -> NotFound",
-            "GET /cube/rootfs-artifact", r, RET_NOT_FOUND,
-        )
-
-        r = v.client.call("GET", "/cube/template/from-image", query={"job_id": "job-absent-xyz"})
-        v.expect_ret(
-            "GET job: unknown job_id -> NotFound",
-            "GET /cube/template/from-image", r, RET_NOT_FOUND,
-        )
-
-        if v.read_only:
-            v.skip("POST from-image: empty image -> ParamsError", "read-only mode")
-            v.skip("DELETE template: missing template_id -> ParamsError", "read-only mode")
+        self.job_id = str(rec.facts.get("job_id", "") or "")
+        self.template_id = str(rec.facts.get("template_id", "") or "")
+        if not self.job_id and not self.template_id:
+            r.problem("create was not accepted (no job_id/template_id in the response); "
+                      "the rest of the lifecycle cannot be recorded")
             return
+        r.created.append((self.template_id, self.name))
 
-        # Empty source_image_ref must be rejected by validation, not by the
-        # builder. In remote mode this proves CubeMaster still validates before
-        # forwarding anything to CubeTemplateCenter.
-        r = v.client.call(
-            "POST", "/cube/template/from-image",
-            body={"requestID": f"{v.tag}-neg-1", "source_image_ref": "",
-                  "instance_type": self.cfg.instance_type},
-        )
-        v.expect_ret(
-            "POST from-image: empty image -> ParamsError",
-            "POST /cube/template/from-image", r, RET_PARAMS_ERROR,
-        )
+        # Right after acceptance: proves the API is async rather than blocking,
+        # and shows which columns are populated at insert time.
+        r.add("create.accepted_db", "DB fan-out immediately after acceptance",
+              db=r.db_snapshot(job_id=self.job_id, template_id=self.template_id),
+              facts={"job_id": self.job_id, "template_id": self.template_id})
 
-        r = v.client.call(
-            "DELETE", "/cube/template",
-            body={"RequestID": f"{v.tag}-neg-2", "template_id": ""},
-        )
-        v.expect_ret(
-            "DELETE template: missing template_id -> ParamsError",
-            "DELETE /cube/template", r, RET_PARAMS_ERROR,
-        )
+        info(f"following the build (timeout {self.cfg.build_timeout}s)...")
+        status, timeline = r.poll_until_terminal(
+            self.job_id, self.template_id, self.cfg.build_timeout)
 
-        # Alias grammar is ^[a-z0-9][a-z0-9-]{0,63}$ and must not start with
-        # tpl-/snap-; both rules are worth pinning because the alias is what
-        # survives rebuilds.
-        for bad_alias, why in (("Bad_Alias", "uppercase+underscore"), ("tpl-reserved", "reserved prefix")):
-            r = v.client.call(
-                "POST", "/cube/template/from-image",
-                body={"requestID": f"{v.tag}-neg-alias", "source_image_ref": self.cfg.image,
-                      "instance_type": self.cfg.instance_type, "alias": bad_alias},
-            )
-            v.expect_ret(
-                f"POST from-image: invalid alias ({why}) -> ParamsError",
-                "POST /cube/template/from-image", r, RET_PARAMS_ERROR,
-            )
+        # BUILT only exists in remote build mode. Recording whether it appeared
+        # is how a comparison proves remote really went through
+        # CubeTemplateCenter instead of silently falling back to local.
+        saw_built = any(m.startswith(JOB_BUILT) for m in timeline)
+        r.add("create.terminal", f"terminal state {status}",
+              facts={"terminal_status": status, "timeline": timeline,
+                     "saw_built_state": saw_built, "transitions": len(timeline)})
 
-    # =====================================================================
-    # Group 2: list endpoints (read-only, must work before anything exists)
-    # =====================================================================
-    def case_list(self) -> None:
-        section("Group 2: list endpoints")
-        v = self.v
+        final = r.db_snapshot(job_id=self.job_id, template_id=self.template_id)
+        job_rows = final.get(TBL_IMAGE_JOB) or []
+        if job_rows:
+            self.artifact_id = (job_rows[0].get("artifact_id") or "").strip()
+        r.add("create.final_db", "settled DB fan-out after the build",
+              db=final,
+              facts={
+                  "artifact_id": self.artifact_id,
+                  "artifact_rows": len(final.get(TBL_ARTIFACT) or []),
+                  "replica_rows": len(final.get(TBL_REPLICA) or []),
+                  "definition_rows": len(final.get(TBL_DEFINITION) or []),
+                  "placement_rows": len(final.get(TBL_PLACEMENT) or []),
+                  "replica_status": _histogram(final.get(TBL_REPLICA) or []),
+              })
 
-        r = v.client.call("GET", "/cube/template")
-        passed = v.expect_ret("GET template: list all", "GET /cube/template", r, RET_SUCCESS)
-        if passed and isinstance(r.body, dict):
-            data = r.body.get("data")
-            v.step(
-                "list response carries data array", "GET /cube/template", None, None,
-                isinstance(data, list),
-                f"data type={type(data).__name__}",
-                notes=[f"count={len(data) if isinstance(data, list) else 'n/a'}"],
-            )
-
-        r = v.client.call("GET", "/cube/template/from-image")
-        v.expect_ret("GET from-image: list jobs", "GET /cube/template/from-image", r, RET_SUCCESS)
-
-    # =====================================================================
-    # Group 3: the create -> build -> ready happy path
-    #
-    # This is the core comparison: identical request, identical terminal
-    # state, identical DB fan-out -- but different internal trajectories.
-    # =====================================================================
-    def case_create(self) -> None:
-        section("Group 3: create from image (full build)")
-        v = self.v
-        if v.read_only:
-            v.skip("POST from-image: create", "read-only mode")
-            return
-
-        self.alias = f"{v.tag}-main"
-        body = {
-            "requestID": f"{v.tag}-create",
-            "source_image_ref": self.cfg.image,
-            "instance_type": self.cfg.instance_type,
-            "alias": self.alias,
-            "writable_layer_size": "1G",
-            "exposed_ports": [80],
-        }
-        r = v.client.call("POST", "/cube/template/from-image", body=body)
-        if not v.expect_ret("POST from-image: accepted", "POST /cube/template/from-image", r, RET_SUCCESS):
-            return
-
-        job = (r.body or {}).get("job") or {}
-        self.job_id = str(job.get("job_id", "")).strip()
-        self.template_id = str(job.get("template_id", "")).strip()
-        if not self.job_id:
-            v.step("response carries job_id", "POST /cube/template/from-image", r, None, False,
-                   "job.job_id missing from response")
-            return
-        self.created.append((self.template_id, self.alias)) if False else None
-        v.created.append((self.template_id, self.alias))
-        v.trace.context.update({
-            "alias": self.alias,
-            "has_template_id": bool(self.template_id),
+        r.trace.context.update({
+            "name": self.name,
+            "job_id": self.job_id,
+            "template_id": self.template_id,
+            "artifact_id": self.artifact_id,
+            "terminal_status": status,
+            "timeline": timeline,
+            "saw_built_state": saw_built,
         })
-        v.step("response carries job_id + template_id", "POST /cube/template/from-image",
-               None, None, bool(self.job_id and self.template_id),
-               notes=[f"job_id={self.job_id}", f"template_id={self.template_id}"])
-
-        # Immediately after acceptance the row must exist and be non-terminal:
-        # this is what proves the API is async rather than blocking.
-        early = v.snapshot_job(self.job_id)
-        early_status = (early.get("job") or {}).get("status", "")
-        v.step(
-            "job row created (async accept)", "", None,
-            v.normalize_snapshot(early),
-            early_status not in ("", JOB_READY),
-            f"status right after accept: {early_status or 'ROW MISSING'}",
-        )
-
-        info(f"waiting for build to finish (timeout {self.cfg.build_timeout}s)...")
-        status, track = v.wait_terminal(self.job_id, self.cfg.build_timeout)
-        v.trace.phase_track = track
-        v.step(
-            "job reaches READY", "GET /cube/template/from-image", None, None,
-            status == JOB_READY,
-            f"terminal status={status}",
-            notes=[f"trajectory={' -> '.join(track)}"],
-        )
-        # BUILT is the remote-mode-only intermediate state. Recording whether
-        # it appeared is how the diff proves remote really went through
-        # CubeTemplateCenter rather than silently falling back to local.
-        saw_built = any(m.startswith(JOB_BUILT) for m in track)
-        v.trace.context["saw_built_state"] = saw_built
-        vlog(f"passed through BUILT: {saw_built}")
-
-        final = v.snapshot_job(self.job_id)
-        v.trace.context["final_snapshot"] = v.normalize_snapshot(final)
-        jobrow = final.get("job") or {}
-        self.artifact_id = (jobrow.get("artifact_id") or "").strip()
-
-        v.step("DB: job status READY", "", None, v.normalize_snapshot(final),
-               jobrow.get("status") == JOB_READY,
-               f"db status={jobrow.get('status')} phase={jobrow.get('phase')} "
-               f"err={(jobrow.get('error_message') or '')[:120]}")
-
-        art = final.get("artifact") or {}
-        v.step("DB: artifact row registered and READY", "", None, None,
-               bool(art) and art.get("status") == "READY",
-               f"artifact={self.artifact_id or 'MISSING'} status={art.get('status')}")
-        # An artifact with no size or no token is the exact failure mode that
-        # made distribution fail with an opaque cubelet-side error before.
-        v.step("DB: artifact has size + download token + image config", "", None, None,
-               bool(art) and art.get("ext4_size_bytes", "0") not in ("", "0")
-               and art.get("has_token") == "1" and art.get("has_image_config") == "1",
-               f"size={art.get('ext4_size_bytes')} token={art.get('has_token')} "
-               f"image_config={art.get('has_image_config')}")
-
-        replicas = final.get("replicas") or []
-        ready = [x for x in replicas if x.get("status") == "READY"]
-        v.step("DB: at least one replica READY", "", None, None,
-               len(ready) > 0,
-               f"replicas={len(replicas)} ready={len(ready)}")
-
-        definition = final.get("definition") or {}
-        v.step("DB: template definition written", "", None, None,
-               bool(definition) and definition.get("has_request") == "1",
-               f"definition={'present' if definition else 'MISSING'}")
 
     # =====================================================================
-    # Group 4: read paths against the created template
+    # 4. Read paths against the created template
     # =====================================================================
-    def case_read_created(self) -> None:
-        section("Group 4: read endpoints for the created template")
-        v = self.v
+    def read_created(self) -> None:
+        section("4. read paths for the created template")
+        r = self.r
         if not self.template_id:
-            for n in ("GET template by id", "GET template by alias", "GET template compat",
-                      "GET rootfs-artifact", "HEAD artifact download", "GET ca file"):
-                v.skip(n, "no template created")
+            r.add("read.by_id", "skipped: nothing was created", note="no template_id")
             return
 
-        r = v.client.call("GET", "/cube/template", query={"template_id": self.template_id})
-        v.expect_ret("GET template by id", "GET /cube/template", r, RET_SUCCESS)
+        r.add("read.by_id", "get the template by id",
+              self.link.get_template(self.template_id))
 
-        # Alias resolution is a distinct code path (ResolveTemplateIdentifier)
-        # and the reason aliases exist, so it gets its own assertion.
-        r = v.client.call("GET", "/cube/template", query={"template_id": self.alias})
-        alias_ok = v.expect_ret("GET template by alias", "GET /cube/template", r, RET_SUCCESS)
-        if alias_ok and isinstance(r.body, dict):
-            resolved = str(r.body.get("template_id", ""))
-            v.step("alias resolves to the same template_id", "GET /cube/template", None, None,
-                   resolved == self.template_id,
-                   f"alias->{resolved} expected {self.template_id}")
+        # Name/alias resolution is a distinct code path
+        # (ResolveTemplateIdentifier) and the whole reason names exist.
+        call = self.link.get_template(self.name)
+        rec = r.add("read.by_name", "get the same template by name/alias", call)
+        rec.facts["name_resolves_to_same_id"] = (
+            str(rec.facts.get("resolved_template_id", "")) == self.template_id)
 
-        r = v.client.call("GET", "/cube/template",
-                          query={"template_id": self.template_id, "include_request": "true"})
-        inc_ok = v.expect_ret("GET template with include_request", "GET /cube/template", r, RET_SUCCESS)
-        if inc_ok and isinstance(r.body, dict):
-            v.step("include_request returns create_request", "GET /cube/template", None, None,
-                   bool(r.body.get("create_request")),
-                   "create_request present" if r.body.get("create_request") else "create_request MISSING")
-
-        r = v.client.call("GET", "/cube/template/compat", query={"template_id": self.template_id})
-        v.expect_ret("GET template compat", "GET /cube/template/compat", r, RET_SUCCESS)
+        r.add("read.with_request", "get the template including its create request",
+              self.link.get_template(self.template_id, include_request=True))
 
         if self.artifact_id:
-            r = v.client.call("GET", "/cube/rootfs-artifact", query={"artifact_id": self.artifact_id})
-            art_ok = v.expect_ret("GET rootfs-artifact by id", "GET /cube/rootfs-artifact", r, RET_SUCCESS)
-            if art_ok and isinstance(r.body, dict):
-                artifact = r.body.get("artifact") or r.body
-                self.download_token = str(artifact.get("download_token", "") or "")
-                v.step("artifact info exposes ext4 metadata", "GET /cube/rootfs-artifact", None, None,
-                       bool(artifact.get("ext4_sha256")) and bool(artifact.get("ext4_size_bytes")),
-                       f"sha256={'set' if artifact.get('ext4_sha256') else 'MISSING'} "
-                       f"size={artifact.get('ext4_size_bytes')}")
+            call = self.link.get_artifact(self.artifact_id)
+            rec = r.add("read.artifact", "get the rootfs artifact metadata", call)
+            self.download_token = str(rec.facts.get("download_token", "") or "")
         else:
-            v.skip("GET rootfs-artifact by id", "no artifact_id captured")
+            r.add("read.artifact", "skipped: no artifact_id captured",
+                  note="no artifact_id")
 
-        self._check_download()
-        self._check_ca()
+        self._read_download()
 
-    def _check_download(self) -> None:
-        """The download endpoint is the data plane Cubelet uses. It always lives
-        on CubeMaster (never proxied to TC, design 9.7), so it is probed against
-        CubeMaster regardless of the shape under test."""
-        v = self.v
+    def _read_download(self) -> None:
+        """The download endpoint is the Cubelet data plane. It always lives on
+        CubeMaster - never proxied to TC (design 9.7) - so it is probed there
+        regardless of which link is under test."""
+        r = self.r
         if not self.artifact_id:
-            v.skip("HEAD artifact download", "no artifact_id captured")
+            r.add("read.download_head", "skipped: no artifact_id", note="no artifact_id")
             return
-        if not self.download_token:
-            token_row = v.db.one(
-                f"SELECT download_token FROM {TBL_ARTIFACT} WHERE artifact_id='{self.artifact_id}'"
-            )
-            self.download_token = (token_row or {}).get("download_token", "")
+        if not self.download_token and r.db.enabled:
+            try:
+                row = r.db.one_where(TBL_ARTIFACT, "artifact_id", self.artifact_id)
+            except UnsafeQueryValue:
+                row = {}
+            self.download_token = (row.get("download_token") or "")
 
-        r = v.master.call("HEAD", "/cube/template/artifact/download",
-                          query={"artifact_id": self.artifact_id, "token": self.download_token})
-        # This endpoint serves bytes, so it uses real HTTP status codes rather
-        # than the ret envelope.
-        v.step("HEAD artifact download (on CubeMaster)", "HEAD /cube/template/artifact/download",
-               r, None, r.http_status == 200,
-               f"HTTP {r.http_status}",
-               notes=[f"content-length={r.headers.get('Content-Length', 'n/a')}"])
-
-        bad = v.master.call("HEAD", "/cube/template/artifact/download",
-                            query={"artifact_id": self.artifact_id, "token": "wrong-token"})
-        v.step("artifact download rejects a wrong token",
-               "HEAD /cube/template/artifact/download", bad, None,
-               bad.http_status not in (200, 0),
-               f"HTTP {bad.http_status} (expected non-200)")
-
-    def _check_ca(self) -> None:
-        v = self.v
-        r = v.master.call("GET", "/cube/ca/cube-egress-ca.crt")
-        # A missing CA file is a valid deployment state, so only a 5xx is a
-        # failure here.
-        v.step("GET ca file (on CubeMaster)", "GET /cube/ca/:filename", r, None,
-               r.http_status < 500,
-               f"HTTP {r.http_status}")
+        r.add("read.download_head", "HEAD the artifact download (on CubeMaster)",
+              self.link.head_download(self.artifact_id, self.download_token))
+        r.add("read.download_bad_token", "HEAD the artifact download with a wrong token",
+              self.link.head_download(self.artifact_id, "wrong-token"))
 
     # =====================================================================
-    # Group 5: idempotency and dedup
+    # 5. Rebuild / redo
     # =====================================================================
-    def case_dedup(self) -> None:
-        section("Group 5: dedup / idempotency")
-        v = self.v
-        if v.read_only or not self.job_id:
-            v.skip("re-create same spec reuses artifact", "read-only or no base template")
+    def rebuild(self) -> None:
+        section("5. rebuild / redo")
+        r = self.r
+        if not self.template_id:
+            r.add("rebuild.submit", "skipped: nothing was created", note="no template_id")
+            return
+        r.add("rebuild.submit", "request a rebuild of the existing template",
+              self.link.rebuild(self.template_id))
+        r.add("rebuild.db", "DB fan-out right after the rebuild request",
+              db=r.db_snapshot(job_id=self.job_id, template_id=self.template_id))
+
+    # =====================================================================
+    # 6. Same spec again: dedup must land on the same artifact
+    # =====================================================================
+    def dedup(self) -> None:
+        section("6. same spec again (artifact reuse)")
+        r = self.r
+        if not self.job_id:
+            r.add("dedup.submit", "skipped: no base template", note="no job_id")
             return
 
         # Same spec => same fingerprint => same artifact_id. This must hold
-        # ACROSS shapes too, which is why the fingerprint helpers are shared
-        # rather than reimplemented in CubeTemplateCenter.
-        r = v.client.call("POST", "/cube/template/from-image",
-                          body={"requestID": f"{v.tag}-dup",
-                                "source_image_ref": self.cfg.image,
-                                "instance_type": self.cfg.instance_type,
-                                "alias": f"{v.tag}-dup",
-                                "writable_layer_size": "1G",
-                                "exposed_ports": [80]})
-        if not v.expect_ret("POST from-image: same spec accepted",
-                            "POST /cube/template/from-image", r, RET_SUCCESS):
-            return
-        job2 = (r.body or {}).get("job") or {}
-        job2_id = str(job2.get("job_id", "")).strip()
-        tpl2 = str(job2.get("template_id", "")).strip()
+        # ACROSS links too, which is why the fingerprint helpers are shared code
+        # rather than reimplemented inside CubeTemplateCenter.
+        dup_name = f"{r.tag}-dup"
+        call = self.link.create(CreateSpec(
+            image=self.cfg.image,
+            instance_type=self.cfg.instance_type,
+            name=dup_name,
+            request_id=f"{r.tag}-dup",
+        ))
+        rec = r.add("dedup.submit", "submit the identical spec a second time", call)
+        job2 = str(rec.facts.get("job_id", "") or "")
+        tpl2 = str(rec.facts.get("template_id", "") or "")
         if tpl2:
-            v.created.append((tpl2, f"{v.tag}-dup"))
+            r.created.append((tpl2, dup_name))
+        if not job2:
+            return
 
-        status, track = v.wait_terminal(job2_id, self.cfg.build_timeout)
-        v.step("second build reaches READY", "GET /cube/template/from-image", None, None,
-               status == JOB_READY, f"terminal status={status}",
-               notes=[f"trajectory={' -> '.join(track)}"])
-
-        snap2 = v.snapshot_job(job2_id)
-        artifact2 = ((snap2.get("job") or {}).get("artifact_id") or "").strip()
+        status2, timeline2 = r.poll_until_terminal(job2, tpl2, self.cfg.build_timeout)
+        snap2 = r.db_snapshot(job_id=job2, template_id=tpl2)
+        rows2 = snap2.get(TBL_IMAGE_JOB) or []
+        artifact2 = (rows2[0].get("artifact_id") or "").strip() if rows2 else ""
         reused = bool(artifact2) and artifact2 == self.artifact_id
-        v.trace.context["artifact_reused_on_same_spec"] = reused
-        v.step("same spec reuses the same artifact_id", "", None, v.normalize_snapshot(snap2),
-               reused,
-               f"first={self.artifact_id} second={artifact2}"
-               + ("" if reused else "  (rebuild instead of reuse)"))
+        r.add("dedup.terminal", f"second build terminal state {status2}",
+              db=snap2,
+              facts={"terminal_status": status2, "timeline": timeline2,
+                     "artifact_id": artifact2,
+                     "artifact_reused": reused})
+        r.trace.context["artifact_reused_on_same_spec"] = reused
 
     # =====================================================================
-    # Group 6: redo / compat writes
+    # 7. Delete and the state it leaves behind
     # =====================================================================
-    def case_redo(self) -> None:
-        section("Group 6: redo + compat write")
-        v = self.v
-        if v.read_only or not self.template_id:
-            v.skip("POST template redo", "read-only or no template")
-            v.skip("POST template compat", "read-only or no template")
+    def delete(self) -> None:
+        section("7. delete and post-delete state")
+        r = self.r
+        if not r.created:
+            r.add("delete.submit", "skipped: nothing was created", note="nothing created")
             return
 
-        r = v.client.call("POST", "/cube/template/redo",
-                          body={"requestID": f"{v.tag}-redo",
-                                "template_id": self.template_id,
-                                "failed_only": True})
-        # failed_only=True with everything already READY is a legitimate no-op;
-        # accept Success or a clear NotFound, but never a 5xx or a hang.
-        acceptable = r.ret_code in (RET_SUCCESS, RET_NOT_FOUND) and r.error is None
-        v.step("POST template redo (failed_only)", "POST /cube/template/redo", r, None,
-               acceptable, r.describe())
+        template_id, name = r.created[0]
+        target = template_id or name
+        r.add("delete.submit", "delete the template", self.link.delete(target))
 
-        r = v.client.call("POST", "/cube/template/compat",
-                          body={"requestID": f"{v.tag}-compat",
-                                "template_id": self.template_id})
-        acceptable = r.error is None and r.ret_code in (RET_SUCCESS, RET_PARAMS_ERROR, RET_NOT_FOUND)
-        v.step("POST template compat", "POST /cube/template/compat", r, None,
-               acceptable, r.describe())
-
-        r = v.client.call("GET", "/cube/template/build/nonexistent-build-id/status")
-        v.step("GET build status (unknown id)", "GET /cube/template/build/:id/status", r, None,
-               r.error is None and r.http_status < 500,
-               f"HTTP {r.http_status} ret={r.ret_code}")
-
-    # =====================================================================
-    # Group 7: delete + post-delete state
-    # =====================================================================
-    def case_delete(self) -> None:
-        section("Group 7: delete and post-delete state")
-        v = self.v
-        if v.read_only or not v.created:
-            v.skip("DELETE template", "read-only or nothing created")
-            return
-
-        first_tpl, first_alias = v.created[0]
-        target = first_tpl or first_alias
-        r = v.client.call("DELETE", "/cube/template",
-                          body={"RequestID": f"{v.tag}-del", "template_id": target})
-        if not v.expect_ret("DELETE template", "DELETE /cube/template", r, RET_SUCCESS):
-            return
-
-        # After a delete the template must no longer resolve. Poll briefly:
-        # deletion touches several tables and is not guaranteed synchronous.
-        gone = False
-        for _ in range(10):
-            chk = v.client.call("GET", "/cube/template", query={"template_id": target})
-            if chk.ret_code == RET_NOT_FOUND:
-                gone = True
-                break
+        # Deletion touches several tables and is not guaranteed synchronous, so
+        # the API is re-read until it stops resolving (bounded), and the last
+        # read is recorded whatever it says.
+        deadline = time.time() + self.cfg.delete_settle
+        call = self.link.get_template(target)
+        attempts = 1
+        while time.time() < deadline and not _looks_absent(call):
             time.sleep(1)
-        v.step("deleted template no longer resolves", "GET /cube/template", None, None,
-               gone, "still resolvable after delete" if not gone else "")
+            call = self.link.get_template(target)
+            attempts += 1
+        rec = r.add("delete.resolve_after", "read the template after deleting it", call)
+        rec.facts.update({"attempts": attempts, "looks_absent": _looks_absent(call)})
 
-        # Alias must be released as well, otherwise recreating with the same
-        # alias would conflict forever.
-        if first_alias:
-            chk = v.client.call("GET", "/cube/template", query={"template_id": first_alias})
-            v.step("alias released after delete", "GET /cube/template", None, None,
-                   chk.ret_code == RET_NOT_FOUND, chk.describe())
+        # The name must be released as well, otherwise recreating with the same
+        # name would conflict forever.
+        if name:
+            call = self.link.get_template(name)
+            rec = r.add("delete.name_after", "read the template by name after deleting it", call)
+            rec.facts["looks_absent"] = _looks_absent(call)
 
-        v.created.pop(0)
+        # Rows left behind are invisible from the API: this is the only place
+        # they show up.
+        after = r.db_snapshot(job_id=self.job_id if template_id == self.template_id else "",
+                              template_id=template_id,
+                              artifact_id=self.artifact_id)
+        r.add("delete.final_db", "DB fan-out after the delete settled",
+              db=after,
+              facts={
+                  "job_rows": len(after.get(TBL_IMAGE_JOB) or []),
+                  "definition_rows": len(after.get(TBL_DEFINITION) or []),
+                  "replica_rows": len(after.get(TBL_REPLICA) or []),
+                  "artifact_rows": len(after.get(TBL_ARTIFACT) or []),
+                  "placement_rows": len(after.get(TBL_PLACEMENT) or []),
+                  "replica_status": _histogram(after.get(TBL_REPLICA) or []),
+              })
+        r.created.pop(0)
+
+    # =====================================================================
+    # 8. World after
+    # =====================================================================
+    def list_after(self) -> None:
+        section("8. list templates (after)")
+        self.r.add("read.list_after", "list templates after the lifecycle",
+                   self.link.list_templates())
 
     # ---- cleanup -------------------------------------------------------
     def cleanup(self) -> None:
-        v = self.v
-        if v.read_only or not v.created:
+        r = self.r
+        if not r.created:
             return
-        section("Cleanup")
-        for tpl, alias in list(v.created):
-            target = tpl or alias
-            r = v.client.call("DELETE", "/cube/template",
-                              body={"RequestID": f"{v.tag}-cleanup", "template_id": target})
-            (info if r.ret_code == RET_SUCCESS else vlog)(
-                f"cleanup {target}: {r.describe()}")
-        v.created.clear()
+        section("cleanup")
+        for template_id, name in list(r.created):
+            target = template_id or name
+            r.add("cleanup.delete", f"cleanup {target}", self.link.delete(target))
+        r.created.clear()
+
+
+def _histogram(rows: list[dict[str, Any]]) -> dict[str, int]:
+    hist: dict[str, int] = {}
+    for row in rows:
+        key = str(row.get("status", "?"))
+        hist[key] = hist.get(key, 0) + 1
+    return dict(sorted(hist.items()))
+
+
+def _looks_absent(call: Any) -> bool:
+    """'Not found' in both dialects: a NotFound ret envelope on /cube/*, or an
+    HTTP 404 / TemplateNotFoundError through CubeAPI + SDK."""
+    resp = getattr(call, "response", None)
+    if not resp:
+        return False
+    if resp.get("ret_code") == 130404:
+        return True
+    if resp.get("http_status") == 404:
+        return True
+    return "NotFound" in str(resp.get("error") or "")
 
 
 ORDER = [
-    ("validation", Cases.case_validation),
-    ("list", Cases.case_list),
-    ("create", Cases.case_create),
-    ("read_created", Cases.case_read_created),
-    ("dedup", Cases.case_dedup),
-    ("redo", Cases.case_redo),
-    ("delete", Cases.case_delete),
+    ("probes", Scenario.probes),
+    ("list_before", Scenario.list_before),
+    ("create", Scenario.create),
+    ("read_created", Scenario.read_created),
+    ("rebuild", Scenario.rebuild),
+    ("dedup", Scenario.dedup),
+    ("delete", Scenario.delete),
+    ("list_after", Scenario.list_after),
 ]

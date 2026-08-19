@@ -1,63 +1,36 @@
 # Copyright (c) 2026 Tencent Inc.
 # SPDX-License-Identifier: Apache-2.0
-"""Dual-link verification harness for the CubeTemplateCenter split.
+"""Core model for the CubeTemplateCenter dual-link verification harness.
 
-WHY THIS EXISTS
----------------
-The template flow can now run in three shapes, and they must be
-externally indistinguishable:
+DESIGN: RECORD FIRST, JUDGE LATER
+---------------------------------
+This harness deliberately does NOT assert. An assertion encodes what the
+author expected at writing time, which is exactly the wrong instrument when
+the question is "did splitting the template flow out of CubeMaster change
+anything?". A hidden expectation that happens to hold in both links proves
+nothing, and one that is slightly wrong produces noise.
 
-  A) master + local   CubeMaster does everything in-process (pre-split)
-  B) master + remote  CubeMaster validates/persists/distributes,
-                      CubeTemplateCenter builds the ext4
-  C) tc               Requests go straight to CubeTemplateCenter,
-                      which owns the whole flow (next iteration preview)
+So the flow is strictly three phases:
 
-A shell script cannot express what we actually need here: run the same
-API sequence against different entry points, snapshot the database
-after every step, then DIFF the shapes against each other field by
-field. So this harness does three things a bash script does not:
+  1. RECORD   Walk the whole template lifecycle (create, poll every state
+              transition, read, rebuild, delete, post-delete) and store the
+              RAW data of each step: the request as sent, the response body
+              verbatim, and `SELECT *` of every DB row it touched.
+  2. OUTPUT   Dump those raw records (stdout + a JSON file). This is readable
+              on its own and is the artifact a human inspects.
+  3. COMPARE  Diff two recorded runs field by field. The verdict comes only
+              from this phase.
 
-  1. Records a full trace per link: every HTTP request/response plus a
-     DB snapshot taken right after it.
-  2. Normalizes volatile values (ids, timestamps, tokens, paths) so
-     two runs can be compared structurally.
-  3. Diffs traces and reports the FIRST divergence, which is almost
-     always the actual bug.
+Consequence: a single run can never "fail" a check, it can only fail to make
+progress. Correctness is a property of the COMPARISON between links.
 
-ZERO DEPENDENCIES
------------------
-Standard library only. DB access goes through `docker exec <container>
-mysql`, exactly like scripts/test-templatecenter.sh, so there is no
-pymysql/requests install step on a test box.
-
-USAGE
------
-  # verify one shape end to end
-  ./scripts/verify_templatecenter.py run --shape master-local
-  ./scripts/verify_templatecenter.py run --shape master-remote
-  ./scripts/verify_templatecenter.py run --shape tc
-
-  # verify a shape and diff it against a previously recorded baseline
-  ./scripts/verify_templatecenter.py run --shape master-local --save-baseline
-  ./scripts/verify_templatecenter.py run --shape master-remote --compare-baseline
-
-  # diff two recorded traces
-  ./scripts/verify_templatecenter.py diff a.json b.json
-
-  # only exercise the read-only endpoints (safe against a live env)
-  ./scripts/verify_templatecenter.py run --shape master-local --read-only
-
-EXIT CODES
-----------
-  0 all checks passed (and diff clean, when comparing)
-  1 a check failed
-  2 environment/configuration problem (service down, switch not set)
+ZERO DEPENDENCIES for the HTTP links (standard library only; DB access via
+`docker exec <container> mysql`, same as scripts/test-templatecenter.sh).
+The SDK link additionally needs the repo's `sdk/python` package.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
@@ -67,15 +40,17 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field, asdict
-from typing import Any, Callable
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 # --------------------------------------------------------------------------
 # Protocol constants
 #
 # /cube/* endpoints ALWAYS answer HTTP 200 and carry the business outcome in
-# ret.ret_code (see CubeMaster/pkg/service/httpservice/common/gin_response.go).
-# Asserting on the HTTP status alone would therefore pass on every error.
+# ret.ret_code (CubeMaster/pkg/service/httpservice/common/gin_response.go), so
+# the ret envelope - not the HTTP status - is the interesting datum.
+# CubeAPI (which the SDK talks to) is the opposite: real HTTP status codes and
+# no envelope. Both shapes are recorded verbatim.
 # --------------------------------------------------------------------------
 RET_SUCCESS = 200
 RET_PARAMS_ERROR = 130400
@@ -91,11 +66,10 @@ RET_NAMES = {
     RET_CONFLICT: "Conflict",
     RET_INTERNAL_ERROR: "MasterInternalError",
     RET_DB_ERROR: "DBError",
-    -1: "Unknown",
 }
 
 # Job lifecycle (CubeMaster/pkg/templatecenter/job_constants.go). Uppercase in
-# both the DB and the API.
+# both the DB and the API. BUILT only ever appears in remote build mode.
 JOB_PENDING = "PENDING"
 JOB_RUNNING = "RUNNING"
 JOB_BUILT = "BUILT"
@@ -108,15 +82,19 @@ TBL_IMAGE_JOB = "t_cube_template_image_job"
 TBL_ARTIFACT = "t_cube_rootfs_artifact"
 TBL_REPLICA = "t_cube_template_replica"
 TBL_DEFINITION = "t_cube_template_definition"
+TBL_PLACEMENT = "t_cube_artifact_node_placement"
+
+ALL_TABLES = (TBL_IMAGE_JOB, TBL_ARTIFACT, TBL_REPLICA, TBL_DEFINITION, TBL_PLACEMENT)
 
 
 # --------------------------------------------------------------------------
-# Configuration
+# Configuration (env-only for anything secret)
 # --------------------------------------------------------------------------
 @dataclass
 class Config:
     master_url: str = os.environ.get("MASTER_URL", "http://localhost:8089")
     tc_url: str = os.environ.get("TC_URL", "http://localhost:8090")
+    cubeapi_url: str = os.environ.get("CUBE_API_URL", "http://127.0.0.1:3000")
     mysql_container: str = os.environ.get("MYSQL_CONTAINER", "cube-mysql")
     db_user: str = os.environ.get("DB_USER", "cube")
     db_pass: str = os.environ.get("DB_PASS", "cube_pass")
@@ -129,31 +107,56 @@ class Config:
     build_timeout: int = int(os.environ.get("BUILD_TIMEOUT", "600"))
     http_timeout: int = int(os.environ.get("HTTP_TIMEOUT", "30"))
     poll_interval: float = float(os.environ.get("POLL_INTERVAL", "3"))
+    delete_settle: int = int(os.environ.get("DELETE_SETTLE", "15"))
 
-    def api_url(self, shape: str) -> str:
-        return self.tc_url if shape == "tc" else self.master_url
+    def entry_url(self, entry: str) -> str:
+        return {
+            "master": self.master_url,
+            "tc": self.tc_url,
+            "cubeapi": self.cubeapi_url,
+        }[entry]
 
 
-SHAPES = {
+# Every link is the same lifecycle reached through a different route. They must
+# all produce the same observable data; where they legitimately differ is
+# enumerated in EXPECTED_FACT_DIVERGENCE (see verify_templatecenter.py).
+LINKS: dict[str, dict[str, str]] = {
     "master-local": {
+        "via": "http",
         "entry": "master",
-        "desc": "CubeMaster in-process (pre-split baseline)",
+        "desc": "HTTP /cube/* on CubeMaster, build in-process (pre-split baseline)",
         "requires": "CubeMaster conf: template_build_mode: local (or unset)",
     },
     "master-remote": {
+        "via": "http",
         "entry": "master",
-        "desc": "CubeMaster orchestrates, CubeTemplateCenter builds",
+        "desc": "HTTP /cube/* on CubeMaster, ext4 built by CubeTemplateCenter",
         "requires": "CubeMaster conf: template_build_mode: remote + template_center_endpoint",
     },
     "master-proxy": {
+        "via": "http",
         "entry": "master",
-        "desc": "CubeMaster reverse-proxies to CubeTemplateCenter",
-        "requires": "CubeMaster conf: template_route_mode: proxy; TC: CUBE_TC_SERVE_TEMPLATE_API=true",
+        "desc": "HTTP /cube/* on CubeMaster, reverse-proxied to CubeTemplateCenter",
+        "requires": "CubeMaster conf: template_route_mode: proxy; "
+                    "TC env: CUBE_TC_SERVE_TEMPLATE_API=true",
     },
     "tc": {
+        "via": "http",
         "entry": "tc",
-        "desc": "Direct to CubeTemplateCenter (next-iteration preview)",
+        "desc": "HTTP /cube/* straight to CubeTemplateCenter (next-iteration preview)",
         "requires": "TC env: CUBE_TC_SERVE_TEMPLATE_API=true",
+    },
+    "sdk-local": {
+        "via": "sdk",
+        "entry": "cubeapi",
+        "desc": "Python SDK -> CubeAPI /templates -> CubeMaster, build in-process",
+        "requires": "sdk/python importable; CubeAPI up; template_build_mode: local",
+    },
+    "sdk-remote": {
+        "via": "sdk",
+        "entry": "cubeapi",
+        "desc": "Python SDK -> CubeAPI /templates -> CubeMaster -> CubeTemplateCenter",
+        "requires": "sdk/python importable; CubeAPI up; template_build_mode: remote",
     },
 }
 
@@ -166,12 +169,13 @@ class C:
     G = "\033[0;32m"
     Y = "\033[1;33m"
     B = "\033[0;34m"
+    CY = "\033[0;36m"
     DIM = "\033[2m"
     X = "\033[0m"
 
     @classmethod
     def strip(cls) -> None:
-        for k in ("R", "G", "Y", "B", "DIM", "X"):
+        for k in ("R", "G", "Y", "B", "CY", "DIM", "X"):
             setattr(cls, k, "")
 
 
@@ -186,11 +190,11 @@ def info(msg: str) -> None:
 
 
 def ok(msg: str) -> None:
-    print(f"{C.G}[PASS]{C.X} {msg}")
+    print(f"{C.G}[ OK ]{C.X} {msg}")
 
 
 def fail(msg: str) -> None:
-    print(f"{C.R}[FAIL]{C.X} {msg}")
+    print(f"{C.R}[DIFF]{C.X} {msg}")
 
 
 def warn(msg: str) -> None:
@@ -203,16 +207,61 @@ def vlog(msg: str) -> None:
 
 
 def section(msg: str) -> None:
-    print(f"\n{C.B}{'=' * 68}{C.X}")
+    print(f"\n{C.B}{'=' * 72}{C.X}")
     print(f"{C.B}  {msg}{C.X}")
-    print(f"{C.B}{'=' * 68}{C.X}")
+    print(f"{C.B}{'=' * 72}{C.X}")
 
 
 def ret_name(code: Any) -> str:
+    if code is None:
+        return "none"
     try:
         return RET_NAMES.get(int(code), f"code={code}")
     except (TypeError, ValueError):
         return f"code={code!r}"
+
+
+# --------------------------------------------------------------------------
+# Raw record model
+#
+# A Record is an observation, not a judgement: there is no pass/fail field.
+# `op` is the stable identity used to align records across links, so it must
+# not embed ids or link names.
+# --------------------------------------------------------------------------
+@dataclass
+class Record:
+    seq: int
+    op: str
+    label: str
+    via: str = ""
+    at_ms: int = 0
+    request: dict[str, Any] | None = None
+    response: dict[str, Any] | None = None
+    db: dict[str, Any] | None = None
+    facts: dict[str, Any] = field(default_factory=dict)
+    note: str = ""
+
+
+@dataclass
+class Trace:
+    link: str
+    via: str
+    entry_url: str
+    started_at: str
+    records: list[Record] = field(default_factory=list)
+    context: dict[str, Any] = field(default_factory=dict)
+    problems: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "link": self.link,
+            "via": self.via,
+            "entry_url": self.entry_url,
+            "started_at": self.started_at,
+            "context": self.context,
+            "problems": self.problems,
+            "records": [asdict(r) for r in self.records],
+        }
 
 
 # --------------------------------------------------------------------------
@@ -221,8 +270,10 @@ def ret_name(code: Any) -> str:
 @dataclass
 class HttpResult:
     method: str
+    url: str
     path: str
-    http_status: int
+    request_body: Any = None
+    http_status: int = 0
     body: Any = None
     raw: str = ""
     error: str | None = None
@@ -248,32 +299,54 @@ class HttpResult:
                 return str(ret.get("ret_msg", ""))
         return ""
 
-    @property
-    def succeeded(self) -> bool:
-        return self.error is None and self.ret_code == RET_SUCCESS
-
     def describe(self) -> str:
         if self.error:
             return f"transport error: {self.error}"
         rc = self.ret_code
         if rc is None:
-            return f"HTTP {self.http_status} (no ret envelope)"
+            return f"HTTP {self.http_status}"
         return f"HTTP {self.http_status} ret={ret_name(rc)} msg={self.ret_msg!r}"
+
+    def snapshot(self) -> dict[str, Any]:
+        """The RAW response, kept whole. `json` is the parsed body and `raw` the
+        exact bytes as text; both are stored because a body that fails to parse
+        is itself a finding."""
+        return {
+            "http_status": self.http_status,
+            "elapsed_ms": self.elapsed_ms,
+            "ret_code": self.ret_code,
+            "ret_name": ret_name(self.ret_code) if self.ret_code is not None else None,
+            "ret_msg": self.ret_msg,
+            "error": self.error,
+            "json": self.body,
+            "raw": self.raw,
+            "content_type": self.headers.get("Content-Type", ""),
+            "content_length": self.headers.get("Content-Length", ""),
+        }
+
+    def request_snapshot(self) -> dict[str, Any]:
+        return {
+            "method": self.method,
+            "url": self.url,
+            "path": self.path,
+            "body": self.request_body,
+        }
 
 
 class Client:
     """Minimal HTTP client. Never raises on HTTP status: /cube/* encodes
-    failures in the body, and error bodies are exactly what we want to see."""
+    failures in the body, and an error body is data we want to keep."""
 
-    def __init__(self, base_url: str, timeout: int):
+    def __init__(self, base_url: str, timeout: int, headers: dict[str, str] | None = None):
         self.base = base_url.rstrip("/")
         self.timeout = timeout
+        self.extra_headers = headers or {}
 
     def call(
         self,
         method: str,
         path: str,
-        body: dict | None = None,
+        body: Any = None,
         query: dict | None = None,
         timeout: int | None = None,
     ) -> HttpResult:
@@ -287,6 +360,8 @@ class Client:
         req = urllib.request.Request(url, data=data, method=method)
         req.add_header("Content-Type", "application/json")
         req.add_header("Caller", "verify-templatecenter")
+        for k, v in self.extra_headers.items():
+            req.add_header(k, v)
 
         started = time.time()
         try:
@@ -298,9 +373,10 @@ class Client:
             raw = e.read().decode("utf-8", "replace")
             status = e.code
             headers = dict(e.headers or {})
-        except Exception as e:  # noqa: BLE001 - transport failure is data here
+        except Exception as e:  # noqa: BLE001 - a transport failure is data here
             return HttpResult(
-                method, path, 0, error=f"{type(e).__name__}: {e}",
+                method, url, path, body, 0,
+                error=f"{type(e).__name__}: {e}",
                 elapsed_ms=int((time.time() - started) * 1000),
             )
 
@@ -312,7 +388,7 @@ class Client:
             except json.JSONDecodeError:
                 parsed = None
 
-        result = HttpResult(method, path, status, parsed, raw[:4096], None, headers, elapsed)
+        result = HttpResult(method, url, path, body, status, parsed, raw, None, headers, elapsed)
         vlog(f"{method} {path} -> {result.describe()} ({elapsed}ms)")
         return result
 
@@ -320,14 +396,35 @@ class Client:
 # --------------------------------------------------------------------------
 # Database access
 # --------------------------------------------------------------------------
+# Values are interpolated into a SQL string because `docker exec mysql -e`
+# offers no parameter binding. Everything interpolated is therefore validated
+# against a strict allow-list first: ids in this system are opaque tokens, so a
+# value that does not look like one is refused rather than escaped.
+_SAFE_VALUE = re.compile(r"^[A-Za-z0-9_.:@/=+-]{1,190}$")
+_SAFE_COLUMN = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+
+
+class UnsafeQueryValue(ValueError):
+    pass
+
+
+def safe_value(value: str) -> str:
+    if not isinstance(value, str) or not _SAFE_VALUE.match(value):
+        raise UnsafeQueryValue(f"refusing to interpolate {value!r} into SQL")
+    return value
+
+
 class Database:
-    """Read-only DB access through `docker exec`, so no Python driver is
-    needed on the test host."""
+    """Read-only DB access through `docker exec`, so no Python driver has to be
+    installed on a test box."""
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
+        self.enabled = True
 
     def query(self, sql: str) -> list[dict[str, str]]:
+        if not self.enabled:
+            return []
         cmd = [
             "docker", "exec", "-i", self.cfg.mysql_container,
             "mysql", f"-u{self.cfg.db_user}", f"-p{self.cfg.db_pass}",
@@ -345,43 +442,63 @@ class Database:
                 warn(f"db query error: {stderr[:200]}")
             return []
 
-        lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+        lines = [ln for ln in proc.stdout.split("\n") if ln.strip()]
         if len(lines) < 2:
             return []
         header = lines[0].split("\t")
-        rows = []
+        rows: list[dict[str, str]] = []
         for line in lines[1:]:
             values = line.split("\t")
             values += [""] * (len(header) - len(values))
-            rows.append({h: v for h, v in zip(header, values)})
+            rows.append(dict(zip(header, values)))
         return rows
 
-    def one(self, sql: str) -> dict[str, str] | None:
-        rows = self.query(sql)
-        return rows[0] if rows else None
+    def rows_where(self, table: str, column: str, value: str,
+                   order_by: str | None = None) -> list[dict[str, str]]:
+        """`SELECT *` so the raw dump contains every column, including ones this
+        tool does not know about yet - a column that stops being written after
+        the split is precisely the kind of regression worth catching."""
+        if table not in ALL_TABLES or not _SAFE_COLUMN.match(column):
+            raise UnsafeQueryValue(f"unknown table/column: {table}.{column}")
+        try:
+            val = safe_value(value)
+        except UnsafeQueryValue as e:
+            warn(str(e))
+            return []
+        sql = f"SELECT * FROM {table} WHERE {column}='{val}'"
+        if order_by:
+            if not _SAFE_COLUMN.match(order_by):
+                raise UnsafeQueryValue(f"unsafe order_by: {order_by}")
+            sql += f" ORDER BY {order_by}"
+        return self.query(sql)
+
+    def one_where(self, table: str, column: str, value: str) -> dict[str, str]:
+        rows = self.rows_where(table, column, value)
+        return rows[0] if rows else {}
 
     def available(self) -> bool:
-        return self.one("SELECT 1 AS ok") is not None
+        return bool(self.query("SELECT 1 AS ok"))
 
 
 # --------------------------------------------------------------------------
-# Value normalization
+# Normalization (used by the COMPARE phase only - never when recording)
 #
 # Two links necessarily produce different ids, timestamps and tokens. To
-# compare them structurally we replace volatile values with stable
-# placeholders, keeping the SHAPE (present/absent, empty/non-empty) that
-# actually matters.
+# compare them structurally, volatile leaves are replaced by placeholders that
+# preserve the SHAPE that matters: null vs empty vs set, zero vs non-zero,
+# list length.
 # --------------------------------------------------------------------------
 VOLATILE_KEY_PATTERNS = [
-    re.compile(r"^(job_id|template_id|artifact_id|build_id|request_?id|requestID)$", re.I),
-    re.compile(r"(_at|_time|_unix|timestamp)$", re.I),
-    re.compile(r"^(created_at|updated_at|gc_deadline)$", re.I),
-    re.compile(r"(token|fingerprint|sha256|digest)$", re.I),
-    re.compile(r"^(node_id|node_ip|ins_id|ins_ip|master_node_ip)$", re.I),
-    re.compile(r"^(ext4_path|ext4_size_bytes|display_name|alias)$", re.I),
-    re.compile(r"^(progress|pull_.*|expected_node_count|ready_node_count|failed_node_count)$", re.I),
-    re.compile(r"^(image_config_json|create_request|generated_request_json|result_json|request_json)$", re.I),
-    re.compile(r"(version)$", re.I),
+    re.compile(r"^(id|job_id|jobID|template_id|templateID|artifact_id|build_id|buildID)$", re.I),
+    re.compile(r"^(request_?id|requestID|snapshot_id|parent_.*_id)$", re.I),
+    re.compile(r"(_at|_time|_unix|timestamp|deadline)$", re.I),
+    re.compile(r"(token|fingerprint|sha256|digest|checksum)$", re.I),
+    re.compile(r"^(node_id|node_ip|host_ip|host_id|ins_id|ins_ip|master_node_ip|local_ip)$", re.I),
+    re.compile(r"^(ext4_path|ext4_size_bytes|artifact_path|store_path)$", re.I),
+    re.compile(r"^(display_name|alias|aliases|name|version)$", re.I),
+    re.compile(r"^(progress|pull_.*|.*_node_count|elapsed_ms|duration.*)$", re.I),
+    re.compile(r"^(image_config_json|create_request|createRequest|generated_request_json|"
+               r"result_json|request_json|payload_json|logs|message)$", re.I),
 ]
 
 
@@ -390,14 +507,13 @@ def is_volatile(key: str) -> bool:
 
 
 def normalize(value: Any, key: str = "") -> Any:
-    """Replace volatile leaves with placeholders that preserve emptiness."""
     if key and is_volatile(key):
         if value is None:
             return "<null>"
-        if isinstance(value, str):
-            return "<empty>" if value.strip() == "" else "<value>"
         if isinstance(value, bool):
             return value
+        if isinstance(value, str):
+            return "<empty>" if value.strip() == "" else "<value>"
         if isinstance(value, (int, float)):
             return "<zero>" if value == 0 else "<number>"
         if isinstance(value, list):
@@ -413,50 +529,67 @@ def normalize(value: Any, key: str = "") -> Any:
     return value
 
 
+def flatten(obj: Any, prefix: str = "") -> dict[str, Any]:
+    """Flatten to dotted paths so a diff can name the exact field."""
+    out: dict[str, Any] = {}
+    if isinstance(obj, dict):
+        if not obj:
+            out[prefix or "<root>"] = "<empty-object>"
+        for k, v in obj.items():
+            out.update(flatten(v, f"{prefix}.{k}" if prefix else str(k)))
+    elif isinstance(obj, list):
+        if not obj:
+            out[prefix or "<root>"] = "<empty-list>"
+        for i, v in enumerate(obj):
+            out.update(flatten(v, f"{prefix}[{i}]"))
+    else:
+        out[prefix or "<root>"] = obj
+    return out
+
+
 # --------------------------------------------------------------------------
-# Trace model
+# Raw rendering
 # --------------------------------------------------------------------------
-@dataclass
-class Step:
-    """One verification step: what was called, what came back, what the DB
-    looked like right after, and whether the expectation held."""
-    name: str
-    api: str = ""
-    passed: bool = True
-    skipped: bool = False
-    detail: str = ""
-    response: dict[str, Any] | None = None
-    db: dict[str, Any] | None = None
-    notes: list[str] = field(default_factory=list)
+def clip(text: str, limit: int) -> str:
+    if limit <= 0 or len(text) <= limit:
+        return text
+    return text[:limit] + f"... <clipped {len(text) - limit} chars>"
 
 
-@dataclass
-class Trace:
-    shape: str
-    entry_url: str
-    started_at: str
-    steps: list[Step] = field(default_factory=list)
-    phase_track: list[str] = field(default_factory=list)
-    context: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def failed(self) -> list[Step]:
-        return [s for s in self.steps if not s.passed and not s.skipped]
-
-    @property
-    def passed_count(self) -> int:
-        return len([s for s in self.steps if s.passed and not s.skipped])
-
-    @property
-    def skipped_count(self) -> int:
-        return len([s for s in self.steps if s.skipped])
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "shape": self.shape,
-            "entry_url": self.entry_url,
-            "started_at": self.started_at,
-            "phase_track": self.phase_track,
-            "context": self.context,
-            "steps": [asdict(s) for s in self.steps],
-        }
+def render_record(rec: Record, limit: int = 1200) -> str:
+    """Human-readable dump of ONE raw record. Deliberately shows the response
+    body verbatim: reading it is how a human verifies the flow."""
+    lines: list[str] = []
+    lines.append(f"{C.CY}#{rec.seq:03d} [{rec.at_ms / 1000:7.1f}s] {rec.op}{C.X}  {rec.label}")
+    if rec.request:
+        q = rec.request.get("url") or rec.request.get("path")
+        lines.append(f"      {C.DIM}-> {rec.request.get('method', '')} {q}{C.X}")
+        body = rec.request.get("body")
+        if body is not None:
+            lines.append(f"      {C.DIM}   body: {clip(json.dumps(body, sort_keys=True), limit)}{C.X}")
+    if rec.response:
+        r = rec.response
+        head = f"HTTP {r.get('http_status')}"
+        if r.get("ret_code") is not None:
+            head += f" ret={r.get('ret_name')}"
+        if r.get("error"):
+            head += f" ERROR {r.get('error')}"
+        lines.append(f"      <- {head} ({r.get('elapsed_ms')}ms)")
+        payload = r.get("json")
+        text = json.dumps(payload, ensure_ascii=False, sort_keys=True) if payload is not None \
+            else (r.get("raw") or "")
+        if text:
+            lines.append(f"         {clip(text, limit)}")
+    if rec.db:
+        for table, rows in rec.db.items():
+            if isinstance(rows, list):
+                lines.append(f"      db {table}: {len(rows)} row(s)")
+                for row in rows:
+                    lines.append(f"         {clip(json.dumps(row, ensure_ascii=False, sort_keys=True), limit)}")
+            else:
+                lines.append(f"      db {table}: {clip(json.dumps(rows, ensure_ascii=False, sort_keys=True), limit)}")
+    if rec.facts:
+        lines.append(f"      facts: {clip(json.dumps(rec.facts, ensure_ascii=False, sort_keys=True), limit)}")
+    if rec.note:
+        lines.append(f"      {C.Y}note: {rec.note}{C.X}")
+    return "\n".join(lines)

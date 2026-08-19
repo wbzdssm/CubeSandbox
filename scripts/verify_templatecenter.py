@@ -1,53 +1,65 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Tencent Inc.
 # SPDX-License-Identifier: Apache-2.0
-"""Dual-link verification harness for the CubeTemplateCenter split.
+"""Dual-link verification for the CubeTemplateCenter split.
 
-WHY THIS EXISTS
----------------
-The template flow now has several shapes that MUST be externally
-indistinguishable:
+WHAT THIS IS
+------------
+The template flow can now be reached through several routes that MUST be
+externally indistinguishable:
 
-  master-local    CubeMaster does everything in-process (pre-split baseline)
-  master-remote   CubeMaster validates/persists/distributes,
-                  CubeTemplateCenter builds the ext4
-  master-proxy    CubeMaster reverse-proxies /cube/template* to TC
-  tc              Straight to CubeTemplateCenter (next-iteration preview)
+  master-local    /cube/* on CubeMaster, build in-process (pre-split baseline)
+  master-remote   /cube/* on CubeMaster, ext4 built by CubeTemplateCenter
+  master-proxy    /cube/* on CubeMaster, reverse-proxied to CubeTemplateCenter
+  tc              /cube/* straight to CubeTemplateCenter
+  sdk-local       Python SDK -> CubeAPI -> CubeMaster, build in-process
+  sdk-remote      Python SDK -> CubeAPI -> CubeMaster -> CubeTemplateCenter
 
-A shell script cannot express what is actually needed: run the same API
-sequence against different entry points, snapshot the database after each
-step, then DIFF the shapes field by field. This harness therefore:
+RECORD, OUTPUT, THEN COMPARE - IN THAT ORDER
+--------------------------------------------
+This tool does not assert. `run` walks the whole lifecycle (create, every state
+transition, all read paths, rebuild, dedup, delete, post-delete) and prints the
+RAW data of each step: the request as sent, the response verbatim, and
+`SELECT *` of every DB row involved. A run therefore has no pass/fail - it
+either produced usable records or it reports why it could not.
 
-  1. Records a trace per shape: every HTTP call plus the DB state right after.
-  2. Normalizes volatile values (ids, timestamps, tokens, sizes) so two runs
-     are structurally comparable.
-  3. Diffs traces and reports the FIRST divergence, which is usually the bug.
+The verdict comes from `compare`, which diffs two recorded runs field by field.
 
-ZERO DEPENDENCIES: standard library only. DB access goes through
-`docker exec <container> mysql`, same as scripts/test-templatecenter.sh.
+  same dialect  (master-* vs master-*, sdk-* vs sdk-*)
+                responses, DB rows and extracted facts are all compared.
+  cross dialect (master-* vs sdk-*)
+                /cube/* speaks a ret envelope while CubeAPI speaks HTTP status
+                codes, so bodies are not comparable; the semantic outcome, the
+                DB fan-out and the counts are.
 
 USAGE
 -----
-  # verify one shape end to end
-  ./scripts/verify_templatecenter.py run --shape master-local
-  ./scripts/verify_templatecenter.py run --shape master-remote
-  ./scripts/verify_templatecenter.py run --shape tc
+  # record the baseline, printing raw data as it goes
+  ./scripts/verify_templatecenter.py run --link master-local  --out /tmp/local.json
 
-  # record a baseline, then compare another shape against it
-  ./scripts/verify_templatecenter.py run --shape master-local  --save baseline.json
-  ./scripts/verify_templatecenter.py run --shape master-remote --compare baseline.json
+  # record the remote link, then diff it against the baseline
+  ./scripts/verify_templatecenter.py run --link master-remote --out /tmp/remote.json
+  ./scripts/verify_templatecenter.py compare /tmp/local.json /tmp/remote.json
 
-  # diff two recorded traces
-  ./scripts/verify_templatecenter.py diff baseline.json remote.json
+  # or record and compare in one go
+  ./scripts/verify_templatecenter.py run --link master-remote --compare /tmp/local.json
 
-  # read-only probing against a live environment (no writes, no builds)
-  ./scripts/verify_templatecenter.py run --shape master-local --read-only
+  # the SDK link (what a user actually runs), against both build modes
+  ./scripts/verify_templatecenter.py run --link sdk-local  --out /tmp/sdk-local.json
+  ./scripts/verify_templatecenter.py run --link sdk-remote --out /tmp/sdk-remote.json
+  ./scripts/verify_templatecenter.py compare /tmp/sdk-local.json /tmp/sdk-remote.json
+
+  # SDK vs raw HTTP: cross-dialect, so DB fan-out and outcomes are compared
+  ./scripts/verify_templatecenter.py compare /tmp/local.json /tmp/sdk-local.json
+
+  # re-print the raw records of a recorded run
+  ./scripts/verify_templatecenter.py show /tmp/remote.json --full
 
 EXIT CODES
------------
-  0  all checks passed (and the diff was clean when comparing)
-  1  a check failed, or a comparison found a divergence
-  2  environment/configuration problem (service down, switch not set)
+----------
+  0  recorded cleanly / no unexpected divergence
+  1  a divergence was found when comparing
+  2  the run could not produce comparable records (service down, switch unset)
 """
 
 from __future__ import annotations
@@ -62,169 +74,279 @@ from typing import Any
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import vfy_core as core  # noqa: E402
-from vfy_cases import ORDER, Cases  # noqa: E402
-from vfy_core import C, Config, SHAPES, fail, info, ok, section, warn  # noqa: E402
-from vfy_verifier import Verifier  # noqa: E402
+from vfy_cases import ORDER, Scenario  # noqa: E402
+from vfy_core import (  # noqa: E402
+    LINKS,
+    C,
+    Config,
+    Record,
+    fail,
+    flatten,
+    info,
+    normalize,
+    ok,
+    render_record,
+    section,
+    warn,
+)
+from vfy_verifier import Recorder  # noqa: E402
 
-# Divergences that are EXPECTED between shapes: they describe the same
-# outcome reached by a different internal route. Everything else must match.
-EXPECTED_DIVERGENCE = {
-    # remote mode passes through BUILT, local never does
-    "context.saw_built_state",
-    "phase_track",
-    # entry point differs by definition
-    "entry_url",
-    "shape",
-    "started_at",
-    # alias/tag are per-run values
-    "context.alias",
+# Facts that legitimately differ between links: they describe the internal
+# route taken, not the outcome. Everything else must match.
+EXPECTED_FACT_DIVERGENCE = {
+    "timeline",          # remote passes through BUILT, local does not
+    "saw_built_state",
+    "transitions",
+    "poll_number",
+    "attempts",
+    "checks",            # /health composition depends on the TC switch
+    "unsupported",
+    "exception",
 }
 
+# Recorded per state transition, so the count differs by design. Compared as a
+# trajectory note instead of record by record.
+NON_ALIGNED_OPS = {"create.poll"}
 
-def flatten(obj: Any, prefix: str = "") -> dict[str, Any]:
-    """Flatten nested structures to dotted paths so a diff can name the exact
-    field that diverged."""
-    out: dict[str, Any] = {}
-    if isinstance(obj, dict):
-        for k, v in obj.items():
-            out.update(flatten(v, f"{prefix}.{k}" if prefix else str(k)))
-    elif isinstance(obj, list):
-        for i, v in enumerate(obj):
-            out.update(flatten(v, f"{prefix}[{i}]"))
-    else:
-        out[prefix] = obj
+# Environment observations, not behavior.
+ENV_OPS_PREFIX = "env."
+
+
+# --------------------------------------------------------------------------
+# Outcome classification
+#
+# /cube/* answers HTTP 200 and puts the outcome in ret.ret_code; CubeAPI uses
+# real status codes and the SDK raises. Reducing both to the same small
+# vocabulary is what makes a cross-dialect comparison possible at all.
+# --------------------------------------------------------------------------
+RET_TO_OUTCOME = {
+    200: "ok",
+    130400: "invalid",
+    130404: "not-found",
+    130409: "conflict",
+    130593: "server-error",
+    130594: "server-error",
+}
+
+STATUS_TO_OUTCOME = {404: "not-found", 400: "invalid", 422: "invalid", 409: "conflict"}
+
+
+def outcome_of(resp: dict[str, Any] | None) -> str:
+    if not resp:
+        return "no-call"
+    err = str(resp.get("error") or "")
+    if err:
+        status = resp.get("http_status") or 0
+        # The SDK validates some inputs locally and raises before sending, which
+        # is an "invalid" outcome reached without a round trip.
+        if err.startswith(("ValueError", "TypeError")):
+            return "invalid"
+        if status in STATUS_TO_OUTCOME:
+            return STATUS_TO_OUTCOME[status]
+        if not status:
+            return "transport-error"
+        return "server-error" if status >= 500 else f"http-{status}"
+
+    ret = resp.get("ret_code")
+    if ret is not None:
+        return RET_TO_OUTCOME.get(int(ret), f"ret-{ret}")
+
+    status = int(resp.get("http_status") or 0)
+    if 200 <= status < 300:
+        return "ok"
+    if status in STATUS_TO_OUTCOME:
+        return STATUS_TO_OUTCOME[status]
+    if status >= 500:
+        return "server-error"
+    return f"http-{status}" if status else "transport-error"
+
+
+# --------------------------------------------------------------------------
+# Comparison
+# --------------------------------------------------------------------------
+def _records(trace: dict[str, Any]) -> list[dict[str, Any]]:
+    return list(trace.get("records") or [])
+
+
+def _align(a: list[dict[str, Any]], b: list[dict[str, Any]]) -> tuple[
+        list[tuple[dict, dict]], list[dict], list[dict]]:
+    """Pair records by (op, n-th occurrence of that op).
+
+    Alignment is by op rather than by position because links legitimately emit
+    different numbers of polls and skips; op identity is stable by contract.
+    """
+    def buckets(recs: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+        out: dict[str, list[dict[str, Any]]] = {}
+        for r in recs:
+            op = r.get("op", "")
+            if op in NON_ALIGNED_OPS or op.startswith(ENV_OPS_PREFIX):
+                continue
+            out.setdefault(op, []).append(r)
+        return out
+
+    ba, bb = buckets(a), buckets(b)
+    pairs: list[tuple[dict, dict]] = []
+    only_a: list[dict] = []
+    only_b: list[dict] = []
+    for op in sorted(set(ba) | set(bb)):
+        la, lb = ba.get(op, []), bb.get(op, [])
+        for i in range(max(len(la), len(lb))):
+            if i < len(la) and i < len(lb):
+                pairs.append((la[i], lb[i]))
+            elif i < len(la):
+                only_a.append(la[i])
+            else:
+                only_b.append(lb[i])
+    return pairs, only_a, only_b
+
+
+def _diff_mapping(kind: str, op: str, va: Any, vb: Any,
+                  la: str, lb: str, skip: set[str] | None = None) -> list[str]:
+    out: list[str] = []
+    fa, fb = flatten(normalize(va)), flatten(normalize(vb))
+    for key in sorted(set(fa) | set(fb)):
+        head = key.split(".")[0].split("[")[0]
+        if skip and (head in skip or key in skip):
+            continue
+        if fa.get(key) != fb.get(key):
+            out.append(f"{op}: {kind} '{key}' differs "
+                       f"({la}={fa.get(key)!r}, {lb}={fb.get(key)!r})")
     return out
 
 
-def step_index(trace: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {s["name"]: s for s in trace.get("steps", [])}
+def _diff_db(op: str, da: dict | None, db_: dict | None, la: str, lb: str) -> list[str]:
+    """The DB is dialect-independent: both links write the same tables, so this
+    comparison is valid even across dialects and is the strongest signal here."""
+    out: list[str] = []
+    if not da and not db_:
+        return out
+    da, db_ = da or {}, db_ or {}
+    for table in sorted(set(da) | set(db_)):
+        rows_a = da.get(table) or []
+        rows_b = db_.get(table) or []
+        if not isinstance(rows_a, list) or not isinstance(rows_b, list):
+            continue
+        if len(rows_a) != len(rows_b):
+            out.append(f"{op}: db {table} row count differs "
+                       f"({la}={len(rows_a)}, {lb}={len(rows_b)})")
+            continue
+        for i, (ra, rb) in enumerate(zip(rows_a, rows_b)):
+            cols_a, cols_b = set(ra), set(rb)
+            if cols_a != cols_b:
+                out.append(f"{op}: db {table}[{i}] columns differ; "
+                           f"only in {la}={sorted(cols_a - cols_b)}, "
+                           f"only in {lb}={sorted(cols_b - cols_a)}")
+                continue
+            na, nb = normalize(ra), normalize(rb)
+            for col in sorted(cols_a):
+                if na.get(col) != nb.get(col):
+                    out.append(f"{op}: db {table}[{i}].{col} differs "
+                               f"({la}={na.get(col)!r}, {lb}={nb.get(col)!r})")
+    return out
 
 
-def diff_traces(a: dict[str, Any], b: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """Compare two traces. Returns (hard divergences, informational notes)."""
+def compare(a: dict[str, Any], b: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """Diff two recorded runs. Returns (divergences, notes)."""
+    la = a.get("link", "A")
+    lb = b.get("link", "B")
+    same_dialect = a.get("via") == b.get("via")
+
     hard: list[str] = []
     notes: list[str] = []
 
-    label_a = a.get("shape", "A")
-    label_b = b.get("shape", "B")
+    notes.append(f"{la}: via={a.get('via')} entry={a.get('entry_url')} at {a.get('started_at')}")
+    notes.append(f"{lb}: via={b.get('via')} entry={b.get('entry_url')} at {b.get('started_at')}")
+    if not same_dialect:
+        notes.append("cross-dialect comparison: response bodies are not comparable "
+                     "(/cube/* ret envelope vs CubeAPI HTTP status); comparing "
+                     "semantic outcomes, DB fan-out and facts only")
 
-    ia, ib = step_index(a), step_index(b)
+    for label, trace in ((la, a), (lb, b)):
+        for p in trace.get("problems") or []:
+            notes.append(f"{label} reported a problem: {p}")
 
-    only_a = sorted(set(ia) - set(ib))
-    only_b = sorted(set(ib) - set(ia))
-    for n in only_a:
-        notes.append(f"step only in {label_a}: {n}")
-    for n in only_b:
-        notes.append(f"step only in {label_b}: {n}")
+    pairs, only_a, only_b = _align(_records(a), _records(b))
+    for rec in only_a:
+        notes.append(f"op only recorded in {la}: {rec.get('op')} ({rec.get('label')})")
+    for rec in only_b:
+        notes.append(f"op only recorded in {lb}: {rec.get('op')} ({rec.get('label')})")
 
-    # 1) Outcome per shared step must agree. A step passing in one shape and
-    #    failing in the other is the strongest possible signal.
-    for name in sorted(set(ia) & set(ib)):
-        sa, sb = ia[name], ib[name]
-        if sa.get("skipped") or sb.get("skipped"):
-            if sa.get("skipped") != sb.get("skipped"):
-                notes.append(f"step '{name}': skipped in only one shape "
-                             f"({label_a}={sa.get('skipped')}, {label_b}={sb.get('skipped')})")
+    for ra, rb in pairs:
+        op = ra.get("op", "")
+        fa = ra.get("facts") or {}
+        fb = rb.get("facts") or {}
+
+        if fa.get("unsupported") or fb.get("unsupported"):
+            if bool(fa.get("unsupported")) != bool(fb.get("unsupported")):
+                notes.append(f"{op}: unsupported by one link only "
+                             f"({la}={bool(fa.get('unsupported'))}, "
+                             f"{lb}={bool(fb.get('unsupported'))})")
             continue
-        if sa.get("passed") != sb.get("passed"):
-            hard.append(f"step '{name}': passed differs "
-                        f"({label_a}={sa.get('passed')}, {label_b}={sb.get('passed')})"
-                        f"\n    {label_a}: {sa.get('detail', '')}"
-                        f"\n    {label_b}: {sb.get('detail', '')}")
+
+        # 1) Semantic outcome. A call that succeeds on one link and fails on the
+        #    other is the strongest possible signal, in any dialect.
+        oa, ob = outcome_of(ra.get("response")), outcome_of(rb.get("response"))
+        if oa != ob:
+            hard.append(f"{op}: outcome differs ({la}={oa}, {lb}={ob})"
+                        f"\n    {la}: {_short(ra)}"
+                        f"\n    {lb}: {_short(rb)}")
             continue
 
-        # 2) Same business return code for the same call.
-        ra, rb = sa.get("response") or {}, sb.get("response") or {}
-        if ra and rb:
-            if ra.get("ret_code") != rb.get("ret_code"):
-                hard.append(f"step '{name}': ret_code differs "
-                            f"({label_a}={ra.get('ret_name')}, {label_b}={rb.get('ret_name')})")
-            if ra.get("body_keys") != rb.get("body_keys"):
-                sa_keys = set(ra.get("body_keys") or [])
-                sb_keys = set(rb.get("body_keys") or [])
-                hard.append(f"step '{name}': response fields differ; "
-                            f"only in {label_a}={sorted(sa_keys - sb_keys)}, "
-                            f"only in {label_b}={sorted(sb_keys - sa_keys)}")
-            elif ra.get("normalized_body") != rb.get("normalized_body"):
-                fa = flatten(ra.get("normalized_body"))
-                fb = flatten(rb.get("normalized_body"))
-                for key in sorted(set(fa) | set(fb)):
-                    if fa.get(key) != fb.get(key):
-                        hard.append(f"step '{name}': body field '{key}' differs "
-                                    f"({label_a}={fa.get(key)!r}, {label_b}={fb.get(key)!r})")
+        # 2) Response body, same dialect only.
+        if same_dialect:
+            ja, jb = (ra.get("response") or {}).get("json"), (rb.get("response") or {}).get("json")
+            if isinstance(ja, dict) and isinstance(jb, dict):
+                ka, kb = set(ja), set(jb)
+                if ka != kb:
+                    hard.append(f"{op}: response fields differ; "
+                                f"only in {la}={sorted(ka - kb)}, "
+                                f"only in {lb}={sorted(kb - ka)}")
+                else:
+                    hard.extend(_diff_mapping("body", op, ja, jb, la, lb))
 
-        # 3) Same DB fan-out.
-        da, db_ = sa.get("db"), sb.get("db")
-        if da and db_ and da != db_:
-            fa, fb = flatten(da), flatten(db_)
-            for key in sorted(set(fa) | set(fb)):
-                if fa.get(key) != fb.get(key):
-                    hard.append(f"step '{name}': db field '{key}' differs "
-                                f"({label_a}={fa.get(key)!r}, {label_b}={fb.get(key)!r})")
+        # 3) DB fan-out: valid in every dialect.
+        hard.extend(_diff_db(op, ra.get("db"), rb.get("db"), la, lb))
 
-    # 4) Final DB snapshot: the single most important structural comparison.
-    ca = (a.get("context") or {}).get("final_snapshot")
-    cb = (b.get("context") or {}).get("final_snapshot")
-    if ca and cb and ca != cb:
-        fa, fb = flatten(ca), flatten(cb)
-        for key in sorted(set(fa) | set(fb)):
-            if fa.get(key) != fb.get(key):
-                hard.append(f"final DB snapshot: '{key}' differs "
-                            f"({label_a}={fa.get(key)!r}, {label_b}={fb.get(key)!r})")
+        # 4) Extracted facts.
+        hard.extend(_diff_mapping("fact", op, fa, fb, la, lb,
+                                  skip=EXPECTED_FACT_DIVERGENCE))
 
-    # 5) Trajectories are expected to differ; surface them for the reader.
-    ta = " -> ".join(a.get("phase_track") or [])
-    tb = " -> ".join(b.get("phase_track") or [])
-    if ta or tb:
-        notes.append(f"trajectory {label_a}: {ta or '(none)'}")
-        notes.append(f"trajectory {label_b}: {tb or '(none)'}")
+    # 5) Trajectories differ by design; surface them so a human can read them.
+    ta = (a.get("context") or {}).get("timeline") or []
+    tb = (b.get("context") or {}).get("timeline") or []
+    notes.append(f"trajectory {la}: {' -> '.join(ta) or '(none)'}")
+    notes.append(f"trajectory {lb}: {' -> '.join(tb) or '(none)'}")
 
-    for key in ("saw_built_state", "artifact_reused_on_same_spec"):
+    for key in ("terminal_status", "saw_built_state", "artifact_reused_on_same_spec"):
         va = (a.get("context") or {}).get(key)
         vb = (b.get("context") or {}).get(key)
-        if va is not None or vb is not None:
-            notes.append(f"context.{key}: {label_a}={va}, {label_b}={vb}")
+        if va is None and vb is None:
+            continue
+        if key == "terminal_status" and va != vb:
+            hard.append(f"context: terminal_status differs ({la}={va}, {lb}={vb})")
+        elif key == "artifact_reused_on_same_spec" and va != vb:
+            hard.append(f"context: artifact_reused_on_same_spec differs ({la}={va}, {lb}={vb})")
+        else:
+            notes.append(f"context.{key}: {la}={va}, {lb}={vb}")
 
-    hard = [h for h in hard if not any(h.startswith(f"final DB snapshot: '{e}'")
-                                       or f"'{e}'" in h for e in EXPECTED_DIVERGENCE)]
     return hard, notes
 
 
-def run_shape(cfg: Config, shape: str, read_only: bool, keep: bool) -> tuple[int, dict[str, Any]]:
-    v = Verifier(cfg, shape, read_only)
-    if not v.preflight():
-        fail("preflight failed; not running the API suite")
-        return 2, v.trace.to_dict()
-
-    cases = Cases(v)
-    try:
-        for name, fn in ORDER:
-            fn(cases)
-    except KeyboardInterrupt:
-        warn("interrupted")
-    finally:
-        if not keep:
-            try:
-                cases.cleanup()
-            except Exception as e:  # noqa: BLE001
-                warn(f"cleanup error: {e}")
-
-    section(f"Summary - shape={shape}")
-    t = v.trace
-    total = len(t.steps)
-    print(f"  total   : {total}")
-    print(f"  {C.G}passed{C.X}  : {t.passed_count}")
-    print(f"  {C.R}failed{C.X}  : {len(t.failed)}")
-    print(f"  {C.Y}skipped{C.X} : {t.skipped_count}")
-    if t.phase_track:
-        print(f"  trajectory: {' -> '.join(t.phase_track)}")
-    if t.failed:
-        print(f"\n  {C.R}failed steps:{C.X}")
-        for s in t.failed:
-            print(f"    - {s.name}: {s.detail}")
-    return (1 if t.failed else 0), t.to_dict()
+def _short(rec: dict[str, Any]) -> str:
+    resp = rec.get("response") or {}
+    bits = [f"HTTP {resp.get('http_status')}"]
+    if resp.get("ret_name"):
+        bits.append(f"ret={resp.get('ret_name')}")
+    if resp.get("ret_msg"):
+        bits.append(f"msg={str(resp.get('ret_msg'))[:120]!r}")
+    if resp.get("error"):
+        bits.append(f"error={str(resp.get('error'))[:160]}")
+    return " ".join(bits)
 
 
+# --------------------------------------------------------------------------
+# Commands
+# --------------------------------------------------------------------------
 def cmd_run(args: argparse.Namespace) -> int:
     cfg = Config()
     if args.image:
@@ -232,12 +354,36 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.build_timeout:
         cfg.build_timeout = args.build_timeout
 
-    code, trace = run_shape(cfg, args.shape, args.read_only, args.keep)
+    rec = Recorder(cfg, args.link, print_raw=not args.quiet_raw,
+                   print_limit=0 if args.full else args.print_limit)
+    usable = rec.capture_environment()
 
-    if args.save:
-        with open(args.save, "w") as f:
+    scenario = Scenario(rec)
+    if usable:
+        try:
+            for _, fn in ORDER:
+                fn(scenario)
+        except KeyboardInterrupt:
+            rec.problem("interrupted by the operator")
+        finally:
+            if not args.keep:
+                try:
+                    scenario.cleanup()
+                except Exception as e:  # noqa: BLE001
+                    warn(f"cleanup error: {e}")
+    else:
+        rec.problem("environment is not usable; the lifecycle was not recorded")
+
+    rec.summarize()
+    trace = rec.trace.to_dict()
+
+    out_path = args.out
+    if out_path:
+        with open(out_path, "w") as f:
             json.dump(trace, f, indent=2, sort_keys=True, default=str)
-        info(f"trace saved to {args.save}")
+        info(f"raw records written to {out_path} ({len(trace['records'])} records)")
+
+    exit_code = 0 if usable and not rec.trace.problems else 2
 
     if args.compare:
         if not os.path.exists(args.compare):
@@ -245,22 +391,12 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 2
         with open(args.compare) as f:
             baseline = json.load(f)
-        section(f"Diff: {baseline.get('shape')} (baseline) vs {trace.get('shape')} (current)")
-        hard, notes = diff_traces(baseline, trace)
-        for n in notes:
-            print(f"  {C.DIM}note{C.X}  {n}")
-        if hard:
-            print()
-            for h in hard:
-                fail(h)
-            fail(f"{len(hard)} divergence(s) between shapes")
-            return 1
-        ok("no unexpected divergence between the two shapes")
+        exit_code = max(exit_code, _report(baseline, trace))
 
-    return code
+    return exit_code
 
 
-def cmd_diff(args: argparse.Namespace) -> int:
+def cmd_compare(args: argparse.Namespace) -> int:
     for p in (args.a, args.b):
         if not os.path.exists(p):
             fail(f"file not found: {p}")
@@ -269,64 +405,111 @@ def cmd_diff(args: argparse.Namespace) -> int:
         a = json.load(f)
     with open(args.b) as f:
         b = json.load(f)
-    section(f"Diff: {a.get('shape')} vs {b.get('shape')}")
-    hard, notes = diff_traces(a, b)
+    return _report(a, b)
+
+
+def _report(a: dict[str, Any], b: dict[str, Any]) -> int:
+    section(f"Compare: {a.get('link')} vs {b.get('link')}")
+    hard, notes = compare(a, b)
     for n in notes:
         print(f"  {C.DIM}note{C.X}  {n}")
     if hard:
         print()
         for h in hard:
             fail(h)
-        fail(f"{len(hard)} divergence(s)")
+        fail(f"{len(hard)} divergence(s) between the two links")
         return 1
-    ok("traces are structurally equivalent")
+    print()
+    ok("no unexpected divergence between the two links")
     return 0
 
 
-def cmd_shapes(_: argparse.Namespace) -> int:
-    section("Available shapes")
-    for name, meta in SHAPES.items():
-        print(f"  {C.B}{name}{C.X}")
+def cmd_show(args: argparse.Namespace) -> int:
+    if not os.path.exists(args.file):
+        fail(f"file not found: {args.file}")
+        return 2
+    with open(args.file) as f:
+        trace = json.load(f)
+    section(f"Raw records: {trace.get('link')} (via {trace.get('via')})")
+    limit = 0 if args.full else args.print_limit
+    for raw in trace.get("records") or []:
+        if args.op and not str(raw.get("op", "")).startswith(args.op):
+            continue
+        print(render_record(Record(**raw), limit))
+    for p in trace.get("problems") or []:
+        warn(f"problem: {p}")
+    return 0
+
+
+def cmd_links(_: argparse.Namespace) -> int:
+    section("Links")
+    for name, meta in LINKS.items():
+        print(f"  {C.B}{name}{C.X}  ({meta['via']})")
         print(f"    {meta['desc']}")
         print(f"    {C.DIM}requires: {meta['requires']}{C.X}")
     print()
-    info("recommended sequence (all three must agree):")
-    print("  1) ./scripts/verify_templatecenter.py run --shape master-local  --save /tmp/base.json")
-    print("  2) ./scripts/verify_templatecenter.py run --shape master-remote --compare /tmp/base.json")
-    print("  3) ./scripts/verify_templatecenter.py run --shape tc            --compare /tmp/base.json")
+    info("recommended sequence")
+    print("  # 1. HTTP baseline vs remote build")
+    print("  run --link master-local  --out /tmp/local.json")
+    print("  run --link master-remote --compare /tmp/local.json")
+    print("  # 2. proxy + direct TC (needs CUBE_TC_SERVE_TEMPLATE_API=true)")
+    print("  run --link master-proxy  --compare /tmp/local.json")
+    print("  run --link tc            --compare /tmp/local.json")
+    print("  # 3. the SDK path a user actually runs, in both build modes")
+    print("  run --link sdk-local     --out /tmp/sdk-local.json")
+    print("  run --link sdk-remote    --compare /tmp/sdk-local.json")
+    print("  # 4. SDK vs raw HTTP (cross-dialect: DB fan-out + outcomes)")
+    print("  compare /tmp/local.json /tmp/sdk-local.json")
     return 0
 
 
 def main() -> int:
-    global_parser = argparse.ArgumentParser(
-        description="Dual-link verification for the CubeTemplateCenter split",
+    parser = argparse.ArgumentParser(
+        description="Record, output and compare the template lifecycle across links",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    global_parser.add_argument("-v", "--verbose", action="store_true")
-    sub = global_parser.add_subparsers(dest="cmd", required=True)
+    parser.add_argument("-v", "--verbose", action="store_true")
+    sub = parser.add_subparsers(dest="cmd", required=True)
 
-    p_run = sub.add_parser("run", help="run the API suite against one shape")
-    p_run.add_argument("--shape", required=True, choices=sorted(SHAPES))
-    p_run.add_argument("--save", metavar="FILE", help="write the trace to FILE")
-    p_run.add_argument("--compare", metavar="FILE", help="diff against a recorded trace")
-    p_run.add_argument("--read-only", action="store_true",
-                       help="skip every mutating case (safe on a live environment)")
+    p_run = sub.add_parser("run", help="walk the lifecycle through one link and record raw data")
+    p_run.add_argument("--link", required=True, choices=sorted(LINKS))
+    p_run.add_argument("--out", metavar="FILE", help="write the raw records to FILE")
+    p_run.add_argument("--compare", metavar="FILE", help="compare against a recorded run")
     p_run.add_argument("--keep", action="store_true",
                        help="do not delete templates created during the run")
+    p_run.add_argument("--quiet-raw", action="store_true",
+                       help="do not print raw records while running")
+    p_run.add_argument("--full", action="store_true",
+                       help="print raw values untruncated")
+    p_run.add_argument("--print-limit", type=int, default=1200,
+                       help="characters per raw value when printing (default 1200)")
     p_run.add_argument("--image", help="override the source image")
     p_run.add_argument("--build-timeout", type=int, help="seconds to wait for a build")
     p_run.set_defaults(func=cmd_run)
 
-    p_diff = sub.add_parser("diff", help="diff two recorded traces")
+    p_cmp = sub.add_parser("compare", help="compare two recorded runs")
+    p_cmp.add_argument("a")
+    p_cmp.add_argument("b")
+    p_cmp.set_defaults(func=cmd_compare)
+
+    # Kept because the earlier revision of this tool used `diff`.
+    p_diff = sub.add_parser("diff", help="alias of compare")
     p_diff.add_argument("a")
     p_diff.add_argument("b")
-    p_diff.set_defaults(func=cmd_diff)
+    p_diff.set_defaults(func=cmd_compare)
 
-    p_shapes = sub.add_parser("shapes", help="list shapes and the recommended sequence")
-    p_shapes.set_defaults(func=cmd_shapes)
+    p_show = sub.add_parser("show", help="re-print the raw records of a recorded run")
+    p_show.add_argument("file")
+    p_show.add_argument("--op", help="only records whose op starts with this prefix")
+    p_show.add_argument("--full", action="store_true", help="print values untruncated")
+    p_show.add_argument("--print-limit", type=int, default=1200)
+    p_show.set_defaults(func=cmd_show)
 
-    args = global_parser.parse_args()
+    p_links = sub.add_parser("links", help="list links and the recommended sequence")
+    p_links.set_defaults(func=cmd_links)
+
+    args = parser.parse_args()
     core._VERBOSE = args.verbose
     started = time.time()
     try:
