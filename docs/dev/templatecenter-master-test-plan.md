@@ -22,9 +22,13 @@ TC 从 CubeMaster 拆分后共 5 种运行形态，全部应表现一致：
 
 | 文档 | 用途 |
 |---|---|
+`templatecenter-issue-1280-mapping.md` | **#1280 对照表：哪些在本次范围内，哪些不是** |
 `templatecenter-testing-handoff.md` | 双向通道单独验证（curl 级） |
 `templatecenter-test-data.md` | 5 张表的期望数据与一致性 SQL |
 `templatecenter-testing-guide.md` | 失败场景的手工构造方法 |
+
+> `#1280` 是索引 14 个子 issue 的汇总 issue，**不是本次的验收清单**。本次只覆盖 `#957`
+> 的已完成部分；其余 11 项未触及，不要作为回归上报。详见对照表。
 
 ---
 
@@ -39,6 +43,9 @@ TC 从 CubeMaster 拆分后共 5 种运行形态，全部应表现一致：
 | K5 | `PARTIALLY_READY` 不会自愈 | 失败副本无自动重试，需人工 `redo --failed-only` |
 | K6 | `test_package_layout.sh` 有 3 条 cube-proxy 相关失败 | 预存问题，与 TC 无关 |
 | K7 | 失败模板的 `definition`/`replica` 表无行、别名查 404 | 设计如此，详见 test-data 文档第 4 节 |
+| K8 | 删除 pending/building 模板返回 409 | issue #66，强制清理机制未实现；reconciler 2h 后置 FAILED 才可删 |
+| K9 | 私有 HTTP（insecure）registry 拉取失败 | issue #870。注意失败点已随构建迁移到 **TC 日志** |
+| K10 | 快照来源的模板 `redo` 失败，报 `no source_image_ref` | issue #1159，未解决但已止损（不再破坏产物） |
 
 ---
 
@@ -260,7 +267,7 @@ python3 scripts/vfy_selftest.py  # 验证工具自身 79 项
 ## build_provenance
 confirmed / overwritten / unknown
 
-## 新发现问题（排除第 0 节 K1-K7）
+## 新发现问题（排除第 0 节 K1-K10 与 #1280 对照表中未触及项）
 1. 现象 / 复现命令 / 原始输出
 
 ## 未覆盖

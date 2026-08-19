@@ -282,6 +282,23 @@ func runRedoTemplateImageJob(ctx context.Context, jobID string, req *types.RedoT
 			failRedoTemplateImageJob(ctx, jobID, JobPhaseBuildingExt4, "redo cannot rebuild envd-enabled template rootfs because the original envd payload is not persisted")
 			return
 		}
+		// A rebuild needs a source image to pull. Templates created from a
+		// sandbox snapshot have no source_image_ref, so there is nothing to
+		// rebuild FROM (issue #1159).
+		//
+		// Checked here, before the cleanup below, for a specific reason: that
+		// cleanup deletes the previous ext4 and marks the artifact FAILED, and
+		// PrepareLocalSource only reports the missing reference afterwards. So
+		// without this guard a snapshot-based template would have its remaining
+		// artifact destroyed on the way to an inevitable failure — turning a
+		// possibly-recoverable template into a permanently dead one.
+		if strings.TrimSpace(workingReq.SourceImageRef) == "" {
+			failRedoTemplateImageJob(ctx, jobID, JobPhaseBuildingExt4,
+				"redo cannot rebuild this template: it has no source_image_ref "+
+					"(templates created from a sandbox snapshot cannot be rebuilt from an image); "+
+					"the existing artifact was left untouched")
+			return
+		}
 		if err := image.EnsureArtifactBuildPreflight(ctx); err != nil {
 			failRedoTemplateImageJob(ctx, jobID, JobPhaseBuildingExt4, err.Error())
 			return
