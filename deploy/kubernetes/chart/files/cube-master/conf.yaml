@@ -8,13 +8,16 @@ common:
   collect_metric_interval: 1s
   default_headless_service_nodes_num: 1
   enable_check_com_net_id_param: false
-  # Template build / route wiring. Both default to "local", which is the
-  # pre-split behaviour: CubeMaster builds the ext4 in-process and serves the
-  # public template API itself.
+  # Template build / route wiring.
   #
-  # templateCenter.enabled alone does NOT change CubeMaster's behaviour -- it
-  # only starts the TC process. These two keys are what hand work over to it,
-  # which is why they are derived from the same value.
+  # templatecenter_enabled is the master switch and mirrors
+  # controlPlane.templateCenter.enabled: false means every template path is
+  # served locally regardless of the modes below. With it false the modes are
+  # inert, so a leftover value can never enable anything by accident. Only when
+  # it is true do template_build_mode / template_route_mode take effect, and
+  # those are forced back to "local" whenever TC is not actually reachable, so a
+  # remote mode can never point at an empty endpoint.
+  templatecenter_enabled: {{ include "cube.templateCenterEnabledConf" . }}
   template_build_mode: {{ include "cube.templateBuildMode" . | quote }}
   template_route_mode: {{ include "cube.templateRouteMode" . | quote }}
 {{- $tcEndpoint := include "cube.templateCenterEndpoint" . }}

@@ -68,36 +68,46 @@ type CommonConf struct {
 	HttpPort               int           `yaml:"http_port"`
 	// HttpBind is the HTTP listen address. Empty means 0.0.0.0 (all
 	// interfaces); set to 127.0.0.1 to keep the API loopback-only.
-	HttpBind                        string            `yaml:"http_bind"`
-	WriteTimeout                    int               `yaml:"http_writetimeout"`
-	ReadTimeout                     int               `yaml:"http_readtimeout"`
-	IdleTimeout                     int               `yaml:"http_idletimeout"`
-	GraceFullStopTimeoutInSec       int               `yaml:"gracefull_stop_timeout_insec"`
-	SyncMetaDataInterval            time.Duration     `yaml:"sync_meta_data_interval"`
-	SyncMetricDataInterval          time.Duration     `yaml:"sync_metric_data_interval"`
-	CleanSandboxCacheInterval       time.Duration     `yaml:"clean_sandbox_cache_interval"`
-	EnabledListRunningSandboxCache  bool              `yaml:"enabled_list_running_sandbox_cache"`
-	AsyncTaskQueueSize              int               `yaml:"async_task_queue_size"`
-	AsyncTaskWorkerNum              int               `yaml:"async_task_worker_num"`
-	HeadlessServiceName             string            `yaml:"headless_service_name"`
-	DefaultHeadlessServiceNodesNum  int64             `yaml:"default_headless_service_nodes_num"`
-	ListFilterOutLables             map[string]string `yaml:"list_filter_out_lables"`
-	CollectMetricInterval           time.Duration     `yaml:"collect_metric_interval"`
-	ReportLocalCreateNum            bool              `yaml:"report_local_create_num"`
-	ReportStdevMetric               bool              `yaml:"report_stdev_metric"`
-	GwCacheExpiredTime              time.Duration     `yaml:"gw_cache_expired_time"`
-	GwCacheEnable                   bool              `yaml:"gw_cache_enable"`
-	ReportGWRedisGetMetric          bool              `yaml:"report_gw_redis_get_metric"`
-	EnableGetStatusFromCubelet      bool              `yaml:"enable_get_status_from_cubelet"`
-	DisableHardDelete               bool              `yaml:"disable_hard_delete"`
+	HttpBind                       string            `yaml:"http_bind"`
+	WriteTimeout                   int               `yaml:"http_writetimeout"`
+	ReadTimeout                    int               `yaml:"http_readtimeout"`
+	IdleTimeout                    int               `yaml:"http_idletimeout"`
+	GraceFullStopTimeoutInSec      int               `yaml:"gracefull_stop_timeout_insec"`
+	SyncMetaDataInterval           time.Duration     `yaml:"sync_meta_data_interval"`
+	SyncMetricDataInterval         time.Duration     `yaml:"sync_metric_data_interval"`
+	CleanSandboxCacheInterval      time.Duration     `yaml:"clean_sandbox_cache_interval"`
+	EnabledListRunningSandboxCache bool              `yaml:"enabled_list_running_sandbox_cache"`
+	AsyncTaskQueueSize             int               `yaml:"async_task_queue_size"`
+	AsyncTaskWorkerNum             int               `yaml:"async_task_worker_num"`
+	HeadlessServiceName            string            `yaml:"headless_service_name"`
+	DefaultHeadlessServiceNodesNum int64             `yaml:"default_headless_service_nodes_num"`
+	ListFilterOutLables            map[string]string `yaml:"list_filter_out_lables"`
+	CollectMetricInterval          time.Duration     `yaml:"collect_metric_interval"`
+	ReportLocalCreateNum           bool              `yaml:"report_local_create_num"`
+	ReportStdevMetric              bool              `yaml:"report_stdev_metric"`
+	GwCacheExpiredTime             time.Duration     `yaml:"gw_cache_expired_time"`
+	GwCacheEnable                  bool              `yaml:"gw_cache_enable"`
+	ReportGWRedisGetMetric         bool              `yaml:"report_gw_redis_get_metric"`
+	EnableGetStatusFromCubelet     bool              `yaml:"enable_get_status_from_cubelet"`
+	DisableHardDelete              bool              `yaml:"disable_hard_delete"`
 
+	// TemplateCenterEnabled is the master switch for handing template work to
+	// the standalone CubeTemplateCenter process.
+	//
+	// Default and unset are both false: the YAML zero value and a missing key
+	// both leave every template path served locally, exactly as before the
+	// split. Only an explicit "true" lets template_build_mode /
+	// template_route_mode take effect -- when this is false those two are
+	// ignored entirely, so a leftover value cannot enable anything by accident.
+	TemplateCenterEnabled bool `yaml:"templatecenter_enabled"`
 	// TemplateBuildMode selects where template-from-image builds run:
 	//   - "local" (default): build in-process, exactly as before
 	//   - "remote": validate + persist the job, then forward the build to
 	//     CubeTemplateCenter and wait for its status callback
 	//
-	// Ignored when TemplateRouteMode is "proxy" (the whole request is handed
-	// to CubeTemplateCenter, which then decides how to build).
+	// Only consulted when TemplateCenterEnabled is true, and ignored when
+	// TemplateRouteMode is "proxy" (the whole request is handed to
+	// CubeTemplateCenter, which then decides how to build).
 	TemplateBuildMode string `yaml:"template_build_mode"`
 	// TemplateCenterEndpoint is the base URL of the CubeTemplateCenter
 	// process (e.g. "http://templatecenter:8090"). Required when
@@ -114,20 +124,20 @@ type CommonConf struct {
 	// CubeMaster. It is the dress rehearsal for fully removing the template
 	// implementation from CubeMaster in the next iteration -- and it is
 	// reversible by flipping this one value back to "local".
-	TemplateRouteMode string `yaml:"template_route_mode"`
-	CollectSandboxMemoryWhitelist   []string          `yaml:"collect_sandbox_memory_whitelist"`
-	EnableAllCollectSandboxMemory   bool              `yaml:"enable_all_collect_sandbox_memory"`
-	FilterErrMsgErrorCode           map[int]bool      `yaml:"filter_err_msg_error_code"`
-	DescribeInstancesWhiteList      map[string]bool   `yaml:"describe_instances_white_list"`
-	DescribeTaskExpireTime          int               `yaml:"describe_task_expire_time"`
-	EnablePrivateIpQuery            bool              `yaml:"enable_private_ip_query"`
-	DbMaxRetryCount                 int               `yaml:"db_max_retry_count"`
-	DbRetryInterval                 time.Duration     `yaml:"db_retry_interval"`
-	EnableCheckComNetIDParam        bool              `yaml:"enable_check_com_net_id_param"`
-	EnableDescribeInstanceFromRedis bool              `yaml:"enable_describe_instance_from_redis"`
-	MaxNICQueue                     int               `yaml:"max_nic_queue"`
-	DisableCreateImageCluster       map[string]bool   `yaml:"disable_create_image_cluster"`
-	EnableAGSColdStartSwitch        bool              `yaml:"enable_ags_cold_start_switch"`
+	TemplateRouteMode               string          `yaml:"template_route_mode"`
+	CollectSandboxMemoryWhitelist   []string        `yaml:"collect_sandbox_memory_whitelist"`
+	EnableAllCollectSandboxMemory   bool            `yaml:"enable_all_collect_sandbox_memory"`
+	FilterErrMsgErrorCode           map[int]bool    `yaml:"filter_err_msg_error_code"`
+	DescribeInstancesWhiteList      map[string]bool `yaml:"describe_instances_white_list"`
+	DescribeTaskExpireTime          int             `yaml:"describe_task_expire_time"`
+	EnablePrivateIpQuery            bool            `yaml:"enable_private_ip_query"`
+	DbMaxRetryCount                 int             `yaml:"db_max_retry_count"`
+	DbRetryInterval                 time.Duration   `yaml:"db_retry_interval"`
+	EnableCheckComNetIDParam        bool            `yaml:"enable_check_com_net_id_param"`
+	EnableDescribeInstanceFromRedis bool            `yaml:"enable_describe_instance_from_redis"`
+	MaxNICQueue                     int             `yaml:"max_nic_queue"`
+	DisableCreateImageCluster       map[string]bool `yaml:"disable_create_image_cluster"`
+	EnableAGSColdStartSwitch        bool            `yaml:"enable_ags_cold_start_switch"`
 }
 
 type AuthConf struct {
@@ -1199,6 +1209,47 @@ func validate(cfg *Config) error {
 //go:noinline
 func GetConfig() *Config {
 	return cfg
+}
+
+// TemplateCenterEnabled reports whether any template work should be handed to
+// the standalone CubeTemplateCenter process. This is the single place the
+// master switch lives; every feature gate below is derived from it, so a
+// leftover build/route mode can never take effect on its own.
+//
+// Returns false when the config is absent or the key is unset, so callers can
+// gate on it directly without a nil check.
+func (c *Config) TemplateCenterEnabled() bool {
+	if c == nil || c.Common == nil {
+		return false
+	}
+	return c.Common.TemplateCenterEnabled
+}
+
+// TemplateBuildRemote reports whether template-from-image builds are forwarded
+// to CubeTemplateCenter. Only true when the master switch is on AND the build
+// mode is the literal "remote" -- any other value, including a typo, is local.
+func (c *Config) TemplateBuildRemote() bool {
+	if !c.TemplateCenterEnabled() {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(c.Common.TemplateBuildMode), "remote")
+}
+
+// TemplateRouteProxy reports whether the public /cube/template* endpoints are
+// reverse-proxied to CubeTemplateCenter. Only true when the master switch is
+// on AND the route mode is the literal "proxy".
+func (c *Config) TemplateRouteProxy() bool {
+	if !c.TemplateCenterEnabled() {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(c.Common.TemplateRouteMode), "proxy")
+}
+
+// TemplateCenterRequired reports whether any template path depends on reaching
+// CubeTemplateCenter, i.e. a missing template_center_endpoint is a real error
+// rather than an unused default.
+func (c *Config) TemplateCenterRequired() bool {
+	return c.TemplateBuildRemote() || c.TemplateRouteProxy()
 }
 
 var defaultAllowedHostMountPrefixes = []string{"/data/shared/"}

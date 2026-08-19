@@ -41,12 +41,11 @@ var (
 // templateRouteProxyEnabled reports whether the public template endpoints
 // should be reverse-proxied to CubeTemplateCenter instead of being served
 // in-process.
+//
+// Both the master switch (templatecenter_enabled) and the route mode
+// ("proxy") must be set; either one alone keeps the endpoints local.
 func templateRouteProxyEnabled() bool {
-	cfg := config.GetConfig()
-	if cfg == nil || cfg.Common == nil {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(cfg.Common.TemplateRouteMode), templateRouteModeProxy)
+	return config.GetConfig().TemplateRouteProxy()
 }
 
 // templateProxyHandler forwards a template request to CubeTemplateCenter and

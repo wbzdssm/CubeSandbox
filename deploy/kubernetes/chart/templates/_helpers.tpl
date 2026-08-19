@@ -534,6 +534,20 @@ and a failure domain for no benefit.
 {{- end -}}
 
 {{- /*
+CubeMaster's templatecenter_enabled master switch, rendered as the boolean the
+YAML key expects. Mirrors .Values.controlPlane.templateCenter.enabled so the
+chart and the binary agree: with the switch off every template path is local
+regardless of the modes below.
+*/ -}}
+{{- define "cube.templateCenterEnabledConf" -}}
+{{- if .Values.controlPlane.templateCenter.enabled -}}
+{{- "true" -}}
+{{- else -}}
+{{- "false" -}}
+{{- end -}}
+{{- end -}}
+
+{{- /*
 Where template-from-image builds run, as seen by CubeMaster.
 
 "remote" only once TC is actually deployed: emitting remote while TC is absent

@@ -19,12 +19,11 @@ import (
 // remoteTemplateBuildEnabled reports whether template-from-image builds
 // should be forwarded to the standalone CubeTemplateCenter process instead
 // of running in-process (gray rollout switch).
+//
+// Both the master switch (templatecenter_enabled) and the build mode
+// ("remote") must be set; either one alone keeps builds local.
 func remoteTemplateBuildEnabled() bool {
-	cfg := config.GetConfig()
-	if cfg == nil || cfg.Common == nil {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(cfg.Common.TemplateBuildMode), "remote")
+	return config.GetConfig().TemplateBuildRemote()
 }
 
 // forwardBuildJobToTemplateCenter pushes an already-persisted job to
