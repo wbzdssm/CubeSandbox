@@ -19,6 +19,21 @@ DB_USER=${DB_USER:-cube}
 DB_PASS=${DB_PASS:-cube_pass}
 DB_NAME=${DB_NAME:-cube_mvp}
 
+# 构建模式: local (默认, CubeMaster 进程内构建) | remote (转发给 TC 构建)
+BUILD_MODE=${BUILD_MODE:-local}
+
+# 真实表名 (见 CubeMaster/pkg/base/constants/constants.go)
+TABLE_IMAGE_JOBS="t_cube_template_image_job"
+TABLE_REPLICAS="t_cube_template_replica"
+
+# 任务终态 (DB/API 原始值均为大写, 见 job_constants.go):
+# local 模式最终为 READY; remote 模式 TC 回调后为 BUILT (分发尚未接线)
+if [ "$BUILD_MODE" = "remote" ]; then
+  EXPECTED_DONE_STATUS="BUILT"
+else
+  EXPECTED_DONE_STATUS="READY"
+fi
+
 SKIP_SETUP=false
 SKIP_CLEANUP=false
 VERBOSE=false
@@ -167,13 +182,13 @@ test_normal_create() {
   
   log_success "创建成功: job_id=$job_id"
   
-  wait_for_job_status "$job_id" "Built" 300 || return 1
-  
+  wait_for_job_status "$job_id" "$EXPECTED_DONE_STATUS" 300 || return 1
+
   log_success "构建完成: job_id=$job_id"
-  
+
   # 验证 DB 状态
-  local db_status=$(query_db "SELECT status FROM template_image_jobs WHERE job_id='$job_id'")
-  [ "$db_status" = "Built" ] && log_success "DB 状态正确: status=Built" || { log_error "DB 状态错误: status=$db_status"; return 1; }
+  local db_status=$(query_db "SELECT status FROM $TABLE_IMAGE_JOBS WHERE job_id='$job_id'")
+  [ "$db_status" = "$EXPECTED_DONE_STATUS" ] && log_success "DB 状态正确: status=$db_status" || { log_error "DB 状态错误: status=$db_status (期望 $EXPECTED_DONE_STATUS)"; return 1; }
   
   # 清理
   log_info "删除模板: alias=$alias"
@@ -207,7 +222,7 @@ test_normal_create_with_probe() {
   
   log_success "创建成功: job_id=$job_id"
   
-  wait_for_job_status "$job_id" "Built" 300 || return 1
+  wait_for_job_status "$job_id" "$EXPECTED_DONE_STATUS" 300 || return 1
   
   # 清理
   curl -s -X DELETE "$MASTER_URL/cube/template" \
@@ -237,7 +252,7 @@ test_repeated_create_delete() {
     local job_id=$(echo "$resp" | jq -r .job.job_id 2>/dev/null || echo "")
     [ -z "$job_id" ] || [ "$job_id" = "null" ] && { log_error "[$i/10] 未获取到 job_id"; return 1; }
     
-    wait_for_job_status "$job_id" "Built" 300 || return 1
+    wait_for_job_status "$job_id" "$EXPECTED_DONE_STATUS" 300 || return 1
     
     log_info "[$i/10] 删除模板: alias=$alias"
     curl -s -X DELETE "$MASTER_URL/cube/template" \
@@ -270,7 +285,7 @@ test_recreate_same_alias() {
   local job_id_1=$(echo "$resp" | jq -r .job.job_id 2>/dev/null || echo "")
   [ -z "$job_id_1" ] || [ "$job_id_1" = "null" ] && { log_error "第 1 次创建失败"; return 1; }
   
-  wait_for_job_status "$job_id_1" "Built" 300 || return 1
+  wait_for_job_status "$job_id_1" "$EXPECTED_DONE_STATUS" 300 || return 1
   
   # 删除
   log_info "删除: alias=$alias"
@@ -297,7 +312,7 @@ test_recreate_same_alias() {
   
   [ "$job_id_1" != "$job_id_2" ] && log_success "job_id 不同: $job_id_1 vs $job_id_2" || { log_error "job_id 相同 (应该不同)"; return 1; }
   
-  wait_for_job_status "$job_id_2" "Built" 300 || return 1
+  wait_for_job_status "$job_id_2" "$EXPECTED_DONE_STATUS" 300 || return 1
   
   # 清理
   curl -s -X DELETE "$MASTER_URL/cube/template" \
@@ -369,14 +384,31 @@ test_multi_node_status() {
   local job_id=$(echo "$resp" | jq -r .job.job_id 2>/dev/null || echo "")
   [ -z "$job_id" ] || [ "$job_id" = "null" ] && { log_error "未获取到 job_id"; return 1; }
   
-  wait_for_job_status "$job_id" "Built" 300 || return 1
+  wait_for_job_status "$job_id" "$EXPECTED_DONE_STATUS" 300 || return 1
   
-  # 查询单节点状态
-  local replicas=$(query_db "SELECT node_id, status FROM template_replicas WHERE template_id='$alias'")
-  verbose "单节点状态: $replicas"
-  
-  local ready_count=$(query_db "SELECT COUNT(*) FROM template_replicas WHERE template_id='$alias' AND status='Ready'")
-  [ "$ready_count" -gt 0 ] && log_success "有 $ready_count 个节点 Ready" || { log_error "没有 Ready 节点"; return 1; }
+  # remote 模式分发尚未接线 (见回调 handler TODO), template_replicas 不会产生, 直接跳过
+  if [ "$BUILD_MODE" = "remote" ]; then
+    log_warn "remote 模式分发未接线, 跳过多节点状态校验"
+    curl -s -X DELETE "$MASTER_URL/cube/template" \
+      -H "Content-Type: application/json" \
+      -d "{\"requestID\": \"test-del-$(date +%s)\", \"template_id\": \"$alias\"}" > /dev/null
+    return 0
+  fi
+
+  # 查询节点下发状态
+  local replicas=$(query_db "SELECT node_id, status FROM $TABLE_REPLICAS WHERE template_id='$alias'")
+  verbose "节点状态: $replicas"
+
+  local total=$(query_db "SELECT COUNT(*) FROM $TABLE_REPLICAS WHERE template_id='$alias'")
+  local ready_count=$(query_db "SELECT COUNT(*) FROM $TABLE_REPLICAS WHERE template_id='$alias' AND status='READY'")
+
+  if [ "${total:-0}" -le 1 ]; then
+    # 单节点环境: 降级为"唯一副本 Ready"校验, 多节点追踪需多节点环境
+    log_warn "单节点环境 (replicas=${total:-0}), 降级为单副本 Ready 校验"
+    [ "$ready_count" = "1" ] && log_success "单副本已 Ready" || { log_error "唯一副本未 Ready: ready_count=$ready_count"; return 1; }
+  else
+    [ "${ready_count:-0}" -gt 0 ] && log_success "有 $ready_count/$total 个节点 Ready" || { log_error "没有 Ready 节点"; return 1; }
+  fi
   
   # 清理
   curl -s -X DELETE "$MASTER_URL/cube/template" \
@@ -388,7 +420,8 @@ test_multi_node_status() {
 
 test_concurrent_create() {
   log_section "Test 9: 并发创建 (20 个)"
-  
+
+  local result_dir=$(mktemp -d)
   local pids=()
   for i in $(seq 1 20); do
     local alias="test-concurrent-$i-$(date +%s)"
@@ -402,25 +435,37 @@ test_concurrent_create() {
           \"alias\": \"$alias\",
           \"writable_layer_size\": \"1G\"
         }")
-      
+
       local job_id=$(echo "$resp" | jq -r .job.job_id 2>/dev/null || echo "")
       if [ -n "$job_id" ] && [ "$job_id" != "null" ]; then
-        wait_for_job_status "$job_id" "Built" 300
+        if wait_for_job_status "$job_id" "$EXPECTED_DONE_STATUS" 300; then
+          touch "$result_dir/ok-$i"
+        else
+          touch "$result_dir/fail-$i"
+        fi
         curl -s -X DELETE "$MASTER_URL/cube/template" \
           -H "Content-Type: application/json" \
           -d "{\"requestID\": \"test-del-$i-$(date +%s)\", \"template_id\": \"$alias\"}" > /dev/null
+      else
+        touch "$result_dir/fail-$i"
       fi
     ) &
     pids+=($!)
   done
-  
+
   # 等待所有并发任务完成
   for pid in "${pids[@]}"; do
     wait $pid
   done
-  
-  log_success "20 个并发创建完成"
-  
+
+  local ok_count=$(ls "$result_dir"/ok-* 2>/dev/null | wc -l | tr -d ' ')
+  local fail_count=$(ls "$result_dir"/fail-* 2>/dev/null | wc -l | tr -d ' ')
+  rm -rf "$result_dir"
+
+  log_info "并发结果: 成功 $ok_count / 失败 $fail_count (共 20)"
+  # 同 spec 并发会命中同一 artifactID, TC 侧已按 artifact 串行化并复用产物, 允许全部成功
+  [ "$fail_count" = "0" ] && log_success "20 个并发全部成功" || { log_error "$fail_count 个并发失败"; return 1; }
+
   return 0
 }
 
