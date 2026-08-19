@@ -9,13 +9,68 @@ package build
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"sync"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter/image"
 )
+
+// artifactBuildLocks serializes concurrent builds of the SAME artifact within
+// this process. Concurrent same-spec creates share one fingerprint, hence one
+// artifactID and one ext4 output path; without this lock the native rootfs
+// export races itself (lchown/link/utimes ENOENT) and one build's cleanup
+// deletes files another build is still writing.
+//
+// TODO(multi-replica): once TC runs more than one replica, add cross-process
+// mutual exclusion (e.g. the DB session lock in pkg/lock) on top of this.
+var artifactBuildLocks = newKeyedMutex()
+
+// keyedMutex is a per-key mutex set with automatic cleanup of idle entries.
+type keyedMutex struct {
+	mu    sync.Mutex
+	items map[string]*keyedMutexItem
+}
+
+type keyedMutexItem struct {
+	mu   *sync.Mutex
+	refs int
+}
+
+func newKeyedMutex() *keyedMutex {
+	return &keyedMutex{items: make(map[string]*keyedMutexItem)}
+}
+
+// Lock acquires the mutex for key and returns the unlock function.
+func (k *keyedMutex) Lock(key string) func() {
+	k.mu.Lock()
+	it, ok := k.items[key]
+	if !ok {
+		it = &keyedMutexItem{mu: &sync.Mutex{}}
+		k.items[key] = it
+	}
+	it.refs++
+	k.mu.Unlock()
+
+	it.mu.Lock()
+
+	return func() {
+		it.mu.Unlock()
+		k.mu.Lock()
+		it.refs--
+		if it.refs == 0 {
+			delete(k.items, key)
+		}
+		k.mu.Unlock()
+	}
+}
 
 // Build is the TC-only entry point for template building.
 //
@@ -116,7 +171,36 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 		logger.Warnf("report fingerprint fail: %v", err)
 	}
 
-	// Step 5: Build ext4 (export rootfs, bake envd + CA, mkfs)
+	// Step 5: Serialize same-artifact builds, then reuse a finished artifact
+	// if a sibling job already produced it while we were waiting.
+	unlock := artifactBuildLocks.Lock(artifactID)
+	defer unlock()
+
+	reportBuilt := func(result *image.BuildResult) error {
+		return reporter.Report(ctx, jobID, map[string]any{
+			"status":                    templatecenter.JobStatusBuilt,
+			"phase":                     templatecenter.JobPhaseReady,
+			"progress":                  100,
+			"artifact_id":               artifactID,
+			"artifact_status":           templatecenter.ArtifactStatusReady,
+			"template_spec_fingerprint": fingerprint,
+			"source_image_digest":       source.Digest,
+			"ext4_path":                 result.Ext4Path,
+			"ext4_sha256":               result.SHA256,
+			"ext4_size_bytes":           result.SizeBytes,
+		})
+	}
+
+	if existing, ok := reuseExistingArtifact(ctx, artifactID); ok {
+		logger.Infof("artifact already built by a sibling job, reusing: artifact_id=%s path=%s", artifactID, existing.Ext4Path)
+		if err := reportBuilt(existing); err != nil {
+			logger.Errorf("report BUILT status fail: %v", err)
+			return fmt.Errorf("report BUILT status: %w", err)
+		}
+		return nil
+	}
+
+	// Step 6: Build ext4 (export rootfs, bake envd + CA, mkfs)
 	reportPhase(templatecenter.JobPhaseBuildingExt4, 40)
 	opts := image.BuildOptions{ArtifactID: artifactID}
 	opts.PostRootfsExport = func(ctx context.Context, rootfsDir string) error {
@@ -137,21 +221,10 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 		return fmt.Errorf("build ext4: %w", err)
 	}
 
-	// Step 6: Report BUILT. CubeMaster persists the payload into result_json
+	// Step 7: Report BUILT. CubeMaster persists the payload into result_json
 	// and (TODO) resumes the job: finalize rootfs_artifacts, distribute to
 	// Cubelet nodes, register template_definitions.
-	if err := reporter.Report(ctx, jobID, map[string]any{
-		"status":                    templatecenter.JobStatusBuilt,
-		"phase":                     templatecenter.JobPhaseReady,
-		"progress":                  100,
-		"artifact_id":               artifactID,
-		"artifact_status":           templatecenter.ArtifactStatusReady,
-		"template_spec_fingerprint": fingerprint,
-		"source_image_digest":       source.Digest,
-		"ext4_path":                 result.Ext4Path,
-		"ext4_sha256":               result.SHA256,
-		"ext4_size_bytes":           result.SizeBytes,
-	}); err != nil {
+	if err := reportBuilt(&result); err != nil {
 		logger.Errorf("report BUILT status fail: %v", err)
 		return fmt.Errorf("report BUILT status: %w", err)
 	}
@@ -159,4 +232,40 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 	logger.Infof("template build completed: artifact_id=%s sha256=%s size=%d",
 		artifactID, result.SHA256, result.SizeBytes)
 	return nil
+}
+
+// reuseExistingArtifact returns the already-built ext4 for artifactID when a
+// previous (or sibling) build left a finished image in the artifact store.
+// Callers must hold the per-artifact lock so the file cannot appear
+// half-written.
+func reuseExistingArtifact(ctx context.Context, artifactID string) (*image.BuildResult, bool) {
+	storeDir, err := image.ResolveArtifactStoreDir(ctx, artifactID)
+	if err != nil {
+		return nil, false
+	}
+	ext4Path := filepath.Join(storeDir, artifactID+".ext4")
+	st, err := os.Stat(ext4Path)
+	if err != nil || st.Size() == 0 {
+		return nil, false
+	}
+	shaValue, err := fileSHA256(ext4Path)
+	if err != nil {
+		log.G(ctx).Warnf("reuse check: sha256 %s failed, rebuilding: %v", ext4Path, err)
+		return nil, false
+	}
+	return &image.BuildResult{Ext4Path: ext4Path, SHA256: shaValue, SizeBytes: st.Size()}, true
+}
+
+// fileSHA256 streams the file through sha256 (same algorithm as the build path).
+func fileSHA256(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
