@@ -15,11 +15,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter/cube_egress_ca"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter/image"
 )
 
@@ -117,15 +119,30 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 		}
 	}
 
-	// Step 1: Pull image
+	// Step 1: Preflight. Assert mkfs.ext4/truncate/cp (and losetup et al. when
+	// loop-mount is enabled) exist and that mkfs.ext4 supports -d BEFORE
+	// spending minutes pulling an image, so a misconfigured host fails fast
+	// at PULLING with a clear message instead of deep inside BUILDING_EXT4.
 	reportPhase(templatecenter.JobPhasePulling, 5)
+	if err := image.EnsureArtifactBuildPreflight(ctx); err != nil {
+		errMsg := fmt.Sprintf("build preflight fail: %v", err)
+		logger.Errorf(errMsg)
+		reportFailed(templatecenter.JobPhasePulling, errMsg)
+		return fmt.Errorf("build preflight: %w", err)
+	}
+
+	// Step 2: Pull image. Progress callbacks stream into the shared Redis
+	// live-snapshot sink so any CubeMaster replica can serve the progress query.
+	pullProgress := newPullProgressSink(ctx, jobID).withReporter(reporter)
 	source, err := image.PrepareSource(ctx, image.SourceSpec{
 		ImageRef:         req.SourceImageRef,
 		RegistryUsername: req.RegistryUsername,
 		RegistryPassword: req.RegistryPassword,
 		DownloadBaseURL:  downloadBaseURL,
+		OnPullProgress:   pullProgress.onProgress,
 	})
 	if err != nil {
+		pullProgress.flush(false)
 		errMsg := fmt.Sprintf("pull image fail: %v", err)
 		logger.Errorf(errMsg)
 		reportFailed(templatecenter.JobPhasePulling, errMsg)
@@ -134,32 +151,49 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 	if source.Cleanup != nil {
 		defer source.Cleanup(context.Background())
 	}
+	// Docker/Podman engine pulls complete inside PrepareSource; dockerless and
+	// native modes keep streaming during BuildExt4, so their flush waits.
+	pullProgressFlushed := false
+	if source.ExportMode == image.ExportModeDocker {
+		pullProgress.flush(true)
+		pullProgressFlushed = true
+	}
 
-	// Step 2: Resolve envd payload (same validation as local mode)
+	// Step 3: Resolve envd payload (same validation as local mode)
 	reportPhase(templatecenter.JobPhaseUnpacking, 20)
 	var envdPayload *templatecenter.EnvdInjectionPayload
 	if len(envdData) > 0 {
 		envdPayload, err = templatecenter.NewEnvdInjectionPayloadFromBytes(envdData)
 		if err != nil {
+			if !pullProgressFlushed {
+				pullProgress.flush(false)
+				pullProgressFlushed = true
+			}
 			errMsg := fmt.Sprintf("validate envd payload fail: %v", err)
 			logger.Errorf(errMsg)
 			reportFailed(templatecenter.JobPhaseUnpacking, errMsg)
 			return fmt.Errorf("validate envd payload: %w", err)
 		}
+		// Trust the locally computed digest over the caller-supplied one.
+		envdSHA = envdPayload.SHA256
 	}
 
-	// Step 3: Resolve CubeEgress CA (nil WithCubeCA defaults to true, same as
+	// Step 4: Resolve CubeEgress CA (nil WithCubeCA defaults to true, same as
 	// resolveWithCubeCA in local mode)
 	withCubeCA := req.WithCubeCA == nil || *req.WithCubeCA
 	caPEM, caFingerprint, err := templatecenter.LoadCubeEgressCA(ctx, withCubeCA)
 	if err != nil {
+		if !pullProgressFlushed {
+			pullProgress.flush(false)
+			pullProgressFlushed = true
+		}
 		errMsg := fmt.Sprintf("load cube egress CA fail: %v", err)
 		logger.Errorf(errMsg)
 		reportFailed(templatecenter.JobPhaseUnpacking, errMsg)
 		return fmt.Errorf("load cube egress CA: %w", err)
 	}
 
-	// Step 4: Fingerprint + artifact ID (identical to local mode so artifact
+	// Step 5: Fingerprint + artifact ID (identical to local mode so artifact
 	// dedup stays compatible across build modes)
 	fingerprint := templatecenter.BuildTemplateSpecFingerprintWithEnvdSHA(req, source.Digest, caFingerprint, envdSHA)
 	artifactID := templatecenter.BuildArtifactID(fingerprint)
@@ -171,37 +205,61 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 		logger.Warnf("report fingerprint fail: %v", err)
 	}
 
-	// Step 5: Serialize same-artifact builds, then reuse a finished artifact
+	// Step 6: Serialize same-artifact builds, then reuse a finished artifact
 	// if a sibling job already produced it while we were waiting.
 	unlock := artifactBuildLocks.Lock(artifactID)
 	defer unlock()
 
-	reportBuilt := func(result *image.BuildResult) error {
+	reportBuilt := func(result *image.BuildResult, caResult cube_egress_ca.Result) error {
+		// Two fields deserve explanation:
+		//
+		// image_config_json lets CubeMaster generate the template's
+		// create-sandbox request (Entrypoint/Cmd/Env/WorkingDir/User) without
+		// re-inspecting the image: TC pulled it, so TC reports it.
+		//
+		// master_node_ip is misleadingly named: it holds the artifact DOWNLOAD
+		// BASE URL (image.PrepareSource sets it to
+		// NormalizeBaseURL(spec.DownloadBaseURL)). CubeMaster passed its own
+		// request base URL down when submitting the job, so echoing it back
+		// keeps the data plane identical to local mode: Cubelet pulls the ext4
+		// from CubeMaster, not from TC. distributeRootfsArtifact rejects an
+		// empty value, so it must be reported.
 		return reporter.Report(ctx, jobID, map[string]any{
-			"status":                    templatecenter.JobStatusBuilt,
-			"phase":                     templatecenter.JobPhaseReady,
-			"progress":                  100,
-			"artifact_id":               artifactID,
-			"artifact_status":           templatecenter.ArtifactStatusReady,
-			"template_spec_fingerprint": fingerprint,
-			"source_image_digest":       source.Digest,
-			"ext4_path":                 result.Ext4Path,
-			"ext4_sha256":               result.SHA256,
-			"ext4_size_bytes":           result.SizeBytes,
+			"status":                         templatecenter.JobStatusBuilt,
+			"phase":                          templatecenter.JobPhaseReady,
+			"progress":                       100,
+			"artifact_id":                    artifactID,
+			"artifact_status":                templatecenter.ArtifactStatusReady,
+			"template_spec_fingerprint":      fingerprint,
+			"source_image_digest":            source.Digest,
+			"ext4_path":                      result.Ext4Path,
+			"ext4_sha256":                    result.SHA256,
+			"ext4_size_bytes":                result.SizeBytes,
+			"image_config_json":              source.ConfigJSON,
+			"master_node_ip":                 source.MasterNodeIP,
+			"cube_egress_ca_baked":           caResult.Baked,
+			"cube_egress_ca_fingerprint":     caResult.Fingerprint,
+			"cube_egress_ca_targets_written": caResult.TargetsWritten,
 		})
 	}
 
 	if existing, ok := reuseExistingArtifact(ctx, artifactID); ok {
 		logger.Infof("artifact already built by a sibling job, reusing: artifact_id=%s path=%s", artifactID, existing.Ext4Path)
-		if err := reportBuilt(existing); err != nil {
+		// The reused ext4 already contains the CA baked at build time; report
+		// the fingerprint we resolved so CubeMaster records it consistently.
+		if err := reportBuilt(existing, cube_egress_ca.Result{
+			Baked:       len(caPEM) > 0,
+			Fingerprint: caFingerprint,
+		}); err != nil {
 			logger.Errorf("report BUILT status fail: %v", err)
 			return fmt.Errorf("report BUILT status: %w", err)
 		}
 		return nil
 	}
 
-	// Step 6: Build ext4 (export rootfs, bake envd + CA, mkfs)
+	// Step 7: Build ext4 (export rootfs, bake envd + CA, mkfs)
 	reportPhase(templatecenter.JobPhaseBuildingExt4, 40)
+	var caBakeResult cube_egress_ca.Result
 	opts := image.BuildOptions{ArtifactID: artifactID}
 	opts.PostRootfsExport = func(ctx context.Context, rootfsDir string) error {
 		if _, err := templatecenter.InjectEnvdPayloadIntoRootfs(ctx, rootfsDir, envdPayload); err != nil {
@@ -210,27 +268,64 @@ func Build(ctx context.Context, jobID string, req *types.CreateTemplateFromImage
 		if envdPayload != nil {
 			envdPayload.ReleaseData()
 		}
-		_, err := templatecenter.ApplyCubeEgressCAToRootfs(ctx, rootfsDir, caPEM, caFingerprint)
+		var err error
+		caBakeResult, err = templatecenter.ApplyCubeEgressCAToRootfs(ctx, rootfsDir, caPEM, caFingerprint)
 		return err
 	}
 	result, err := image.BuildExt4(ctx, source, opts)
+	if !pullProgressFlushed {
+		// Dockerless / native modes stream pull progress during BuildExt4, so
+		// flush only once all pull callbacks can no longer fire.
+		pullProgress.flush(err == nil)
+		pullProgressFlushed = true
+	}
 	if err != nil {
 		errMsg := fmt.Sprintf("build ext4 fail: %v", err)
 		logger.Errorf(errMsg)
+		// Remove the half-written store dir so a failed build does not leak
+		// disk. BuildExt4 cleans up on its own error paths, but a partially
+		// created dir (or a PostRootfsExport failure) can survive.
+		if cleanupErr := cleanupArtifactResidue(ctx, artifactID); cleanupErr != nil {
+			logger.Warnf("cleanup artifact residue after failed build: %v", cleanupErr)
+		}
 		reportFailed(templatecenter.JobPhaseBuildingExt4, errMsg)
 		return fmt.Errorf("build ext4: %w", err)
 	}
 
-	// Step 7: Report BUILT. CubeMaster persists the payload into result_json
+	// Step 8: Report BUILT. CubeMaster persists the payload into result_json
 	// and (TODO) resumes the job: finalize rootfs_artifacts, distribute to
 	// Cubelet nodes, register template_definitions.
-	if err := reportBuilt(&result); err != nil {
+	if err := reportBuilt(&result, caBakeResult); err != nil {
 		logger.Errorf("report BUILT status fail: %v", err)
 		return fmt.Errorf("report BUILT status: %w", err)
 	}
 
 	logger.Infof("template build completed: artifact_id=%s sha256=%s size=%d",
 		artifactID, result.SHA256, result.SizeBytes)
+	return nil
+}
+
+// cleanupArtifactResidue removes the work dir and the artifact store dir for a
+// failed build so a retry starts from a clean slate and disk is not leaked.
+// TC owns no DB rows, so this is purely filesystem cleanup.
+func cleanupArtifactResidue(ctx context.Context, artifactID string) error {
+	var errs []string
+
+	workDir := filepath.Join(image.ArtifactWorkRootDir(), artifactID)
+	if err := os.RemoveAll(workDir); err != nil && !os.IsNotExist(err) {
+		errs = append(errs, fmt.Sprintf("remove work dir %s: %v", workDir, err))
+	}
+
+	storeDir, err := image.ResolveArtifactStoreDir(ctx, artifactID)
+	if err != nil {
+		errs = append(errs, fmt.Sprintf("resolve store dir: %v", err))
+	} else if err := os.RemoveAll(storeDir); err != nil && !os.IsNotExist(err) {
+		errs = append(errs, fmt.Sprintf("remove store dir %s: %v", storeDir, err))
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
 	return nil
 }
 

@@ -4,9 +4,11 @@
 
 // Package httpservice exposes the template center HTTP API.
 //
-// Mirrors CubeMaster/pkg/server/server.go, but registers ONLY the routes
-// that belong to the template center (see design §3.1 "templatecenter 管模板").
-// Sandbox / snapshot / volume CRUD stay with CubeMaster.
+// By default TC is a build worker: /health, /metrics and the internal
+// build-submission endpoint only; the public template API stays on CubeMaster
+// (design §1.1 "master 内部闭环"). Setting CUBE_TC_SERVE_TEMPLATE_API=true
+// additionally mounts the public template control plane here -- see
+// registerRoutes and pkg/tcconfig.
 package httpservice
 
 import (
@@ -29,6 +31,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/httpservice/middleware"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/api"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/tcconfig"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -97,42 +100,65 @@ func NewInternalHttp(ctx context.Context, cfg *config.Config) (*internalHttp, er
 	return s, nil
 }
 
-// registerRoutes mounts the middleware and the template-center-owned routes.
+// registerRoutes mounts the middleware and the TC-owned routes.
 //
-// 5 点原则 §3.1: templatecenter 只挂模板相关路由. Sandbox / snapshot / volume
-// stay with CubeMaster; this process must not expose them.
+// Always mounted:
+//   - GET  /health              probe
+//   - GET  /metrics             prometheus
+//   - POST /tc/api/v1/build     build submission from CubeMaster
+//
+// Mounted only when CUBE_TC_SERVE_TEMPLATE_API=true: the public template
+// control-plane routes (/cube/template*). Default OFF, because in the current
+// iteration CubeMaster owns the template API and TC just builds what it is
+// told. Serving them while CubeMaster still owns the flow would create a
+// shadow entry point -- two processes writing the same tables concurrently.
+//
+// Switch it on to point cubemastercli straight at TC, to receive traffic from
+// CubeMaster's template_route_mode=proxy, or to preview the next iteration.
+// See pkg/tcconfig.
+//
+// The artifact download endpoint stays on CubeMaster in both cases: Cubelet
+// pulls ext4 files from CubeMaster, which shares TC's artifact directory (one
+// CBS disk / PVC). See docs/dev/templatecenter-design.md §9.7.
 func (s *internalHttp) registerRoutes() {
 	root := s.engine.Group("")
 	root.Use(middleware.GinRequestMiddleware())
 	root.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	root.GET("/health", s.healthHandler)
 
-	// 镜像中心 12 端点 (design §4.1). cube.RegisterTemplateRoutes registers
-	// only the template-related handlers under /cube/template* — see
-	// CubeMaster/pkg/service/httpservice/cube/routes.go.
-	cube.RegisterTemplateRoutes(root.Group(cube.CubeURI()))
-
-	// Internal build-submission API (remote build mode): CubeMaster pushes
-	// jobs to POST /tc/api/v1/build; TC builds and calls back.
+	// Internal build-submission API: CubeMaster pushes jobs to
+	// POST /tc/api/v1/build; TC builds and reports status back.
 	api.RegisterInternalRoutes(root)
+
+	if tcconfig.ServePublicTemplateAPI() {
+		CubeLog.WithContext(context.Background()).Errorf(
+			"CUBE_TC_SERVE_TEMPLATE_API is on: serving the public template API from templatecenter")
+		cube.RegisterTemplateRoutes(root.Group(cube.CubeURI()))
+	}
 }
 
-// healthHandler implements design §4.3 "GET /health":
-// ready 条件包含"节点视图已加载".
+// healthHandler implements the readiness probe.
 //
-// Returns:
-//   - 200: ready (node view loaded, templatecenter store initialized)
-//   - 503: not ready (one of the dependencies not yet up)
+// Baseline readiness is a single condition: the store is attached, hence the DB
+// is reachable and the reconciler can take its session lock.
+//
+// The node view is checked ONLY when TC serves the public template API,
+// because that is the only configuration in which TC picks distribution
+// targets itself. In the default configuration CubeMaster owns node health and
+// TC never reads it, so requiring it would make TC report not-ready over
+// something it does not use.
 func (s *internalHttp) healthHandler(c *gin.Context) {
-	checks := gin.H{}
-
-	nodeReady := nodemeta.Ready()
-	checks["nodemeta"] = nodeReady
-
 	storeReady := templatecenter.IsReady()
-	checks["templatecenter_store"] = storeReady
+	checks := gin.H{"templatecenter_store": storeReady}
+	ready := storeReady
 
-	if nodeReady && storeReady {
+	if tcconfig.ServePublicTemplateAPI() {
+		nodeReady := nodemeta.Ready()
+		checks["nodemeta"] = nodeReady
+		ready = ready && nodeReady
+	}
+
+	if ready {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "ok",
 			"checks": checks,

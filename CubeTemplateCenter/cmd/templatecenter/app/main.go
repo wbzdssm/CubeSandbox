@@ -25,6 +25,8 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/nodemeta"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/httpservice"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/reconcile"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/tcconfig"
 	CubeLog "github.com/tencentcloud/CubeSandbox/cubelog"
 )
 
@@ -65,6 +67,20 @@ func (a *App) Run() {
 		srv.Run()
 	})
 
+	// Background sweep that fails jobs abandoned mid-build (design §7.3).
+	// Cross-replica mutual exclusion is handled inside via the DB session lock,
+	// so every replica can start it unconditionally.
+	if reconcile.Disabled() {
+		CubeLog.WithContext(ctx).Warnf("templatecenter reconciler disabled by %s", "CUBE_TC_RECONCILE_DISABLED")
+	} else if db := templatecenter.GetDB(); db != nil {
+		reconciler := reconcile.New(db)
+		recov.GoWithRecover(func() {
+			reconciler.Run(ctx)
+		})
+	} else {
+		CubeLog.WithContext(ctx).Errorf("templatecenter reconciler not started: db handle unavailable")
+	}
+
 	CubeLog.WithContext(ctx).Errorf("templatecenter successfully booted in %fs", time.Since(start).Seconds())
 	<-done
 
@@ -89,21 +105,39 @@ func coreInit(ctx context.Context, cfg *config.Config) error {
 		return fmt.Errorf("dao migrate: %w", err)
 	}
 
-	// Template center needs the node view for distribution target selection.
-	if err := nodemeta.Init(ctx); err != nil {
-		return fmt.Errorf("nodemeta init: %w", err)
+	// The node view is loaded ONLY when TC serves the public template API.
+	//
+	// Why it is tied to that switch: serving /cube/template* means running the
+	// full pipeline in-process, and its distribution step has to pick target
+	// nodes -- distributeRootfsArtifact -> resolveTemplateNodes ->
+	// healthyTemplateNodes -> localcache.GetHealthyNodesByInstanceType, whose
+	// data only exists because nodemeta.Init registers the node loader
+	// (localcache.RegisterNodeLoader). Without it every build would fail with
+	// ErrNoTemplateNodes.
+	//
+	// In the default configuration CubeMaster drives distribution after TC
+	// reports BUILT, so TC needs no node view at all and skipping it avoids a
+	// pointless 30s full-table reload.
+	//
+	// Node heartbeats only ever reach CubeMaster, so even when loaded this view
+	// is a DB-derived replica, not an authoritative one.
+	if tcconfig.ServePublicTemplateAPI() {
+		CubeLog.WithContext(ctx).Errorf("public template API enabled: loading node view for distribution")
+		if err := nodemeta.Init(ctx); err != nil {
+			return fmt.Errorf("nodemeta init: %w", err)
+		}
 	}
 
-	// localcache holds imageCache + templateDefinitionCache.
+	// localcache is always required: the pull-progress live snapshots
+	// (pkg/build/progress.go) go through it into Redis, using the same keys
+	// CubeMaster reads when answering a progress query.
 	if err := localcache.Init(ctx); err != nil {
 		return fmt.Errorf("localcache init: %w", err)
 	}
 
-	// Templatecenter is the business core: pulls image, builds ext4, runs
-	// fingerprint, writes rootfs_artifacts + image_jobs + template_definitions.
-	// Use InitForTemplateCenter (not Init) so snapshot-side hooks
-	// (sandbox.SetAfterDestroySandboxSuccessHook, sandboxspec hooks, snapshot
-	// reconciler) are NOT registered — those belong to CubeMaster.
+	// Attach the templatecenter store. TC uses it for the DB session locks
+	// taken by the background reconciler; all business-state writes go through
+	// CubeMaster's status callback, not from here.
 	if err := templatecenter.InitForTemplateCenter(ctx); err != nil {
 		return fmt.Errorf("templatecenter init: %w", err)
 	}
