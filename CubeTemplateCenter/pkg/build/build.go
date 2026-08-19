@@ -317,16 +317,36 @@ func cleanupArtifactResidue(ctx context.Context, artifactID string) error {
 	}
 
 	storeDir, err := image.ResolveArtifactStoreDir(ctx, artifactID)
-	if err != nil {
+	switch {
+	case err != nil:
 		errs = append(errs, fmt.Sprintf("resolve store dir: %v", err))
-	} else if err := os.RemoveAll(storeDir); err != nil && !os.IsNotExist(err) {
-		errs = append(errs, fmt.Sprintf("remove store dir %s: %v", storeDir, err))
+	case isBuildInProgress(storeDir):
+		// Another build already owns this directory. The per-artifact lock keeps
+		// TC's own builds apart, but CubeMaster may have started a local build
+		// for the same fingerprint in its own process, and the native exporter
+		// keeps its layer prefetch dir in here. Wiping it would break that
+		// build with a bogus "prefetched layer ... no such file" error, so the
+		// residue is left for whoever finishes last.
+		log.G(ctx).Warnf("skip removing artifact store dir %s: %s",
+			storeDir, image.DescribeArtifactBuildMarker(storeDir))
+	default:
+		if err := os.RemoveAll(storeDir); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Sprintf("remove store dir %s: %v", storeDir, err))
+		}
 	}
 
 	if len(errs) > 0 {
 		return fmt.Errorf("%s", strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+// isBuildInProgress reports whether another build currently owns an artifact
+// directory. TC's own build has already released its marker by the time the
+// residue cleanup runs, so a live marker here always belongs to someone else.
+func isBuildInProgress(storeDir string) bool {
+	inProgress, _ := image.ArtifactBuildInProgress(storeDir)
+	return inProgress
 }
 
 // reuseExistingArtifact returns the already-built ext4 for artifactID when a
@@ -336,6 +356,14 @@ func cleanupArtifactResidue(ctx context.Context, artifactID string) error {
 func reuseExistingArtifact(ctx context.Context, artifactID string) (*image.BuildResult, bool) {
 	storeDir, err := image.ResolveArtifactStoreDir(ctx, artifactID)
 	if err != nil {
+		return nil, false
+	}
+	// The per-artifact lock only serializes builds inside THIS process. A
+	// CubeMaster-side local build for the same fingerprint writes the ext4 in
+	// place, so without this check a non-zero size could be a partially written
+	// file and the sha256 computed from it would be silently wrong.
+	if isBuildInProgress(storeDir) {
+		log.G(ctx).Infof("reuse check: %s, not reusing", image.DescribeArtifactBuildMarker(storeDir))
 		return nil, false
 	}
 	ext4Path := filepath.Join(storeDir, artifactID+".ext4")

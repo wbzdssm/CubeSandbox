@@ -126,6 +126,18 @@ func BuildExt4(ctx context.Context, source *PreparedSource, opts BuildOptions) (
 	ext4Path := filepath.Join(storeDir, opts.ArtifactID+".ext4")
 	keepStoreDir := false
 
+	// Publish the in-progress marker before anything is written under storeDir.
+	// The native exporter keeps its layer prefetch dir inside storeDir, so a
+	// cleanup running in ANOTHER process (CubeTemplateCenter builds while
+	// CubeMaster cleans up) would otherwise be free to RemoveAll the directory
+	// from under this build.
+	releaseMarker, err := MarkArtifactBuildInProgress(storeDir)
+	if err != nil {
+		// Best-effort: losing the guard is preferable to failing the build.
+		log.G(ctx).Warnf("cannot mark artifact build in progress for %s: %v", storeDir, err)
+	}
+	defer releaseMarker()
+
 	// Phase 2: loop-mount streaming build (optional, auto-detects capability).
 	// Passes PostRootfsExport down to be executed before unmounting the loop device.
 	// Streaming Phase 2 is currently only implemented for docker and native modes.
