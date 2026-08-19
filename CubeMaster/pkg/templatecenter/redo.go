@@ -196,7 +196,15 @@ func rootfsArtifactReusableForRedo(ctx context.Context, artifactID string) bool 
 		// all-nodes-failed cleanup leaves behind.
 		return false
 	}
-	return artifactStatusReusableForRedo(artifact.Status)
+	if !artifactStatusReusableForRedo(artifact.Status) {
+		return false
+	}
+	// A READY row still has to be backed by its ext4 file. When the artifact
+	// store did not survive a restart the row outlives the file, and reusing it
+	// here would make the redo re-distribute a phantom artifact — which is the
+	// one thing a redo exists to fix. Demote it so this redo falls through to the
+	// full-rebuild branch instead.
+	return readyArtifactUsableForReuse(ctx, artifact)
 }
 
 // artifactStatusReusableForRedo is the status half of the decision above, kept

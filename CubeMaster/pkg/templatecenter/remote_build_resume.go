@@ -158,13 +158,13 @@ func DetachRemoteBuildResumeContext(ctx context.Context, jobID, artifactID strin
 // runTemplateImageJob does after ensureRootfsArtifact returns, reusing the same
 // helpers so local and remote modes cannot diverge:
 //
-//	1. register the artifact row (claim + finalize) using TC's metadata
-//	2. generate the template's create-sandbox request
-//	3. distribute the artifact to Cubelet nodes
-//	4. write template_definitions
-//	5. create template_replicas
-//	6. claim the alias and aggregate replica status
-//	7. write the job's terminal status
+//  1. register the artifact row (claim + finalize) using TC's metadata
+//  2. generate the template's create-sandbox request
+//  3. distribute the artifact to Cubelet nodes
+//  4. write template_definitions
+//  5. create template_replicas
+//  6. claim the alias and aggregate replica status
+//  7. write the job's terminal status
 //
 // It is invoked from the internal status-callback handler when TC reports
 // status=BUILT. Errors are reported into the job row, so the caller only needs

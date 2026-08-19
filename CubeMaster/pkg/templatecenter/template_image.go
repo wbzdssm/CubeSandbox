@@ -316,6 +316,20 @@ func OpenRootfsArtifact(ctx context.Context, artifactID, token string) (*models.
 	f, err := os.Open(record.Ext4Path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			// This is where the row/file drift is usually discovered: the row is
+			// READY, distribution accepted it, and a cubelet is pulling right now.
+			//
+			// resolveMissingArtifact decides whether it is safe to demote. If this
+			// node owns the artifact the row is demoted so the next create
+			// rebuilds it, instead of every retry taking the reuse path and dying
+			// on this same line forever (issue #852). If the artifact belongs to
+			// another CubeMaster the row is left alone and the error says so:
+			// the pull was routed to a node that never had the file (issue #1005),
+			// and demoting here would destroy an artifact that is perfectly fine
+			// elsewhere.
+			if verdict := resolveMissingArtifact(ctx, record); verdict != artifactMissingVerdictNone {
+				return nil, nil, fmt.Errorf("artifact source missing: %w", missingArtifactError(record, verdict))
+			}
 			return nil, nil, fmt.Errorf("artifact source missing: %w", err)
 		}
 		return nil, nil, err

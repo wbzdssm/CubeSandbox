@@ -71,7 +71,13 @@ func ensureRootfsArtifact(ctx context.Context, req *types.CreateTemplateFromImag
 		}
 		record.DeletedAt = gorm.DeletedAt{}
 	}
-	if err == nil && record.Status == ArtifactStatusReady && record.GeneratedRequestJSON != "" {
+	// A READY row is only reusable while its ext4 file is still on disk. If the
+	// artifact store did not survive a restart the row outlives the file, and
+	// reusing it here would skip the build and push a phantom artifact to the
+	// cubelets on every single retry. readyArtifactUsableForReuse demotes such a
+	// row so the code below rebuilds it in place.
+	if err == nil && record.Status == ArtifactStatusReady && record.GeneratedRequestJSON != "" &&
+		readyArtifactUsableForReuse(ctx, record) {
 		generatedReq, err = generateTemplateCreateRequest(req, record, source.Config, downloadBaseURL)
 		if err == nil {
 			return record, generatedReq, false, nil
@@ -105,7 +111,8 @@ func ensureRootfsArtifact(ctx context.Context, req *types.CreateTemplateFromImag
 				}
 				record.DeletedAt = gorm.DeletedAt{}
 			}
-			if record.Status == ArtifactStatusReady && record.GeneratedRequestJSON != "" {
+			if record.Status == ArtifactStatusReady && record.GeneratedRequestJSON != "" &&
+				readyArtifactUsableForReuse(ctx, record) {
 				generatedReq, err = generateTemplateCreateRequest(req, record, source.Config, downloadBaseURL)
 				if err == nil {
 					return record, generatedReq, false, nil

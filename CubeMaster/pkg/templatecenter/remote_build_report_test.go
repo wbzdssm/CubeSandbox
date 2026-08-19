@@ -25,11 +25,11 @@ func TestMergeRemoteBuildReport(t *testing.T) {
 	finalPayload := []byte(`{"template_id":"tpl-abc","status":"FAILED","last_error":"shim timeout"}`)
 
 	tests := []struct {
-		name        string
-		prior       string
-		final       []byte
-		wantMerged  bool
-		wantReason  string
+		name       string
+		prior      string
+		final      []byte
+		wantMerged bool
+		wantReason string
 	}{
 		{
 			name:       "built-report-is-preserved",
