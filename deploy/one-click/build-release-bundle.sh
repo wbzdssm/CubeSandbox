@@ -758,9 +758,9 @@ chmod +x "${PACKAGE_ROOT}/CubeMaster/docker-install-volume-deps.sh"
 
 # CubeTemplateCenter. Shipped in every package but inert until an operator
 # enables cube-sandbox-cubetemplatecenter.service: CubeMaster defaults to
-# building templates in-process (template_build_mode=local), so an unused binary
-# and conf on disk cost nothing, whereas a missing one would make enabling the
-# unit a re-install.
+# building templates in-process (templatecenter_enabled=false), so an unused
+# binary and conf on disk cost nothing, whereas a missing one would make
+# enabling the unit a re-install.
 copy_file "${CORE_BIN_DIR}/templatecenter" "${PACKAGE_ROOT}/CubeTemplateCenter/bin/templatecenter"
 copy_file "${ROOT_DIR}/CubeTemplateCenter/conf.yaml" "${PACKAGE_ROOT}/CubeTemplateCenter/conf.yaml"
 

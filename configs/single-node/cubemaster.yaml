@@ -11,25 +11,22 @@ common:
   collect_metric_interval: 1s
   default_headless_service_nodes_num: 1
   enable_check_com_net_id_param: false
-  # CubeTemplateCenter master switch. Unset and false are the same: every
-  # template path is served locally, exactly as before the split. Only an
-  # explicit true lets the modes below take effect -- when this is false they
-  # are ignored entirely, so a leftover value can never enable anything by
-  # accident.
+  # CubeTemplateCenter master switch -- the ONLY template knob in this file.
+  # Unset and false are the same: every template path is served locally,
+  # exactly as before the split. An explicit true forwards template-from-image
+  # builds to CubeTemplateCenter.
   templatecenter_enabled: false
-  # Only consulted when templatecenter_enabled is true. Anything but the
-  # literal "remote" / "proxy" reads as local, so these are spelled out to make
-  # the choice visible rather than relying on the empty default.
-  #
-  # To hand builds over to the CubeTemplateCenter service installed (but not
-  # enabled) by the same bundle: set templatecenter_enabled to true, set
-  # template_build_mode to "remote", and point template_center_endpoint at TC,
-  # then restart both cube-sandbox-cubemaster.service and
-  # cube-sandbox-cubetemplatecenter.service. TC reports build status back over
-  # http://127.0.0.1:8089.
-  template_build_mode: "local"
-  template_route_mode: "local"
-  template_center_endpoint: ""
+  # CubeTemplateCenter's address is deliberately NOT a key here: it is a
+  # deployment fact, so CubeMaster reads it from the CUBE_TEMPLATE_CENTER_ADDR
+  # environment variable (the counterpart of CUBE_MASTER_ADDR, which TC uses to
+  # call back). To hand builds to the TC service installed (but not enabled) by
+  # the same bundle:
+  #   1. set templatecenter_enabled to true here,
+  #   2. set CUBE_TEMPLATE_CENTER_ADDR=http://127.0.0.1:8090 in
+  #      /usr/local/services/cubetoolbox/.one-click.env,
+  #   3. restart cube-sandbox-cubemaster.service and
+  #      cube-sandbox-cubetemplatecenter.service.
+  # TC reports build status back over http://127.0.0.1:8089.
 
 log:
   module: "cubemaster"

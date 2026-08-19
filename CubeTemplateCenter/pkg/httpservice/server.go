@@ -113,9 +113,8 @@ func NewInternalHttp(ctx context.Context, cfg *config.Config) (*internalHttp, er
 // is told. Serving them while CubeMaster still owns the flow would create a
 // shadow entry point -- two processes writing the same tables concurrently.
 //
-// Switch it on to point cubemastercli straight at TC, to receive traffic from
-// CubeMaster's template_route_mode=proxy, or to preview the next iteration.
-// See pkg/tcconfig.
+// Switch it on to point cubemastercli straight at TC, or to preview the next
+// iteration. See pkg/tcconfig.
 //
 // The artifact download endpoint stays on CubeMaster in both cases: Cubelet
 // pulls ext4 files from CubeMaster, which shares TC's artifact directory (one

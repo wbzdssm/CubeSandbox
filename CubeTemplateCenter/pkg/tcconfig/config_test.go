@@ -139,7 +139,7 @@ func TestMasterEndpointDefaultAndTrailingSlash(t *testing.T) {
 		{"padded", "  http://cubemaster:8089  ", "http://cubemaster:8089"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			clearEnv(t, EnvMasterEndpoint, legacyEnvMasterEndpoint)
+			clearEnv(t, EnvMasterEndpoint, legacyEnvMasterEndpoint, legacyEnvMasterEndpoint2)
 			if tc.raw != "" {
 				t.Setenv(EnvMasterEndpoint, tc.raw)
 			}
@@ -147,6 +147,50 @@ func TestMasterEndpointDefaultAndTrailingSlash(t *testing.T) {
 				t.Fatalf("MasterEndpoint() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// CUBE_MASTER_ADDR is the one name every component uses for "CubeMaster's
+// address". The two retired spellings are honoured only when it is unset, and
+// never override it.
+func TestMasterEndpointNamePrecedence(t *testing.T) {
+	names := []string{EnvMasterEndpoint, legacyEnvMasterEndpoint, legacyEnvMasterEndpoint2}
+
+	// Newest name wins over both legacy ones.
+	clearEnv(t, names...)
+	t.Setenv(legacyEnvMasterEndpoint, "http://legacy-one:8089")
+	t.Setenv(legacyEnvMasterEndpoint2, "http://legacy-two:8089")
+	t.Setenv(EnvMasterEndpoint, "http://current:8089")
+	if got := MasterEndpoint(); got != "http://current:8089" {
+		t.Fatalf("current name must win, got %q", got)
+	}
+
+	// First legacy name wins over the older one when the current name is unset.
+	clearEnv(t, names...)
+	t.Setenv(legacyEnvMasterEndpoint2, "http://legacy-two:8089")
+	t.Setenv(legacyEnvMasterEndpoint, "http://legacy-one:8089")
+	if got := MasterEndpoint(); got != "http://legacy-one:8089" {
+		t.Fatalf("newer legacy name must win, got %q", got)
+	}
+
+	// Oldest legacy name still works on its own.
+	clearEnv(t, names...)
+	t.Setenv(legacyEnvMasterEndpoint2, "http://legacy-two:8089")
+	if got := MasterEndpoint(); got != "http://legacy-two:8089" {
+		t.Fatalf("oldest legacy name must still work, got %q", got)
+	}
+
+	// A legacy name must warn so operators migrate.
+	if !hasWarningAbout(legacyEnvMasterEndpoint2) {
+		t.Fatalf("using %s must produce a deprecation warning", legacyEnvMasterEndpoint2)
+	}
+
+	// A blank current name must NOT mask a legacy value -- it is "unset".
+	clearEnv(t, names...)
+	t.Setenv(EnvMasterEndpoint, "   ")
+	t.Setenv(legacyEnvMasterEndpoint, "http://legacy-one:8089")
+	if got := MasterEndpoint(); got != "http://legacy-one:8089" {
+		t.Fatalf("blank current name must fall through to legacy, got %q", got)
 	}
 }
 
@@ -282,17 +326,17 @@ func TestResolveHTTPBind(t *testing.T) {
 		wantNote   string
 	}{
 		{
-			name: "no-node-ip-changes-nothing",
+			name:   "no-node-ip-changes-nothing",
 			nodeIP: "", configured: "0.0.0.0", isLocal: true,
 			wantBind: "0.0.0.0", wantNote: "",
 		},
 		{
-			name: "local-node-ip-narrows-the-bind",
+			name:   "local-node-ip-narrows-the-bind",
 			nodeIP: "10.0.0.10", configured: "0.0.0.0", isLocal: true,
 			wantBind: "10.0.0.10", wantNote: "listening on",
 		},
 		{
-			name: "empty-config-is-also-unset",
+			name:   "empty-config-is-also-unset",
 			nodeIP: "10.0.0.10", configured: "", isLocal: true,
 			wantBind: "10.0.0.10", wantNote: "listening on",
 		},
@@ -300,29 +344,29 @@ func TestResolveHTTPBind(t *testing.T) {
 			// The Kubernetes case. The node IP is not in the Pod netns, so
 			// binding to it would fail outright — and the readiness probe targets
 			// the Pod IP anyway. Degrading keeps one manifest working everywhere.
-			name: "non-local-node-ip-keeps-wildcard",
+			name:   "non-local-node-ip-keeps-wildcard",
 			nodeIP: "10.0.0.10", configured: "0.0.0.0", isLocal: false,
 			wantBind: "0.0.0.0", wantNote: "not assigned to this host",
 		},
 		{
 			// An operator who pinned http_bind meant it.
-			name: "explicit-http-bind-wins",
+			name:   "explicit-http-bind-wins",
 			nodeIP: "10.0.0.10", configured: "127.0.0.1", isLocal: true,
 			wantBind: "127.0.0.1", wantNote: "set explicitly",
 		},
 		{
-			name: "ipv6-wildcard-counts-as-unset",
+			name:   "ipv6-wildcard-counts-as-unset",
 			nodeIP: "10.0.0.10", configured: "::", isLocal: true,
 			wantBind: "10.0.0.10", wantNote: "listening on",
 		},
 		{
-			name: "garbage-node-ip-keeps-configured",
+			name:   "garbage-node-ip-keeps-configured",
 			nodeIP: "not-an-ip", configured: "0.0.0.0", isLocal: true,
 			wantBind: "0.0.0.0", wantNote: "not a valid IP address",
 		},
 		{
 			// A hostname is a plausible mistake, and must not become a bind.
-			name: "hostname-keeps-configured",
+			name:   "hostname-keeps-configured",
 			nodeIP: "cubemaster.internal", configured: "0.0.0.0", isLocal: true,
 			wantBind: "0.0.0.0", wantNote: "not a valid IP address",
 		},

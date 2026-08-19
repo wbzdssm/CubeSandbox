@@ -45,9 +45,9 @@ type Reporter struct {
 }
 
 // NewReporter creates a new status reporter. The CubeMaster base URL comes from
-// CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT (default http://localhost:8089, which is
-// correct for the single-host one-click layout). The pre-rename
-// CUBE_MASTER_ENDPOINT spelling still works; see pkg/tcconfig.
+// CUBE_MASTER_ADDR (default http://localhost:8089, which is correct for the
+// single-host one-click layout). The retired CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT
+// and CUBE_MASTER_ENDPOINT spellings still work; see pkg/tcconfig.
 func NewReporter() *Reporter {
 	return &Reporter{
 		masterURL: tcconfig.MasterEndpoint(),

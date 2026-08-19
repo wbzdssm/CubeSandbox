@@ -32,8 +32,8 @@ TimeoutStartSec=60s
 TimeoutStopSec=30s
 
 [Install]
-# Deliberately NOT listed in cube-sandbox-control.target's Wants: remote build
-# mode is opt-in (CubeMaster defaults to template_build_mode=local), so this unit
-# is installed but stays inactive until an operator runs
+# Deliberately NOT listed in cube-sandbox-control.target's Wants: handing builds
+# to TC is opt-in (CubeMaster defaults to templatecenter_enabled=false), so this
+# unit is installed but stays inactive until an operator runs
 #   systemctl enable --now cube-sandbox-cubetemplatecenter.service
 WantedBy=cube-sandbox-control.target

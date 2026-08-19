@@ -65,11 +65,16 @@ const (
 
 // Variables read only by this module.
 const (
-	// EnvMasterEndpoint is where build results are reported. The legacy name
-	// said "master" while being read exclusively by TC, which read as though
-	// CubeMaster consumed it.
-	EnvMasterEndpoint       = "CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT"
-	legacyEnvMasterEndpoint = "CUBE_MASTER_ENDPOINT"
+	// EnvMasterEndpoint is where build results are reported. It deliberately
+	// shares the name every other component (CubeOps, cubelet, ...) already
+	// uses for "CubeMaster's address": CUBE_MASTER_ADDR means the same thing
+	// everywhere, so a deployment sets one variable and all of them find
+	// CubeMaster. The earlier per-component spellings
+	// (CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT, then CUBE_MASTER_ENDPOINT) are
+	// kept only as fallbacks so an existing unit keeps working.
+	EnvMasterEndpoint        = "CUBE_MASTER_ADDR"
+	legacyEnvMasterEndpoint  = "CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT"
+	legacyEnvMasterEndpoint2 = "CUBE_MASTER_ENDPOINT"
 
 	// EnvServeTemplateAPI mounts the public /cube/template* routes here instead
 	// of leaving them to CubeMaster. Default false.
@@ -183,12 +188,22 @@ func ServePublicTemplateAPI() bool {
 
 // MasterEndpoint returns the CubeMaster base URL for status callbacks, with no
 // trailing slash.
+//
+// CUBE_MASTER_ADDR wins; the two retired spellings are tried in turn so a
+// deployment pinned to either keeps working. A value in a newer name never
+// falls through to an older one.
 func MasterEndpoint() string {
-	v, found := lookup(EnvMasterEndpoint, legacyEnvMasterEndpoint)
-	if !found {
-		return defaultMasterEndpoint
+	for _, name := range []string{EnvMasterEndpoint, legacyEnvMasterEndpoint, legacyEnvMasterEndpoint2} {
+		if v := strings.TrimSpace(os.Getenv(name)); v != "" {
+			if name != EnvMasterEndpoint {
+				warn("deprecated:"+name,
+					"environment variable %s is deprecated, use %s instead (the old name still works for now)",
+					name, EnvMasterEndpoint)
+			}
+			return strings.TrimRight(v, "/")
+		}
 	}
-	return strings.TrimRight(v, "/")
+	return defaultMasterEndpoint
 }
 
 // ReconcileDisabled reports whether the background sweep is switched off.

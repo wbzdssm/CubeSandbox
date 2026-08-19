@@ -44,6 +44,17 @@ spec:
               value: /data/CubeMaster/storage
             - name: CUBE_NODE_IPS
               value: {{ join "," .Values.controlPlane.master.nodeIPs | quote }}
+            # CubeTemplateCenter's address, injected as an environment variable
+            # rather than rendered into conf.yaml: an address is a deployment
+            # fact, and this is the exact counterpart of CUBE_MASTER_ADDR on the
+            # TC side. Only present when TC is deployed; when it is absent the
+            # conf's templatecenter_enabled=false keeps builds local, so the
+            # variable is simply unread.
+            {{- $tcAddr := include "cube.templateCenterEndpoint" . }}
+            {{- if $tcAddr }}
+            - name: CUBE_TEMPLATE_CENTER_ADDR
+              value: {{ $tcAddr | quote }}
+            {{- end }}
             {{- if .Values.controlPlane.master.skipMigrationFingerprintCheck }}
             # Escape hatch for a database that was migrated by a DIFFERENT build
             # line than this image: versions applied there are absent from this

@@ -6,7 +6,6 @@ package cube
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
@@ -35,8 +34,8 @@ func forwardBuildJobToTemplateCenter(jobID string, req *types.CreateTemplateFrom
 
 	cfg := config.GetConfig()
 	endpoint := ""
-	if cfg != nil && cfg.Common != nil {
-		endpoint = strings.TrimSpace(cfg.Common.TemplateCenterEndpoint)
+	if cfg != nil {
+		endpoint = cfg.TemplateCenterAddr()
 	}
 
 	markFailed := func(msg string) {
@@ -49,8 +48,8 @@ func forwardBuildJobToTemplateCenter(jobID string, req *types.CreateTemplateFrom
 	}
 
 	if endpoint == "" {
-		log.G(ctx).Errorf("forward to templatecenter: template_center_endpoint is empty, job_id=%s", jobID)
-		markFailed("template_build_mode=remote but template_center_endpoint is not configured")
+		log.G(ctx).Errorf("forward to templatecenter: %s is empty, job_id=%s", config.EnvTemplateCenterAddr, jobID)
+		markFailed("templatecenter_enabled=true but " + config.EnvTemplateCenterAddr + " is not configured")
 		return
 	}
 

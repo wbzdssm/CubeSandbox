@@ -8,22 +8,16 @@ common:
   collect_metric_interval: 1s
   default_headless_service_nodes_num: 1
   enable_check_com_net_id_param: false
-  # Template build / route wiring.
+  # Template build wiring: a single boolean switch, mirroring
+  # controlPlane.templateCenter.enabled. False serves every template path
+  # locally; true forwards template-from-image builds to CubeTemplateCenter.
   #
-  # templatecenter_enabled is the master switch and mirrors
-  # controlPlane.templateCenter.enabled: false means every template path is
-  # served locally regardless of the modes below. With it false the modes are
-  # inert, so a leftover value can never enable anything by accident. Only when
-  # it is true do template_build_mode / template_route_mode take effect, and
-  # those are forced back to "local" whenever TC is not actually reachable, so a
-  # remote mode can never point at an empty endpoint.
+  # CubeTemplateCenter's address is deliberately NOT here: it is a deployment
+  # fact, so it is injected as the CUBE_TEMPLATE_CENTER_ADDR environment
+  # variable on the CubeMaster Deployment (the counterpart of CUBE_MASTER_ADDR,
+  # which TC uses to call back). Keeping it out of conf means changing the
+  # address never requires editing this file.
   templatecenter_enabled: {{ include "cube.templateCenterEnabledConf" . }}
-  template_build_mode: {{ include "cube.templateBuildMode" . | quote }}
-  template_route_mode: {{ include "cube.templateRouteMode" . | quote }}
-{{- $tcEndpoint := include "cube.templateCenterEndpoint" . }}
-{{- if $tcEndpoint }}
-  template_center_endpoint: {{ $tcEndpoint | quote }}
-{{- end }}
 
 log:
   module: "cubemaster"

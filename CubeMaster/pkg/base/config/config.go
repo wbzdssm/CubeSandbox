@@ -104,10 +104,11 @@ type CommonConf struct {
 	// (false), or CubeTemplateCenter does (true) -- anything more granular
 	// would be a second switch to keep in sync with this one.
 	TemplateCenterEnabled bool `yaml:"templatecenter_enabled"`
-	// TemplateCenterEndpoint is the base URL of the CubeTemplateCenter
-	// process (e.g. "http://templatecenter:8090"). Required when
-	// templatecenter_enabled is true; unused otherwise.
-	TemplateCenterEndpoint          string          `yaml:"template_center_endpoint"`
+	// CubeTemplateCenter's address is deliberately NOT a config key. It is a
+	// deployment fact that changes with the environment, so it lives in the
+	// CUBE_TEMPLATE_CENTER_ADDR environment variable -- the exact counterpart
+	// of CUBE_MASTER_ADDR, which every component (TC included) uses to find
+	// CubeMaster. See Config.TemplateCenterAddr.
 	CollectSandboxMemoryWhitelist   []string        `yaml:"collect_sandbox_memory_whitelist"`
 	EnableAllCollectSandboxMemory   bool            `yaml:"enable_all_collect_sandbox_memory"`
 	FilterErrMsgErrorCode           map[int]bool    `yaml:"filter_err_msg_error_code"`
@@ -1215,10 +1216,25 @@ func (c *Config) TemplateBuildRemote() bool {
 }
 
 // TemplateCenterRequired reports whether any template path depends on reaching
-// CubeTemplateCenter, i.e. a missing template_center_endpoint is a real error
+// CubeTemplateCenter, i.e. a missing CUBE_TEMPLATE_CENTER_ADDR is a real error
 // rather than an unused default. True exactly when the master switch is on.
 func (c *Config) TemplateCenterRequired() bool {
 	return c.TemplateCenterEnabled()
+}
+
+// EnvTemplateCenterAddr is how CubeMaster finds CubeTemplateCenter. It mirrors
+// CUBE_MASTER_ADDR, the variable every other component uses to find CubeMaster:
+// one name per target component, shared by whoever needs to reach it, so a
+// deployment sets each address exactly once. An address is a deployment fact,
+// not a process tunable, which is why it is an environment variable and not a
+// conf.yaml key.
+const EnvTemplateCenterAddr = "CUBE_TEMPLATE_CENTER_ADDR"
+
+// TemplateCenterAddr returns CubeTemplateCenter's base URL with no trailing
+// slash, or "" when unset. Read from the environment on every call so it can
+// be changed without editing (or even loading) conf.yaml.
+func (c *Config) TemplateCenterAddr() string {
+	return strings.TrimRight(strings.TrimSpace(os.Getenv(EnvTemplateCenterAddr)), "/")
 }
 
 var defaultAllowedHostMountPrefixes = []string{"/data/shared/"}

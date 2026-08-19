@@ -521,8 +521,8 @@ chart-owned StorageClass). This helper only picks which SC name a PVC binds to.
 {{- end -}}
 
 {{- /*
-Base URL CubeMaster uses for template_center_endpoint, and that TC's reporter
-uses in reverse for CUBE_MASTER_ENDPOINT. Always the in-cluster ClusterIP
+Base URL CubeMaster uses for CUBE_TEMPLATE_CENTER_ADDR, and that TC's reporter
+uses in reverse for CUBE_MASTER_ADDR. Always the in-cluster ClusterIP
 Service: the optional CLB below is for reaching TC from OUTSIDE the cluster, and
 routing control-plane-internal traffic through a load balancer would add a hop
 and a failure domain for no benefit.
@@ -536,47 +536,15 @@ and a failure domain for no benefit.
 {{- /*
 CubeMaster's templatecenter_enabled master switch, rendered as the boolean the
 YAML key expects. Mirrors .Values.controlPlane.templateCenter.enabled so the
-chart and the binary agree: with the switch off every template path is local
-regardless of the modes below.
+chart and the binary agree: with the switch off every template path is local.
+There is deliberately no build/route mode knob -- a single boolean is the whole
+model, so the chart cannot put the two halves out of sync.
 */ -}}
 {{- define "cube.templateCenterEnabledConf" -}}
 {{- if .Values.controlPlane.templateCenter.enabled -}}
 {{- "true" -}}
 {{- else -}}
 {{- "false" -}}
-{{- end -}}
-{{- end -}}
-
-{{- /*
-Where template-from-image builds run, as seen by CubeMaster.
-
-"remote" only once TC is actually deployed: emitting remote while TC is absent
-would make every template create fail with an empty template_center_endpoint.
-templateCenter.buildMode may force "local" to keep TC running (schema migration,
-reconciler) while CubeMaster keeps building in-process.
-*/ -}}
-{{- define "cube.templateBuildMode" -}}
-{{- $requested := .Values.controlPlane.templateCenter.buildMode | default "remote" -}}
-{{- if and .Values.controlPlane.templateCenter.enabled (include "cube.templateCenterEndpoint" .) -}}
-{{- $requested -}}
-{{- else -}}
-{{- "local" -}}
-{{- end -}}
-{{- end -}}
-
-{{- /*
-Who serves the public /cube/template* endpoints.
-
-Independent of the build mode: proxy hands the whole request to TC, local keeps
-CubeMaster as the front door while the build may still be remote. Guarded by the
-same "is TC reachable" condition, since proxy without an endpoint 503s.
-*/ -}}
-{{- define "cube.templateRouteMode" -}}
-{{- $requested := .Values.controlPlane.templateCenter.routeMode | default "local" -}}
-{{- if and .Values.controlPlane.templateCenter.enabled (include "cube.templateCenterEndpoint" .) -}}
-{{- $requested -}}
-{{- else -}}
-{{- "local" -}}
 {{- end -}}
 {{- end -}}
 

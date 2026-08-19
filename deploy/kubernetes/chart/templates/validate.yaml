@@ -4,13 +4,11 @@
 {{- fail "controlPlane.enabled=true requires placement.controlPlane.nodeSelector" }}
 {{- end }}
 {{- $templateCenter := .Values.controlPlane.templateCenter -}}
-{{- $templateCenterBuildMode := $templateCenter.buildMode | default "remote" -}}
-{{- if not (has $templateCenterBuildMode (list "local" "remote")) }}
-{{- fail (printf "controlPlane.templateCenter.buildMode must be \"local\" or \"remote\" (got %q)" $templateCenterBuildMode) }}
+{{- if hasKey $templateCenter "buildMode" }}
+{{- fail "controlPlane.templateCenter.buildMode no longer exists: template offload is now a single boolean. Use controlPlane.templateCenter.enabled only -- it renders templatecenter_enabled into CubeMaster's conf, and builds go to TC when that is true" }}
 {{- end }}
-{{- $templateCenterRouteMode := $templateCenter.routeMode | default "local" -}}
-{{- if not (has $templateCenterRouteMode (list "local" "proxy")) }}
-{{- fail (printf "controlPlane.templateCenter.routeMode must be \"local\" or \"proxy\" (got %q)" $templateCenterRouteMode) }}
+{{- if hasKey $templateCenter "routeMode" }}
+{{- fail "controlPlane.templateCenter.routeMode no longer exists: the route proxy was removed along with the build-mode string. CubeMaster always serves the public template API; use controlPlane.templateCenter.enabled only" }}
 {{- end }}
 {{- if and $templateCenter.enabled (not (and .Values.controlPlane.enabled .Values.controlPlane.master.enabled)) }}
 {{- fail "controlPlane.templateCenter.enabled=true requires controlPlane.master.enabled=true: TC writes the ext4 but CubeMaster is what serves it to Cubelet and owns every business-state write" }}

@@ -316,8 +316,9 @@ variable "deploy_templatecenter" {
     Terraform support was removed because getting it right needs guardrails this
     module cannot express as cheaply as the chart does: TC has to be a single
     replica pinned to the node holding CubeMaster's artifact volume, and
-    CubeMaster has to be switched to template_build_mode=remote in the same
-    change. Deploying only one half leaves a silently broken template pipeline.
+    CubeMaster has to be switched on (templatecenter_enabled=true, with
+    CUBE_TEMPLATE_CENTER_ADDR pointing at TC) in the same change. Deploying only
+    one half leaves a silently broken template pipeline.
   EOT
   type        = bool
   default     = false

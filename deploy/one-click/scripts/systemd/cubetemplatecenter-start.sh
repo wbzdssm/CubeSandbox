@@ -13,11 +13,14 @@ ensure_systemd_runtime_dirs
 TC_BIN="${TOOLBOX_ROOT}/CubeTemplateCenter/bin/templatecenter"
 TC_CFG="${TOOLBOX_ROOT}/CubeTemplateCenter/conf.yaml"
 
-# Every variable below is spelled CUBE_TEMPLATE_CENTER_*, matching the component
-# name. The pre-rename spellings (CUBE_TC_*, CUBE_MASTER_*, CUBEMASTER_*) are
-# still honoured by the binary as a fallback and log a deprecation notice, so an
-# .one-click.env that has not been updated keeps working.
-# See CubeTemplateCenter/pkg/tcconfig.
+# TC's own settings are spelled CUBE_TEMPLATE_CENTER_*, matching the component
+# name. The one exception is CubeMaster's address: that is CUBE_MASTER_ADDR, the
+# same name every component uses, NOT a CUBE_TEMPLATE_CENTER_* name -- the
+# address belongs to CubeMaster, not to TC. The retired spellings
+# (CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT, CUBE_MASTER_ENDPOINT, and the
+# CUBE_TC_* / CUBEMASTER_* family) are still honoured by the binary as a
+# fallback and log a deprecation notice, so an un-updated .one-click.env keeps
+# working. See CubeTemplateCenter/pkg/tcconfig.
 
 # Shared with cubemaster on purpose: TC writes the ext4, cubemaster serves the
 # download (design 9.7). Reads the legacy CUBEMASTER_ name too, because
@@ -26,9 +29,11 @@ TC_CFG="${TOOLBOX_ROOT}/CubeTemplateCenter/conf.yaml"
 TC_ARTIFACT_STORE_DIR_DEFAULT="/data/CubeMaster/storage"
 TC_ARTIFACT_STORE_DIR="${CUBE_TEMPLATE_CENTER_ARTIFACT_STORE_DIR:-${CUBEMASTER_ROOTFS_ARTIFACT_STORE_DIR:-${TC_ARTIFACT_STORE_DIR_DEFAULT}}}"
 
-# Where to report build results. Same host in the one-click layout, so the
-# loopback default is correct; override in .one-click.env for a split deployment.
-TC_MASTER_ENDPOINT="${CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT:-${CUBE_MASTER_ENDPOINT:-http://127.0.0.1:8089}}"
+# Where to report build results. CUBE_MASTER_ADDR is the canonical name; the two
+# retired TC-specific spellings are tried next so an old .one-click.env still
+# works. Same host in the one-click layout, so the loopback default is correct;
+# override in .one-click.env for a split deployment.
+TC_MASTER_ADDR="${CUBE_MASTER_ADDR:-${CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT:-${CUBE_MASTER_ENDPOINT:-http://127.0.0.1:8089}}}"
 
 # This node's routable address, used for the log identity and to narrow the HTTP
 # listener when the address is actually assigned to this host. Defaults to the IP
@@ -47,7 +52,7 @@ for tool in skopeo umoci mkfs.ext4; do
 done
 
 export CUBE_TEMPLATE_CENTER_CONFIG_PATH="${TC_CFG}"
-export CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT="${TC_MASTER_ENDPOINT}"
+export CUBE_MASTER_ADDR="${TC_MASTER_ADDR}"
 if [[ -n "${TC_NODE_IP}" ]]; then
   export CUBE_TEMPLATE_CENTER_NODE_IP="${TC_NODE_IP}"
 fi

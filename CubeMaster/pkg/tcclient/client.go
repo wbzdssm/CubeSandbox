@@ -40,11 +40,11 @@ func NewClient(endpoint string) *Client {
 // to CubeMaster via POST /internal/template/jobs/:job_id/status.
 func (c *Client) SubmitBuildJob(ctx context.Context, jobID string, req *types.CreateTemplateFromImageReq, downloadBaseURL string, envdSHA string, envdData []byte) error {
 	payload := map[string]any{
-		"job_id":           jobID,
-		"request":          req,
+		"job_id":            jobID,
+		"request":           req,
 		"download_base_url": downloadBaseURL,
-		"envd_sha256":      envdSHA,
-		"envd_data":        envdData,
+		"envd_sha256":       envdSHA,
+		"envd_data":         envdData,
 	}
 
 	body, err := json.Marshal(payload)
