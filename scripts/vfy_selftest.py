@@ -507,6 +507,39 @@ check("a shared early failure is flagged as narrow evidence",
 check("a reused artifact is flagged as an unexercised build path",
       any("was not exercised" in n for n in notes), str(notes))
 
+# =====================================================================
+# conflict recognition
+#
+# A real run leaked a template on every pass: the rebuild step queues a PENDING
+# job, delete.go correctly refuses to delete a template with an active job
+# (ErrTemplateAttemptInProgress -> Conflict), and the harness read that refusal
+# as "still settling" and moved on. Recognising a conflict is what turns that
+# leak into a retry, so it is pinned in both dialects.
+# =====================================================================
+from vfy_cases import _is_conflict, _looks_absent  # noqa: E402
+
+
+class _Call:
+    def __init__(self, response):
+        self.response = response
+
+
+check("a ret Conflict envelope is a conflict",
+      _is_conflict(_Call(envelope(130409))))
+check("an HTTP 409 is a conflict",
+      _is_conflict(_Call(rest(409, error="ApiError: conflict"))))
+check("an SDK error naming a conflict is a conflict",
+      _is_conflict(_Call(rest(0, error="TemplateConflictError: build in progress"))))
+check("a ret Success is not a conflict", not _is_conflict(_Call(envelope(200))))
+check("a NotFound is not a conflict", not _is_conflict(_Call(envelope(130404))))
+check("a missing response is not a conflict", not _is_conflict(_Call(None)))
+# The two classifications must not overlap: a conflict means "retry later" while
+# absent means "stop, it is gone". Confusing them either leaks or loops.
+check("conflict and absent are disjoint for a 409",
+      _is_conflict(_Call(rest(409))) and not _looks_absent(_Call(rest(409))))
+check("conflict and absent are disjoint for a 404",
+      _looks_absent(_Call(rest(404))) and not _is_conflict(_Call(rest(404))))
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} self-test(s) FAILED: {FAILURES}")

@@ -424,6 +424,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         cfg.build_timeout = args.build_timeout
     if args.full_boundaries:
         cfg.full_boundaries = True
+    if args.force_build:
+        cfg.force_build = True
 
     rec = Recorder(cfg, args.link, print_raw=not args.quiet_raw,
                    print_limit=0 if args.full else args.print_limit)
@@ -557,6 +559,12 @@ def main() -> int:
                        help="characters per raw value when printing (default 1200)")
     p_run.add_argument("--image", help="override the source image")
     p_run.add_argument("--build-timeout", type=int, help="seconds to wait for a build")
+    p_run.add_argument("--force-build", action="store_true",
+                       help="make the artifact fingerprint unique to this run so the "
+                            "real pull + mkfs path executes instead of being "
+                            "short-circuited by artifact reuse (required to verify a "
+                            "remote build on an environment that already holds the "
+                            "artifact)")
     p_run.add_argument("--full-boundaries", action="store_true",
                        help="also submit boundary rows whose acceptance starts a "
                             "distinct full build (slow: every exposed_ports / "

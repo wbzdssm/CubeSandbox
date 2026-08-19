@@ -24,6 +24,7 @@ import json
 import re
 import sys
 import threading
+import time
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -263,8 +264,14 @@ class Handler(BaseHTTPRequestHandler):
         template_id = str(self._body().get("template_id") or "").strip()
         with _LOCK:
             resolved = self._resolve(template_id)
-        if resolved is None:
-            return self._ret(RET_NOT_FOUND, f"template {template_id!r} not found")
+            if resolved is None:
+                return self._ret(RET_NOT_FOUND, f"template {template_id!r} not found")
+            # A redo queues a PENDING job against the same template, which is
+            # what makes a subsequent delete conflict. Reproduced because that
+            # interaction is the whole point of the delete-retry path in the
+            # harness; it stays active for a couple of seconds so the retry is
+            # actually exercised rather than passing on the first attempt.
+            TEMPLATES[resolved]["active_job_until"] = time.time() + 4
         self._ret(RET_SUCCESS)
 
     def _delete(self):
@@ -273,6 +280,12 @@ class Handler(BaseHTTPRequestHandler):
             resolved = self._resolve(ident)
             if resolved is None:
                 return self._ret(RET_NOT_FOUND, f"template {ident!r} not found")
+            until = TEMPLATES[resolved].get("active_job_until") or 0
+            if until > time.time():
+                # delete.go: hasActiveJob -> ErrTemplateAttemptInProgress
+                return self._ret(RET_CONFLICT,
+                                 f"template {resolved} deletion is blocked while a "
+                                 "build job is still active")
             tpl = TEMPLATES.pop(resolved)
             ALIASES.pop(tpl.get("alias") or "", None)
         self._ret(RET_SUCCESS)

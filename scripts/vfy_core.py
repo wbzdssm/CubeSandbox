@@ -113,6 +113,13 @@ class Config:
     # template spec fingerprint) are skipped unless this is on. Submitting all
     # of them takes hours and one of them asks for 1000Ti.
     full_boundaries: bool = os.environ.get("FULL_BOUNDARIES", "").lower() in ("1", "true", "yes")
+    # Ports requested by the main create. Part of the artifact fingerprint.
+    exposed_ports: tuple[int, ...] = (80,)
+    # Add a per-run marker port so the artifact fingerprint is unique and the
+    # real pull + mkfs path runs instead of being short-circuited by artifact
+    # reuse. Needed to verify remote builds on an environment that already holds
+    # the artifact from an earlier run.
+    force_build: bool = os.environ.get("FORCE_BUILD", "").lower() in ("1", "true", "yes")
 
     def entry_url(self, entry: str) -> str:
         return {

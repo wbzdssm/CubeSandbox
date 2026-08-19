@@ -61,6 +61,11 @@ class Scenario:
         self._probe_aliases: set[str] = set()
         # Template count before the run, for the post-cleanup leak check.
         self._count_before: int | None = None
+        # Marker port for --force-build. Stable within a run so the dedup
+        # re-submit still lands on the same fingerprint, unique across runs so
+        # each run builds a fresh artifact. Kept in the ephemeral/dynamic range.
+        digits = "".join(ch for ch in rec.tag if ch.isdigit()) or "0"
+        self._marker_port = 40000 + (int(digits) % 20000)
 
     # =====================================================================
     # 1. Input boundary probes
@@ -154,16 +159,47 @@ class Scenario:
     # =====================================================================
     # 3. Create and follow the whole build
     # =====================================================================
+    def _main_spec(self, name: str, request_id: str) -> CreateSpec:
+        """The spec used for the main create and for the dedup re-submit.
+
+        With --force-build the exposed ports carry a per-run marker port. The
+        artifact fingerprint covers exposed_ports (fingerprint.go), so this makes
+        the run land on an artifact_id nothing has built yet, forcing the real
+        pull + envd + CA + mkfs path to execute instead of TC taking its
+        "artifact already built by a sibling job, reusing" shortcut.
+
+        Without it, a repeat run against an environment that already holds the
+        artifact never exercises the build path at all — which is how a
+        local-vs-remote comparison can come back clean while proving nothing
+        about remote building.
+
+        A port is used as the knob rather than writable_layer_size because it
+        changes the fingerprint without changing the size of the ext4 that gets
+        produced. Only one marker port is added, keeping the request inside the
+        3-custom-port limit.
+        """
+        ports = list(self.cfg.exposed_ports)
+        if self.cfg.force_build:
+            ports = ports[:2] + [self._marker_port]
+        return CreateSpec(
+            image=self.cfg.image,
+            instance_type=self.cfg.instance_type,
+            name=name,
+            exposed_ports=ports,
+            request_id=request_id,
+        )
+
     def create(self) -> None:
         section("3. create from image, following every state transition")
         r = self.r
         self.name = f"{r.tag}-main"
-        spec = CreateSpec(
-            image=self.cfg.image,
-            instance_type=self.cfg.instance_type,
-            name=self.name,
-            request_id=f"{r.tag}-create",
-        )
+        spec = self._main_spec(self.name, f"{r.tag}-create")
+        if self.cfg.force_build:
+            r.add("create.force_build",
+                  "a per-run marker port makes the artifact fingerprint unique, "
+                  "so the real pull + mkfs path runs instead of artifact reuse",
+                  facts={"marker_port": self._marker_port,
+                         "exposed_ports": spec.exposed_ports})
         call = self.link.create(spec)
         rec = r.add("create.submit", "submit create-from-image", call)
 
@@ -383,14 +419,11 @@ class Scenario:
 
         # Same spec => same fingerprint => same artifact_id. This must hold
         # ACROSS links too, which is why the fingerprint helpers are shared code
-        # rather than reimplemented inside CubeTemplateCenter.
+        # rather than reimplemented inside CubeTemplateCenter. The spec must be
+        # byte-identical to the main create, marker port included, or this stops
+        # testing dedup and starts testing a fresh build.
         dup_name = f"{r.tag}-dup"
-        call = self.link.create(CreateSpec(
-            image=self.cfg.image,
-            instance_type=self.cfg.instance_type,
-            name=dup_name,
-            request_id=f"{r.tag}-dup",
-        ))
+        call = self.link.create(self._main_spec(dup_name, f"{r.tag}-dup"))
         rec = r.add("dedup.submit", "submit the identical spec a second time", call)
         job2 = str(rec.facts.get("job_id", "") or "")
         tpl2 = str(rec.facts.get("template_id", "") or "")
@@ -414,6 +447,35 @@ class Scenario:
     # =====================================================================
     # 7. Delete and the state it leaves behind
     # =====================================================================
+    def _delete_when_quiescent(self, target: str) -> Any:
+        """Retry a delete until no build job blocks it any more.
+
+        Bounded by build_timeout, because that is how long the blocking job may
+        legitimately take to finish: a redo runs the same pipeline as a create.
+        Every attempt is recorded, so a delete that never becomes possible shows
+        up as a run problem instead of as silent residue.
+        """
+        r = self.r
+        deadline = time.time() + self.cfg.build_timeout
+        attempt = 1
+        call = None
+        while time.time() < deadline:
+            time.sleep(min(self.cfg.poll_interval, 5))
+            attempt += 1
+            call = self.link.delete(target)
+            if not _is_conflict(call):
+                r.add("delete.retry_after_build",
+                      f"delete accepted once the build job cleared (attempt {attempt})",
+                      call, facts={"attempts": attempt})
+                return call
+        r.add("delete.retry_after_build",
+              f"delete still blocked after {self.cfg.build_timeout}s", call,
+              facts={"attempts": attempt, "still_blocked": True})
+        r.problem(f"template {target} could not be deleted within "
+                  f"{self.cfg.build_timeout}s: a build job kept it locked, so this "
+                  "run leaves residue behind")
+        return call
+
     def delete(self) -> None:
         section("7. delete and post-delete state")
         r = self.r
@@ -423,7 +485,24 @@ class Scenario:
 
         template_id, name = r.created[0]
         target = template_id or name
-        r.add("delete.submit", "delete the template", self.link.delete(target))
+
+        # Deleting while a build job is still PENDING/RUNNING is refused by
+        # design (delete.go: hasActiveJob -> ErrTemplateAttemptInProgress ->
+        # Conflict). The rebuild step above just queued exactly such a job, so
+        # this is both a real boundary worth recording AND the reason an earlier
+        # revision of this harness leaked a template on every run: it read the
+        # Conflict as "still settling" and moved on.
+        first = self.link.delete(target)
+        rec = r.add("delete.submit", "delete the template", first)
+        blocked = _is_conflict(first)
+        rec.facts["blocked_by_active_build"] = blocked
+
+        if blocked:
+            r.add("delete.blocked_by_active_build",
+                  "delete is refused while a build job is active: expected, "
+                  "and the reason the delete has to be retried",
+                  facts={"boundary": "delete-during-active-build"})
+            first = self._delete_when_quiescent(target)
 
         # Deletion touches several tables and is not guaranteed synchronous, so
         # the API is re-read until it stops resolving (bounded), and the last
@@ -524,7 +603,13 @@ class Scenario:
         section("cleanup")
         for template_id, name in list(r.created):
             target = template_id or name
-            r.add("cleanup.delete", f"cleanup {target}", self.link.delete(target))
+            call = self.link.delete(target)
+            rec = r.add("cleanup.delete", f"cleanup {target}", call)
+            # Same conflict as in delete(): the dedup template may still have an
+            # active job. Left unhandled, this is silent residue.
+            if _is_conflict(call):
+                rec.facts["blocked_by_active_build"] = True
+                self._delete_when_quiescent(target)
         r.created.clear()
         # Aliases claimed by accepted boundary rows. Deleting by id normally
         # releases them, but a partially-applied create can leave the alias
@@ -636,6 +721,23 @@ def _looks_absent(call: Any) -> bool:
     if resp.get("http_status") == 404:
         return True
     return "NotFound" in str(resp.get("error") or "")
+
+
+def _is_conflict(call: Any) -> bool:
+    """'Refused because something is still in flight', in both dialects.
+
+    /cube/* returns ret 130409 for both ErrTemplateAttemptInProgress and
+    ErrTemplateInUse; CubeAPI turns those into HTTP 409, which the SDK raises.
+    """
+    resp = getattr(call, "response", None)
+    if not resp:
+        return False
+    if resp.get("ret_code") == 130409:
+        return True
+    if resp.get("http_status") == 409:
+        return True
+    text = str(resp.get("error") or "") + " " + str(resp.get("ret_msg") or "")
+    return "Conflict" in text or "in progress" in text or "in use" in text
 
 
 ORDER = [
