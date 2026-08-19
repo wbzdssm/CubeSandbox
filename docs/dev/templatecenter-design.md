@@ -46,7 +46,7 @@
 
 **双方都有缓存。** Master 端有 `imageCache + nodeCache + templateCache`（TC 故障不影响读——proposal 第 1 条原则核心）；TC 端有自己的 `buildCache + templateCache + fingerprintCache`（加速重复构建）。两侧缓存各管各的。
 
-**心跳只打 CubeMaster，TC 收不到。** TC 节点视图经 **master API 拉**（不是 DB 30s 重载）——这是 5 点原则架构下"TC 是独立服务"的自然推论。
+**心跳只打 CubeMaster，TC 收不到。** 所以 **TC 干脆不维护节点视图**——选下发目标、判定节点健康全部由 master 负责，TC 上报 BUILT 后由 master 驱动下发。（早期版本设想"TC 经 master API 拉节点视图"，实现已放弃，见 §2.2 校准。）
 
 **沙箱创建**走 CMS + imageCache，**不调 TC API**。这是 proposal 第 1 条原则"避免镜像中心故障后影响 CubeMaster 可用"的具体落地——imageCache 命中，TC 挂不挂都无关。
 
@@ -144,23 +144,41 @@ TemplateCenter/                         # 独立进程, 单独 deploy
 
 ```
 1. 加载配置
-2. 初始化数据库连接 (经 master API 写库, 5 点原则第 1 条)
-3. 初始化 Redis 连接 (进度快照)
+2. 初始化数据库连接 (仅用于 schema 迁移 + reconcile 会话锁; 业务状态写入经 master 回调)
+3. 初始化 Redis 连接 (拉取进度实时快照, 经 localcache)
 4. 初始化 ArtifactStore (与 master 共享)
-5. 初始化进程内锁
+5. 初始化进程内锁 (按 artifactID 串行化同产物构建)
 6. 启动 templatecenter 业务:
    ├─ 拉 layer / 解压 / mkfs
-   ├─ 写产物
-   ├─ 通知 Cubelet 拉取 (gRPC)
-7. 从 master API 拉节点视图 (经 GET /v1/nodes, 替代原 30s DB 重载)
-8. 注册 HTTP + gRPC server, 健康检查置 ready
-9. 起后台任务 worker (BUILDING reconcile, 进程内)
+   └─ 上报 BUILT 给 master (由 master 登记产物并驱动下发)
+7. 注册 HTTP server, 健康检查置 ready
+8. 起后台任务 worker (中断构建 reconcile, 抢 DB 会话锁)
 ```
 
 **关键差异**（vs 内部组件方案）：
 - TC 独立进程启动，**跟 master 不在同一进程**
-- 节点视图从 master API 拉（不是 DB 重载）
+- **TC 不加载节点视图**——节点管理完全归 master
 - TC 跨副本锁走 DB（进程内锁只解决单副本内并发）
+
+> **实现校准（2026-08）**：本节早期版本有两处与最终实现不符，且都指向同一个结论——**TC 只做模板的数据面**。
+>
+> **1）TC 不再加载节点视图（原文写的是"经 `GET /v1/nodes` 从 master API 拉"）。**
+> 实现里 `nodemeta` 在 TC 侧被彻底移除，两种方案（master API 拉 / 直连 DB 重载）都不采用。理由：
+> - 选下发目标、判定节点健康、响应心跳**全部由 master 完成**——TC 上报 BUILT 之后，是 master 调
+>   `distributeRootfsArtifact` 驱动下发，TC 从头到尾不需要知道有哪些节点
+> - **心跳只打 master**，TC 本就无法维护权威视图
+> - 加载它等于多一份 30 秒全表重载，而没有任何读者
+>
+> 因此 `GET /health` 的 ready 条件也相应简化为**只检查 store 是否就绪**（DB 可达 → reconciler 能抢锁），
+> 不再包含"节点视图已加载"。§4.3 的旧描述以此处为准。
+>
+> **2）TC 直连 DB，但用途极窄。** 只有三件事：schema 迁移、后台 reconcile 抢会话锁、以及
+> `localcache` 写 Redis 进度快照。模板制作过程中的业务状态（`image_jobs` 进度与终态、
+> `rootfs_artifacts` 登记、`template_definitions`、`template_replicas`、别名 claim）**一律不由 TC 写**，
+> 而是 TC 上报 `POST /internal/template/jobs/:job_id/status`，由 master 的
+> `ResumeTemplateImageJobAfterRemoteBuild` 复用 local 模式的同一批函数完成写入与下发。
+>
+> 一句话：**数据面在 TC，控制面（含节点管理）在 master。**
 
 ### 2.3 共享代码怎么拆
 
@@ -299,7 +317,7 @@ flowchart TD
 | 端点 | 提供方 | 说明 |
 |---|---|---|
 | `GET / DELETE /internal/snapshots/{id}` | CubeMaster | 双语义转发目标。只做快照的查询和删除，不做鉴权（内网 + Service 隔离），但要校验 `kind=snapshot` 防止被误用来删模板 |
-| `GET /health` | template center | 探针。ready 条件包含"节点视图已加载" |
+| `GET /health` | template center | 探针。ready 条件只有"store 已就绪"（DB 可达）。**不含"节点视图已加载"**——TC 不维护节点视图，见 §2.2 校准 |
 
 **新增的内部端点很少，因为热路径不走 HTTP**（6）。
 
@@ -316,6 +334,10 @@ flowchart TD
 ---
 
 ## 5. 产物存储抽象
+
+> **范围说明（2026-08）**：本节的 `ArtifactStore` 接口是为"将来可能换存储后端"预留的抽象。
+> **本期只实现本地盘（CBS 云盘 / PVC），明确不做对象存储，也不做 RWX 共享存储**——理由见 §9.7。
+> 下文提到"对象存储实现 / 预签名 URL"的部分均属**未来扩展设想**，当前没有对应代码。
 
 ### 5.1 接口
 
@@ -518,7 +540,7 @@ reconcile 的做法：
 | 组件版本（guestimage / agent / kernel） | `node_component_version` | 兼容性判定 |
 | 心跳时间戳 + 资源量 | `node_status` | 健康判定（超时 40 秒）、选点 |
 
-**心跳只打 CubeMaster，template center 收不到。** 所以 template center 的节点视图只能靠数据库重载，这是拆分后第一个要验证的点（§2.2）。
+**心跳只打 CubeMaster，template center 收不到。** 正因如此，拆分后 **template center 不维护节点视图**：上表所有节点信息都只由 CubeMaster 读取和使用，TC 上报 BUILT 后由 CubeMaster 挑目标并驱动下发（§2.2 校准）。本节余下内容描述的是 **CubeMaster 侧**的节点视图机制。
 
 CubeMaster 多副本时心跳只落到其中一个，其他副本靠重载才知道节点存在。这里踩过一个坑：
 
@@ -1010,6 +1032,11 @@ template center 有三类后台任务，都靠会话锁做互斥，**不需要�
 
 **每个副本独立从数据库重载节点视图**（每 30 秒，§2.2 第 5 步），副本之间不同步。
 
+> **实现校准（2026-08）**：本小节描述的是 **CubeMaster 副本**的行为。TC 副本**不加载节点视图**，
+> 因此下面这些"视图滞后"窗口和"分发由发起构建的副本执行完"都发生在 master 侧：TC 只负责造 ext4
+> 并上报 BUILT，master 收到回调后才挑目标、驱动下发（§2.2 校准）。
+> TC 多副本因此少了一类不一致来源——它没有视图可以不一致。
+
 **分发由发起构建的那个副本执行完**，不会中途换副本。因为分发是构建流程的一部分（同一个 goroutine 里），副本挂了整个 job 失败，靠 reconcile 兜底而不是任务转移。
 
 **各副本看到的健康节点集合可能差一个重载周期**：
@@ -1037,22 +1064,48 @@ template center 有三类后台任务，都靠会话锁做互斥，**不需要�
 
 绝对不要做的：**副本间缓存失效广播**。那需要副本发现和消息通道，把"副本间不通信"的原则破掉了，而收益只是省几次数据库查询。
 
-### 9.7 产物存储：多副本的硬前提
+### 9.7 产物存储：本地盘 + TC 单实例
 
-**多副本要求产物存储对所有副本可见。** 本地 RWO PVC 做不到——它只能挂在一个 Pod 上。
+> **本节已按实现结论重写（2026-08）。早期版本推荐"对象存储 / RWX 共享存储"，现已明确不采用。**
 
-所以存储方案必须是二者之一：
+**产物一律落本地盘，不引入对象存储（S3/COS），也不用 RWX 共享存储（NFS/CFS）。**
 
-| 方案 | 说明 | 适用 |
+| 部署形态 | 产物盘 | 说明 |
 |---|---|---|
-| **对象存储**（推荐） | 走 `ArtifactStore` 的对象存储实现，产物存云端 | 生产环境 |
-| **RWX 共享存储**（NFS / CFS） | 多个 Pod 挂同一块盘，`ArtifactStore` 仍用本地实现 | 没有对象存储的环境 |
+| **k8s** | **CBS 云盘 PVC**（`ReadWriteOnce`） | 挂到 `/data/CubeMaster/storage`；`Recreate` 升级策略 |
+| **terraform / CVM** | **CBS 云盘**，同路径 | 与 k8s 形态保持同一目录布局 |
 
-**这是多副本方案里唯一的基础设施依赖，也是必须先解决的前置条件。** 如果环境上既没有对象存储也没有 RWX，那 template center 只能跑单副本——此时上面 9.2 到 9.6 的机制仍然都是对的，只是退化成"永远只有一个副本在抢锁"，代码不用改。
+不用 COSFS / S3 的原因不只是偏好，是硬性不兼容：ext4 构建要用 `O_DIRECT`、`rename` 原子性、以及
+loop 设备挂载，这些在对象存储 FUSE 上都不成立（详见 `templatecenter-deploy-k8s-pvc.md`）。
 
-**这个退化路径要在部署配置里明确支持**：`replicas` 就是个配置值，代码不假设它是 1 还是 N。这样单机部署和生产多副本共用同一份代码。
+#### 由此确定的副本策略
 
-RWX 方案有个坑要注意：NFS 的文件锁和 `rename` 原子性不如本地文件系统。产物落盘是"写临时文件 + rename"，在 NFS 上 rename 仍是原子的（同目录内），但要确认挂载参数没开 `nolock`，且不要依赖 `flock`。
+**TC 单实例，CubeMaster 多副本。**
+
+产物写在 TC 所在节点的本地盘上，没有任何跨节点共享层，所以 TC 无法水平扩展——第二个副本既读不到
+第一个副本的产物，也没法接手它的构建。CubeMaster 多副本不受影响：它是无状态的，高可用需求由它承载。
+
+**关键约束：数据面下载仍由 CubeMaster 提供，TC 不暴露下载端点。**
+
+- ext4 由 TC 写入，由 **CubeMaster** 通过 `GET/HEAD /cube/template/artifact/download` 提供给 Cubelet
+- 因此 **TC 与 CubeMaster 必须能访问同一个产物目录**（同一块 CBS 盘）
+- k8s 下 `ReadWriteOnce` 的语义是"单**节点**读写"而非"单 Pod"，所以同节点的 TC Pod 与 CubeMaster Pod
+  可以挂同一块 CBS PVC；用 `podAffinity` 把提供下载的 CubeMaster 副本与 TC 固定同节点
+- Cubelet 侧**零改动**：`master_node_ip` 列存的是下载基址（命名有历史包袱，实际不是 IP），
+  remote 模式下由 TC 原样回传 CubeMaster 提交任务时给的 base URL，所以生成的下发注解与 local 模式
+  逐字节一致，`rewriteDownloadHost` 的 `MetaServerEndpoint` 依旧指向 CubeMaster
+
+#### 单实例带来的取舍（已接受）
+
+| 取舍 | 现状兜底 |
+|---|---|
+| TC 无法水平扩展 | 当前规模单实例带宽足够；后续要扩再评估存储方案 |
+| TC 滚动升级 / OOM 时正在跑的构建中断 | §7.3 的 reconciler 会把卡住的 job 置 FAILED 并给出可重试的错误信息 |
+| 同一模板下发多节点时，所有 Cubelet 从同一处拉取 | 暂不处理，规模上来后再考虑分摊 |
+
+**§9.2 到 §9.6 的机制仍然全部有效**，只是 TC 侧退化成"永远只有一个实例在抢锁"——代码不需要改动，
+`pkg/lock` 的会话锁与 `pkg/reconcile` 都按多实例正确性写的，将来放开副本数无需重写。
+`pkg/build` 里按 `artifactID` 的进程内互斥锁则解决单实例内的并发构建竞态。
 
 ### 9.8 异常 case 处理
 
@@ -1161,7 +1214,7 @@ B4 值得说明：这是"锁随连接释放"这个优点的反面。数据库连
 - 客户端轮询构建状态时可以打到任意副本（9.4）
 - Cubelet 拉产物时打到任意副本都能拿到文件（前提是 9.7 的共享存储）
 
-**一个例外要注意**：`GET/HEAD /cube/template/artifact/download` 是数据面，几个 G 的传输。多副本下这个流量会分散到各副本，好处是带宽压力分摊，但要确认每个副本的网络配额够。如果用对象存储 + 预签名 URL，这个端点会退化成一次重定向，流量完全不经过 template center，那就更好。
+**一个例外要注意**：`GET/HEAD /cube/template/artifact/download` 是数据面，几个 G 的传输。**本期该端点由 CubeMaster 提供**（TC 不暴露它，见 §9.7），所以流量分摊在 CubeMaster 各副本之间，要确认每个副本的网络配额够。产物盘是本地 CBS，因此提供下载的副本必须与 TC 同节点、挂同一块盘。
 
 ### 9.12 多副本的验收要点
 
