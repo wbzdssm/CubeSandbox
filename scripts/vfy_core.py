@@ -150,13 +150,13 @@ LINKS: dict[str, dict[str, str]] = {
         "entry": "master",
         "desc": "HTTP /cube/* on CubeMaster, reverse-proxied to CubeTemplateCenter",
         "requires": "CubeMaster conf: template_route_mode: proxy; "
-                    "TC env: CUBE_TC_SERVE_TEMPLATE_API=true",
+                    "TC env: CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true",
     },
     "tc": {
         "via": "http",
         "entry": "tc",
         "desc": "HTTP /cube/* straight to CubeTemplateCenter (next-iteration preview)",
-        "requires": "TC env: CUBE_TC_SERVE_TEMPLATE_API=true",
+        "requires": "TC env: CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true",
     },
     "sdk-local": {
         "via": "sdk",

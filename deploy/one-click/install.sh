@@ -1463,6 +1463,7 @@ rm -rf \
   "${INSTALL_PREFIX}/CubeAPI" \
   "${INSTALL_PREFIX}/CubeOps" \
   "${INSTALL_PREFIX}/CubeMaster" \
+  "${INSTALL_PREFIX}/CubeTemplateCenter" \
   "${INSTALL_PREFIX}/Cubelet" \
   "${INSTALL_PREFIX}/cubeproxy" \
   "${INSTALL_PREFIX}/coredns" \
@@ -1699,6 +1700,12 @@ if [[ "${DEPLOY_ROLE}" != "compute" ]]; then
   chmod +x "${INSTALL_PREFIX}/CubeAPI/bin/cube-api"
   chmod +x "${INSTALL_PREFIX}/CubeOps/bin/cubeops"
   chmod +x "${INSTALL_PREFIX}/CubeMaster/bin/cubemaster" "${INSTALL_PREFIX}/CubeMaster/bin/cubemastercli"
+  # CubeTemplateCenter ships inert: its unit is installed but not enabled, since
+  # CubeMaster defaults to building templates in-process. Guarded with -f so an
+  # older package without the binary still installs.
+  if [[ -f "${INSTALL_PREFIX}/CubeTemplateCenter/bin/templatecenter" ]]; then
+    chmod +x "${INSTALL_PREFIX}/CubeTemplateCenter/bin/templatecenter"
+  fi
 fi
 
 ln -sf "${INSTALL_PREFIX}/cube-shim/bin/containerd-shim-cube-rs" /usr/local/bin/containerd-shim-cube-rs

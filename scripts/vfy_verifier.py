@@ -159,7 +159,7 @@ class Recorder:
         reachable_entry = False
         for label, call in self.link.health():
             rec = self.add("env.health", f"health: {label}", call)
-            # /health on TC also reveals whether CUBE_TC_SERVE_TEMPLATE_API took
+            # /health on TC also reveals whether CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API took
             # effect, because the node-view check is only registered then.
             if call.response and isinstance(call.response.get("json"), dict):
                 rec.facts["checks"] = call.response["json"].get("checks")
@@ -180,7 +180,7 @@ class Recorder:
         if not mounted:
             hint = ""
             if self.link_name in ("tc", "master-proxy"):
-                hint = "; set CUBE_TC_SERVE_TEMPLATE_API=true on CubeTemplateCenter"
+                hint = "; set CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true on CubeTemplateCenter"
             elif self.link.via == "sdk":
                 hint = f"; check CubeAPI at {self.cfg.cubeapi_url}"
             self.problem(f"entry does not serve the template control plane{hint}")

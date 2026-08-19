@@ -525,7 +525,7 @@ def cmd_links(_: argparse.Namespace) -> int:
     print("  # 1. HTTP baseline vs remote build")
     print("  run --link master-local  --out /tmp/local.json")
     print("  run --link master-remote --compare /tmp/local.json")
-    print("  # 2. proxy + direct TC (needs CUBE_TC_SERVE_TEMPLATE_API=true)")
+    print("  # 2. proxy + direct TC (needs CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true)")
     print("  run --link master-proxy  --compare /tmp/local.json")
     print("  run --link tc            --compare /tmp/local.json")
     print("  # 3. the SDK path a user actually runs, in both build modes")

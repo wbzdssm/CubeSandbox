@@ -299,6 +299,44 @@ variable "cubeapi_image" {
   default     = "cube-sandbox-cn.tencentcloudcr.com/cube-sandbox/cube-api:v0.6.0"
 }
 
+variable "cubetemplatecenter_image" {
+  description = "Full cube-templatecenter image override."
+  type        = string
+  default     = "cube-sandbox-cn.tencentcloudcr.com/cube-sandbox/cube-templatecenter:v0.6.0"
+}
+
+variable "deploy_templatecenter" {
+  description = <<-EOT
+    Deploy CubeTemplateCenter as a standalone template build service.
+
+    Default false keeps the pre-split behaviour, where cube-master builds template
+    ext4 images in-process. Setting this true only DEPLOYS TC; cube-master must
+    additionally be told to use it (template_build_mode=remote plus
+    template_center_endpoint). Flipping just one of the two silently leaves the
+    other side doing what it did before.
+
+    Requires use_cfs=true. TC writes the ext4 and cube-master serves it to
+    Cubelet, so both need the same artifact directory; without CFS each Pod gets
+    its own emptyDir and every artifact download would 404. A plan-time
+    precondition enforces this rather than letting it fail at runtime.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "templatecenter_serve_public_api" {
+  description = <<-EOT
+    Let CubeTemplateCenter serve the public /cube/template* API itself
+    (CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API).
+
+    Default false: cube-master owns the control plane and drives distribution
+    after TC reports BUILT. Enabling this also makes TC load the node view, which
+    it needs for distribution and otherwise skips entirely.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "cubeops_image" {
   description = "Full cube-ops image override."
   type        = string

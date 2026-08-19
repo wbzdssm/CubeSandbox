@@ -16,7 +16,7 @@
 #      TARGET=master BUILD_MODE=remote ./scripts/test-templatecenter.sh
 #
 #   3) tc              (下个迭代预览: 直连 TC, TC 独立闭环)
-#      需 TC 环境变量: CUBE_TC_SERVE_TEMPLATE_API=true
+#      需 TC 环境变量: CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true
 #      TARGET=tc ./scripts/test-templatecenter.sh
 #
 #   补充: master 的 template_route_mode=proxy 形态下, 用形态 1 的命令即可 ——
@@ -186,14 +186,14 @@ test_health_check() {
   # 验证被测入口真的挂载了模板控制面路由.
   # 未挂载时 gin 返回 404, 挂载时即使参数不全也会走进 handler (返回 200/400).
   # 这一步能直接暴露两类配置错误:
-  #   - TARGET=tc 但忘了设 CUBE_TC_SERVE_TEMPLATE_API=true
+  #   - TARGET=tc 但忘了设 CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true
   #   - TARGET=master + route_mode=proxy 但 TC 侧开关没开 (代理过去是 404)
   local probe_code=$(curl -s -o /dev/null -w "%{http_code}" \
     "$API_URL/cube/template?template_id=__probe_nonexistent__")
   if [ "$probe_code" = "404" ]; then
     log_error "入口 $API_URL 未挂载模板路由 (HTTP 404)"
     if [ "$TARGET" = "tc" ]; then
-      log_error "  TARGET=tc 需要 TC 侧设置 CUBE_TC_SERVE_TEMPLATE_API=true"
+      log_error "  TARGET=tc 需要 TC 侧设置 CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true"
     else
       log_error "  若 master 配了 template_route_mode=proxy, 检查 TC 侧同一开关"
     fi
@@ -554,7 +554,7 @@ main() {
   log_info "  MySQL: $MYSQL_CONTAINER"
   log_info "  Redis: $REDIS_CONTAINER"
   if [ "$TARGET" = "tc" ]; then
-    log_warn "  TARGET=tc 需要 TC 侧 CUBE_TC_SERVE_TEMPLATE_API=true"
+    log_warn "  TARGET=tc 需要 TC 侧 CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true"
   elif [ "$BUILD_MODE" = "remote" ]; then
     log_warn "  BUILD_MODE=remote 需要 master conf: template_build_mode: remote + template_center_endpoint"
   fi

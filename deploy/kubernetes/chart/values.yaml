@@ -77,6 +77,14 @@ images:
     tag: v0.6.0
     pullPolicy: IfNotPresent
 
+  # Standalone template build service. Built from
+  # CubeTemplateCenter/docker/Dockerfile; carries skopeo / umoci / e2fsprogs
+  # because it is the process that pulls images and makes the ext4.
+  templateCenter:
+    repository: cube-sandbox-int.tencentcloudcr.com/cube-sandbox/cube-templatecenter
+    tag: v0.6.0
+    pullPolicy: IfNotPresent
+
   ops:
     repository: cube-sandbox-int.tencentcloudcr.com/cube-sandbox/cube-ops
     tag: v0.6.0
@@ -257,6 +265,82 @@ controlPlane:
         initialDelaySeconds: 30
         periodSeconds: 20
         failureThreshold: 6
+    resources: {}
+
+  # Standalone template build service (CubeTemplateCenter).
+  #
+  # Off by default. With it disabled CubeMaster builds template ext4 images
+  # in-process, which is the pre-split behaviour; enabling this only changes
+  # WHERE the build runs once CubeMaster is also told to use it via
+  # controlPlane.master.env CUBE_TEMPLATE_BUILD_MODE / conf template_build_mode.
+  #
+  # Enabling it requires BOTH sides:
+  #   1. templateCenter.enabled=true here
+  #   2. CubeMaster conf: template_build_mode: remote
+  #      template_center_endpoint: <the ClusterIP Service URL>
+  # Turning on only one leaves the other side doing what it did before.
+  templateCenter:
+    enabled: false
+    # replicas is intentionally absent: TC is always exactly one instance.
+    # Artifacts sit on a node-local disk with no cross-node sharing layer, so a
+    # second replica could not read the first one's output (design 9.7).
+    command: []
+    args: []
+    env: []
+    # Pin TC to the same node as CubeMaster so both can mount the ReadWriteOnce
+    # artifact PVC (RWO is per-node, not per-Pod). Required because TC writes the
+    # ext4 and CubeMaster is the one that serves it to Cubelet.
+    #
+    # Set to false ONLY when the artifact volume is genuinely shared across nodes
+    # or when master and TC are pinned by other means; then supply `affinity`.
+    colocateWithMaster: true
+    affinity: {}
+    # Serve the public /cube/template* API from TC instead of CubeMaster. Off by
+    # default: CubeMaster owns the control plane and drives distribution after TC
+    # reports BUILT. Turning this on also makes TC load the node view, which it
+    # needs for distribution and otherwise skips.
+    servePublicTemplateAPI: false
+    persistence:
+      # Empty means "share CubeMaster's artifact claim", which is the required
+      # default. Point this at another claim only if that claim is mounted by the
+      # CubeMaster replica serving downloads as well.
+      existingClaim: ""
+    service:
+      type: ClusterIP
+      port: 8090
+      # Only for NodePort / LoadBalancer. Must be empty for ClusterIP.
+      nodePort: ""
+    # VPC-internal CLB, for reaching TC from outside the cluster. Control-plane
+    # traffic from CubeMaster uses the ClusterIP Service and does not go through
+    # this. The build endpoint is unauthenticated, so keep the CLB internal.
+    #
+    # TKE example:
+    #   internalLoadBalancer:
+    #     enabled: true
+    #     annotations:
+    #       service.kubernetes.io/qcloud-loadbalancer-internal-subnetid: subnet-xxxxxxxx
+    #       service.cloud.tencent.com/pass-to-target: "true"
+    #       service.cloud.tencent.com/security-groups: "sg-xxxxxxxx"
+    internalLoadBalancer:
+      enabled: false
+      annotations: {}
+      port: 8090
+    probes:
+      readiness:
+        enabled: true
+        path: /health
+        initialDelaySeconds: 5
+        periodSeconds: 10
+        failureThreshold: 12
+      liveness:
+        enabled: true
+        path: /health
+        # Slower than CubeMaster's on purpose: restarting TC mid-build abandons
+        # the ext4 and leaves the job for the reconciler, so the probe must
+        # tolerate a busy process.
+        initialDelaySeconds: 60
+        periodSeconds: 30
+        failureThreshold: 8
     resources: {}
 
   api:
