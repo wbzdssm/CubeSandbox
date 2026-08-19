@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/tcconfig"
 )
 
 const (
@@ -44,16 +44,13 @@ type Reporter struct {
 	httpClient *http.Client
 }
 
-// NewReporter creates a new status reporter. The CubeMaster base URL comes
-// from CUBE_MASTER_ENDPOINT (default http://localhost:8089) — TC has no
-// config knob of its own for this yet.
+// NewReporter creates a new status reporter. The CubeMaster base URL comes from
+// CUBE_TEMPLATE_CENTER_MASTER_ENDPOINT (default http://localhost:8089, which is
+// correct for the single-host one-click layout). The pre-rename
+// CUBE_MASTER_ENDPOINT spelling still works; see pkg/tcconfig.
 func NewReporter() *Reporter {
-	masterURL := strings.TrimSpace(os.Getenv("CUBE_MASTER_ENDPOINT"))
-	if masterURL == "" {
-		masterURL = "http://localhost:8089"
-	}
 	return &Reporter{
-		masterURL: strings.TrimRight(masterURL, "/"),
+		masterURL: tcconfig.MasterEndpoint(),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},

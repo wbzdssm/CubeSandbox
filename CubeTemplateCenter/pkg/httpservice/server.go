@@ -6,9 +6,9 @@
 //
 // By default TC is a build worker: /health, /metrics and the internal
 // build-submission endpoint only; the public template API stays on CubeMaster
-// (design §1.1 "master 内部闭环"). Setting CUBE_TC_SERVE_TEMPLATE_API=true
-// additionally mounts the public template control plane here -- see
-// registerRoutes and pkg/tcconfig.
+// (design §1.1 "master 内部闭环"). Setting
+// CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true additionally mounts the public
+// template control plane here -- see registerRoutes and pkg/tcconfig.
 package httpservice
 
 import (
@@ -107,10 +107,10 @@ func NewInternalHttp(ctx context.Context, cfg *config.Config) (*internalHttp, er
 //   - GET  /metrics             prometheus
 //   - POST /tc/api/v1/build     build submission from CubeMaster
 //
-// Mounted only when CUBE_TC_SERVE_TEMPLATE_API=true: the public template
-// control-plane routes (/cube/template*). Default OFF, because in the current
-// iteration CubeMaster owns the template API and TC just builds what it is
-// told. Serving them while CubeMaster still owns the flow would create a
+// Mounted only when CUBE_TEMPLATE_CENTER_SERVE_TEMPLATE_API=true: the public
+// template control-plane routes (/cube/template*). Default OFF, because in the
+// current iteration CubeMaster owns the template API and TC just builds what it
+// is told. Serving them while CubeMaster still owns the flow would create a
 // shadow entry point -- two processes writing the same tables concurrently.
 //
 // Switch it on to point cubemastercli straight at TC, to receive traffic from
@@ -132,7 +132,8 @@ func (s *internalHttp) registerRoutes() {
 
 	if tcconfig.ServePublicTemplateAPI() {
 		CubeLog.WithContext(context.Background()).Errorf(
-			"CUBE_TC_SERVE_TEMPLATE_API is on: serving the public template API from templatecenter")
+			"%s is on: serving the public template API from templatecenter",
+			tcconfig.EnvServeTemplateAPI)
 		cube.RegisterTemplateRoutes(root.Group(cube.CubeURI()))
 	}
 }

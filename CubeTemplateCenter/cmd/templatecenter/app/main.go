@@ -54,6 +54,14 @@ func (a *App) Run() {
 		return
 	}
 
+	// Logged here rather than where they are detected: the earliest notices are
+	// produced by tcconfig.ApplySharedEnvAliases, which has to run before the
+	// config file is even located, hence before log.Init.
+	for _, notice := range tcconfig.Warnings() {
+		CubeLog.WithContext(ctx).Warnf("templatecenter config: %s", notice)
+	}
+	applyNodeIdentity(ctx, cfg)
+
 	srv, err := httpservice.New(ctx, cfg)
 	if err != nil {
 		CubeLog.WithContext(ctx).Errorf("templatecenter http server init:%v", err)
@@ -71,7 +79,8 @@ func (a *App) Run() {
 	// Cross-replica mutual exclusion is handled inside via the DB session lock,
 	// so every replica can start it unconditionally.
 	if reconcile.Disabled() {
-		CubeLog.WithContext(ctx).Warnf("templatecenter reconciler disabled by %s", "CUBE_TC_RECONCILE_DISABLED")
+		CubeLog.WithContext(ctx).Warnf("templatecenter reconciler disabled by %s",
+			tcconfig.EnvReconcileDisabled)
 	} else if db := templatecenter.GetDB(); db != nil {
 		reconciler := reconcile.New(db)
 		recov.GoWithRecover(func() {
@@ -86,6 +95,35 @@ func (a *App) Run() {
 
 	// Graceful shutdown: drain in-flight requests up to 1 minute.
 	srv.Stop()
+}
+
+// applyNodeIdentity records this instance's node address and narrows the HTTP
+// listen address when it is safe to do so.
+//
+// MUST run before httpservice.New, which freezes the listen address into
+// http.Server.Addr.
+//
+// The node IP is primarily an identity: TC is a single instance sharing a
+// database with CubeMaster, so a log line that does not say which host produced
+// it is hard to correlate against CubeMaster's own logs during a build failure.
+// Narrowing the bind is secondary and conditional — see
+// tcconfig.ResolveHTTPBind, which refuses to bind to an address this host does
+// not own so the same manifest works in a Pod and under systemd.
+func applyNodeIdentity(ctx context.Context, cfg *config.Config) {
+	nodeIP := tcconfig.NodeIP()
+	if nodeIP == "" {
+		return
+	}
+	CubeLog.WithContext(ctx).Errorf("templatecenter node identity: %s=%s", tcconfig.EnvNodeIP, nodeIP)
+
+	if cfg == nil || cfg.Common == nil {
+		return
+	}
+	bind, note := tcconfig.ResolveHTTPBind(cfg.Common.HttpBind)
+	if note != "" {
+		CubeLog.WithContext(ctx).Warnf("templatecenter listen address: %s", note)
+	}
+	cfg.Common.HttpBind = bind
 }
 
 // coreInit wires the minimum set of dependencies the template center needs.

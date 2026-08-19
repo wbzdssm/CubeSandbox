@@ -23,8 +23,6 @@ package reconcile
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,6 +30,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/lock"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/tcconfig"
 	"gorm.io/gorm"
 )
 
@@ -51,10 +50,6 @@ const (
 	// maxRowsPerSweep bounds a single sweep so a large backlog cannot hold the
 	// session lock for an unbounded time.
 	maxRowsPerSweep = 200
-
-	envInterval    = "CUBE_TC_RECONCILE_INTERVAL"
-	envStaleAfter  = "CUBE_TC_RECONCILE_STALE_AFTER"
-	envDisableFlag = "CUBE_TC_RECONCILE_DISABLED"
 )
 
 // Reconciler periodically fails jobs that were abandoned mid-build.
@@ -65,20 +60,22 @@ type Reconciler struct {
 }
 
 // New builds a Reconciler over db. Cadence and staleness threshold can be
-// overridden with CUBE_TC_RECONCILE_INTERVAL / CUBE_TC_RECONCILE_STALE_AFTER
-// (Go duration strings, e.g. "5m", "30m").
+// overridden with CUBE_TEMPLATE_CENTER_RECONCILE_INTERVAL /
+// CUBE_TEMPLATE_CENTER_RECONCILE_STALE_AFTER (Go duration strings, e.g. "5m",
+// "30m"). The pre-rename CUBE_TC_* spellings still work; see pkg/tcconfig.
 func New(db *gorm.DB) *Reconciler {
+	intervalRaw, intervalSet := tcconfig.ReconcileInterval()
+	staleRaw, staleSet := tcconfig.ReconcileStaleAfter()
 	return &Reconciler{
 		db:         db,
-		interval:   durationFromEnv(envInterval, defaultInterval),
-		staleAfter: durationFromEnv(envStaleAfter, defaultStaleAfter),
+		interval:   durationOverride(intervalRaw, intervalSet, defaultInterval),
+		staleAfter: durationOverride(staleRaw, staleSet, defaultStaleAfter),
 	}
 }
 
 // Disabled reports whether the operator turned the sweep off.
 func Disabled() bool {
-	v, err := strconv.ParseBool(strings.TrimSpace(os.Getenv(envDisableFlag)))
-	return err == nil && v
+	return tcconfig.ReconcileDisabled()
 }
 
 // Run blocks until ctx is canceled, sweeping every interval. Intended to be
@@ -189,12 +186,16 @@ func (r *Reconciler) failStaleJobs(ctx context.Context) error {
 	return nil
 }
 
-func durationFromEnv(key string, fallback time.Duration) time.Duration {
-	raw := strings.TrimSpace(os.Getenv(key))
-	if raw == "" {
+// durationOverride applies a raw Go duration override, falling back when it is
+// absent, unparseable, or non-positive.
+//
+// Environment resolution — including the legacy-name fallback — belongs to
+// tcconfig; this function owns only the default and the sanity bound.
+func durationOverride(raw string, found bool, fallback time.Duration) time.Duration {
+	if !found {
 		return fallback
 	}
-	d, err := time.ParseDuration(raw)
+	d, err := time.ParseDuration(strings.TrimSpace(raw))
 	if err != nil || d <= 0 {
 		return fallback
 	}
