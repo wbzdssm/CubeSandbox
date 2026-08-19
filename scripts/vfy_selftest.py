@@ -431,6 +431,82 @@ check("an empty message stays distinguishable from a non-empty one",
 check("an empty error stays distinguishable from a non-empty one",
       normalize({"error_message": ""}) != normalize({"error_message": "boom"}))
 
+# =====================================================================
+# environment-dependent list bodies, leaks, and build provenance
+#
+# All three come from a real run on a shared environment: it reported "a lot of
+# diffs" that were entirely pre-existing templates shifting position, while the
+# two findings that mattered (a 3-template leak, and no proof the remote link
+# used TC at all) were not surfaced as findings at all.
+# =====================================================================
+LIST_BODY = {"ret": {"ret_code": 200},
+             "data": [{"template_id": f"tpl-old{i}", "status": "READY"} for i in range(160)]}
+
+
+def with_list(link, via="http", *, before=160, after=160, delta=0, **ctx):
+    t = run(link, via=via)
+    body_a = dict(LIST_BODY)
+    t["records"].append(rec(30, "read.list_before", "before", rest(200, **body_a),
+                            facts={"count": before}, via=via))
+    t["records"].append(rec(31, "read.list_after", "after", rest(200, **body_a),
+                            facts={"count": after}, via=via))
+    t["records"].append(rec(32, "cleanup.leak_check", "after cleanup", rest(200, **body_a),
+                            facts={"count": before + delta,
+                                   "net_template_delta": delta,
+                                   "leaked": delta != 0}, via=via))
+    t["context"]["net_template_delta"] = delta
+    t["context"].update(ctx)
+    return t
+
+
+# A shared environment holds a different number of pre-existing templates for
+# each run, and their order is not stable. Neither may produce a divergence.
+a_list = with_list("master-local", before=164, after=167)
+b_list = with_list("master-remote", before=166, after=169)
+b_list["records"][9]["response"]["json"]["data"].reverse()
+hard, notes = compare(a_list, b_list)
+check("a different pre-existing template count is not a divergence", not hard,
+      f"got: {hard}")
+check("a reordered list body is not a divergence",
+      not any("data[" in h for h in hard), f"got: {hard}")
+
+# The delta, however, is environment-independent and must be compared.
+a_clean = with_list("master-local", delta=0)
+b_leaky = with_list("master-remote", delta=3)
+hard, _ = compare(a_clean, b_leaky)
+check("a leak on one link only is caught",
+      any("net_template_delta differs" in h for h in hard), f"got: {hard}")
+
+# When both links leak the same amount there is no divergence, but staying
+# silent about it would let the residue accumulate unnoticed.
+hard, notes = compare(with_list("master-local", delta=3), with_list("master-remote", delta=3))
+check("an equal leak on both links is not a divergence", not hard, f"got: {hard}")
+check("an equal leak is still reported as a note",
+      sum("leaked 3 template" in n for n in notes) == 2, str(notes))
+
+# Build provenance is expected to differ between a local and a remote link, so
+# it is a note — but it must be visible, because it is the only thing that says
+# whether the remote link actually went through TC.
+a_prov = with_list("master-local", remote_build_evidence="overwritten")
+b_prov = with_list("master-remote", remote_build_evidence="confirmed")
+hard, notes = compare(a_prov, b_prov)
+check("differing build provenance is not a divergence", not hard, f"got: {hard}")
+check("build provenance is surfaced as a note",
+      any("remote_build_evidence" in n for n in notes), str(notes))
+
+# Interpretation guardrails: a clean diff between two runs that both died early
+# is narrow evidence, and a reused artifact means the build path never ran.
+both_failed_a = with_list("master-local")
+both_failed_b = with_list("master-remote")
+for t in (both_failed_a, both_failed_b):
+    t["context"]["terminal_status"] = "FAILED"
+hard, notes = compare(both_failed_a, both_failed_b)
+check("two runs failing at the same point is not a divergence", not hard, f"got: {hard}")
+check("a shared early failure is flagged as narrow evidence",
+      any("narrow evidence" in n for n in notes), str(notes))
+check("a reused artifact is flagged as an unexercised build path",
+      any("was not exercised" in n for n in notes), str(notes))
+
 print()
 if FAILURES:
     print(f"{len(FAILURES)} self-test(s) FAILED: {FAILURES}")

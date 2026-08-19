@@ -23,6 +23,7 @@ import time
 from typing import Any
 
 from vfy_core import (
+    JOB_BUILT,
     JOB_TERMINAL,
     LINKS,
     TBL_ARTIFACT,
@@ -64,6 +65,10 @@ class Recorder:
         # Per-run tag so parallel runs and reruns never collide on an alias.
         self.tag = f"vfy{int(time.time()) % 100000}"
         self.created: list[tuple[str, str]] = []
+        # Best durable evidence seen for where the build ran. Sticky: once
+        # confirmed it is never downgraded, because the evidence is destroyed by
+        # the finalize step (see build_provenance).
+        self.build_provenance_result: dict[str, Any] = {}
 
     # ---- recording -----------------------------------------------------
     def add(self, op: str, label: str, call: LinkCall | None = None,
@@ -181,6 +186,59 @@ class Recorder:
             self.problem(f"entry does not serve the template control plane{hint}")
         return mounted and reachable_entry
 
+    # ---- build provenance ----------------------------------------------
+    def build_provenance(self, job_id: str) -> dict[str, Any]:
+        """Look for durable evidence that CubeTemplateCenter did the build.
+
+        WHY THIS IS NOT SIMPLY `saw_built_state`
+        ----------------------------------------
+        BUILT is the one state that only exists in remote mode, so it is the
+        obvious discriminator — but it is observed by POLLING, and the callback
+        handler starts the resume synchronously the moment BUILT lands. When TC
+        reuses an already-built artifact it reports BUILT within a second, so a
+        3s poll interval routinely never sees it and `saw_built_state` comes back
+        False for a run that genuinely went through TC.
+
+        The durable trace is result_json: the callback stores TC's raw BUILT
+        payload there. Two caveats, both recorded rather than hidden:
+          * the finalize step overwrites result_json with the template payload,
+            so the evidence survives only while the job has not finished
+            finalizing (which includes every job that failed during
+            distribution);
+          * absence of evidence is therefore NOT evidence of local mode.
+
+        This is why the returned fact is three-valued instead of a boolean.
+        """
+        row = self.db_job_row(job_id)
+        if not row:
+            return {"remote_build_evidence": "unknown",
+                    "reason": "job row not readable"}
+
+        raw = (row.get("result_json") or "").strip()
+        if not raw:
+            return {"remote_build_evidence": "unknown",
+                    "reason": "result_json is empty"}
+        try:
+            payload = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            return {"remote_build_evidence": "unknown",
+                    "reason": "result_json is not JSON"}
+        if not isinstance(payload, dict):
+            return {"remote_build_evidence": "unknown",
+                    "reason": "result_json is not an object"}
+
+        # TC's BUILT report is recognisable by carrying the ext4 metadata it
+        # measured itself, alongside status=BUILT.
+        status = str(payload.get("status") or "").upper()
+        tc_fields = [k for k in ("ext4_sha256", "ext4_path", "ext4_size_bytes",
+                                 "image_config_json") if k in payload]
+        if status == JOB_BUILT and tc_fields:
+            return {"remote_build_evidence": "confirmed",
+                    "reason": f"result_json holds TC's BUILT report ({', '.join(tc_fields)})"}
+        return {"remote_build_evidence": "overwritten",
+                "reason": "result_json holds the finalize payload, which replaces "
+                          "TC's BUILT report; the build mode cannot be proven from the DB"}
+
     # ---- polling -------------------------------------------------------
     def poll_until_terminal(self, job_id: str, template_id: str,
                             timeout: int) -> tuple[str, list[str]]:
@@ -191,6 +249,10 @@ class Recorder:
         tool produces: local and remote reach READY through different internal
         routes (remote passes through BUILT), and a stall shows up as a state
         that stops advancing rather than as an opaque timeout.
+
+        Note the timeline is SAMPLED. A state that comes and goes faster than
+        poll_interval is simply not in it, which matters for BUILT (see
+        build_provenance above) — an absent state is not proof it never happened.
         """
         deadline = time.time() + timeout
         timeline: list[str] = []
@@ -219,6 +281,12 @@ class Recorder:
                 )
                 timeline.append(marker)
                 last = marker
+                # Sampled here too, but this is the window in which TC's BUILT
+                # report is still in result_json: once finalize runs it is
+                # overwritten, so evidence found now is kept even if a later
+                # look would no longer find it.
+                if self.build_provenance_result.get("remote_build_evidence") != "confirmed":
+                    self.build_provenance_result = self.build_provenance(job_id)
 
             if status in JOB_TERMINAL:
                 return status, timeline

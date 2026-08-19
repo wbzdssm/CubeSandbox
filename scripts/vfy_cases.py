@@ -59,6 +59,8 @@ class Scenario:
         # Aliases claimed by accepted boundary rows. Tracked so the cleanup can
         # release them even when the delete-by-id already succeeded.
         self._probe_aliases: set[str] = set()
+        # Template count before the run, for the post-cleanup leak check.
+        self._count_before: int | None = None
 
     # =====================================================================
     # 1. Input boundary probes
@@ -136,8 +138,18 @@ class Scenario:
     # =====================================================================
     def list_before(self) -> None:
         section("2. list templates (before)")
-        self.r.add("read.list_before", "list templates before creating anything",
-                   self.link.list_templates())
+        rec = self.r.add("read.list_before", "list templates before creating anything",
+                         self.link.list_templates())
+        # Only the COUNT is usable across runs. The list body is every template
+        # that already existed in this environment, so diffing it element by
+        # element reports a difference for every pre-existing template whose
+        # position shifted — on a shared DB that is hundreds of false positives
+        # and it buries the handful of records that are actually about this run.
+        # verify_templatecenter.py therefore skips the body for list ops and
+        # compares these derived facts instead.
+        self._count_before = _list_count(rec)
+        rec.facts["count"] = self._count_before
+        rec.note = "body not compared: it is pre-existing environment state"
 
     # =====================================================================
     # 3. Create and follow the whole build
@@ -173,13 +185,27 @@ class Scenario:
         status, timeline = r.poll_until_terminal(
             self.job_id, self.template_id, self.cfg.build_timeout)
 
-        # BUILT only exists in remote build mode. Recording whether it appeared
-        # is how a comparison proves remote really went through
-        # CubeTemplateCenter instead of silently falling back to local.
+        # BUILT only exists in remote build mode, but it is observed by polling
+        # and the callback resumes synchronously, so a reused artifact reaches
+        # BUILT and leaves it within a second. saw_built_state is therefore a
+        # SAMPLED signal and its absence proves nothing; the durable evidence is
+        # recorded separately below.
         saw_built = any(m.startswith(JOB_BUILT) for m in timeline)
+        provenance = dict(r.build_provenance_result or {})
+        if not provenance:
+            provenance = r.build_provenance(self.job_id)
         r.add("create.terminal", f"terminal state {status}",
               facts={"terminal_status": status, "timeline": timeline,
-                     "saw_built_state": saw_built, "transitions": len(timeline)})
+                     "saw_built_state": saw_built,
+                     "built_state_is_sampled": True,
+                     "transitions": len(timeline)})
+        rec = r.add("create.build_provenance",
+                    "durable evidence for where the ext4 was built",
+                    facts=provenance)
+        if provenance.get("remote_build_evidence") != "confirmed" and not saw_built:
+            rec.note = ("neither a BUILT observation nor durable evidence: this run "
+                        "does NOT prove which side built the artifact. Confirm from "
+                        "CubeTemplateCenter's log (build.go / reporter.go) instead")
 
         final = r.db_snapshot(job_id=self.job_id, template_id=self.template_id)
         job_rows = final.get(TBL_IMAGE_JOB) or []
@@ -204,6 +230,7 @@ class Scenario:
             "terminal_status": status,
             "timeline": timeline,
             "saw_built_state": saw_built,
+            "remote_build_evidence": provenance.get("remote_build_evidence", "unknown"),
         })
 
     # =====================================================================
@@ -477,13 +504,22 @@ class Scenario:
     # =====================================================================
     def list_after(self) -> None:
         section("8. list templates (after)")
-        self.r.add("read.list_after", "list templates after the lifecycle",
-                   self.link.list_templates())
+        rec = self.r.add("read.list_after", "list templates after the lifecycle",
+                         self.link.list_templates())
+        count = _list_count(rec)
+        rec.facts["count"] = count
+        rec.note = "body not compared: it is pre-existing environment state"
+        # Runs before cleanup, so a positive delta here is expected (the dedup
+        # template is still alive). The real leak signal is measured after
+        # cleanup, in cleanup() below.
+        if self._count_before is not None and count is not None:
+            rec.facts["delta_before_cleanup"] = count - self._count_before
 
     # ---- cleanup -------------------------------------------------------
     def cleanup(self) -> None:
         r = self.r
         if not r.created and not self._probe_aliases:
+            self._final_leak_check()
             return
         section("cleanup")
         for template_id, name in list(r.created):
@@ -497,6 +533,61 @@ class Scenario:
             r.add("cleanup.alias", f"release the boundary alias {alias!r}",
                   self.link.delete_probe(alias))
         self._probe_aliases.clear()
+        self._final_leak_check()
+
+    def _final_leak_check(self) -> None:
+        """Did this run put the environment back the way it found it?
+
+        Every template this run created is supposed to be gone by now. A
+        non-zero delta means the run leaks, and a leak is not cosmetic: the
+        residue accumulates in the list body of every future run, burns aliases,
+        and pins artifacts that GC then refuses to collect. The count is the only
+        cross-run-comparable part of the list, so it is the signal used here.
+        """
+        r = self.r
+        rec = r.add("cleanup.leak_check",
+                    "list templates after cleanup, to detect residue from this run",
+                    self.link.list_templates())
+        count = _list_count(rec)
+        rec.facts["count"] = count
+        rec.note = "body not compared: it is pre-existing environment state"
+        if self._count_before is None or count is None:
+            rec.facts["leak_measurable"] = False
+            return
+
+        leaked = count - self._count_before
+        rec.facts.update({"leak_measurable": True, "net_template_delta": leaked,
+                          "leaked": leaked != 0})
+        r.trace.context["net_template_delta"] = leaked
+        if leaked != 0:
+            # Recorded as a problem rather than a note: a leaking run degrades
+            # every subsequent run, so it should be visible without reading the
+            # trace.
+            r.problem(f"this run leaked {leaked} template(s): "
+                      f"{self._count_before} before, {count} after cleanup")
+
+
+def _list_count(rec: Any) -> int | None:
+    """Number of templates in a list response, in either dialect.
+
+    /cube/* wraps the array in `data`, CubeAPI returns it bare, and the SDK
+    hands back a list of objects. Returns None when the shape is unrecognised,
+    so an unparseable response is never mistaken for an empty environment.
+    """
+    facts = getattr(rec, "facts", None) or {}
+    if isinstance(facts.get("count"), int):
+        return facts["count"]
+    resp = getattr(rec, "response", None) or {}
+    if resp.get("error"):
+        return None
+    body = resp.get("json")
+    if isinstance(body, list):
+        return len(body)
+    if isinstance(body, dict):
+        for key in ("data", "templates", "items"):
+            if isinstance(body.get(key), list):
+                return len(body[key])
+    return None
 
 
 def _histogram(rows: list[dict[str, Any]]) -> dict[str, int]:

@@ -96,6 +96,13 @@ from vfy_verifier import Recorder  # noqa: E402
 EXPECTED_FACT_DIVERGENCE = {
     "timeline",          # remote passes through BUILT, local does not
     "saw_built_state",
+    "built_state_is_sampled",
+    # Where the build ran is SUPPOSED to differ between a local and a remote
+    # link, so it is surfaced as a note rather than compared. It is also
+    # three-valued rather than boolean, because the evidence is destroyed by the
+    # finalize step (see Recorder.build_provenance).
+    "remote_build_evidence",
+    "reason",
     "transitions",
     "poll_number",
     "attempts",
@@ -105,6 +112,10 @@ EXPECTED_FACT_DIVERGENCE = {
     "identifier",        # echoed back for readability, not an outcome
     "boundary",
     "why",
+    # Absolute template count: it is whatever the shared environment happened to
+    # hold when the run started (164 in one run, 166 in the next). The DELTA is
+    # what carries information and is compared.
+    "count",
 }
 
 # Boundary-phase bookkeeping. Whether a costly row was submitted depends on
@@ -120,6 +131,17 @@ NON_ALIGNED_OPS = {"create.poll"}
 
 # Environment observations, not behavior.
 ENV_OPS_PREFIX = "env."
+
+# Ops whose response BODY is the environment rather than the outcome. A shared
+# DB holds hundreds of pre-existing templates, so diffing the list element by
+# element reports a difference for every one whose position shifted — hundreds of
+# findings that say nothing about the link under test, drowning the records that
+# do. The derived facts (count, net_template_delta) are compared instead.
+ENV_DEPENDENT_BODY_OPS = {
+    "read.list_before",
+    "read.list_after",
+    "cleanup.leak_check",
+}
 
 
 # --------------------------------------------------------------------------
@@ -315,7 +337,7 @@ def compare(a: dict[str, Any], b: dict[str, Any]) -> tuple[list[str], list[str]]
             continue
 
         # 2) Response body, same dialect only.
-        if same_dialect:
+        if same_dialect and op not in ENV_DEPENDENT_BODY_OPS:
             ja, jb = (ra.get("response") or {}).get("json"), (rb.get("response") or {}).get("json")
             if isinstance(ja, dict) and isinstance(jb, dict):
                 ka, kb = set(ja), set(jb)
@@ -339,7 +361,8 @@ def compare(a: dict[str, Any], b: dict[str, Any]) -> tuple[list[str], list[str]]
     notes.append(f"trajectory {la}: {' -> '.join(ta) or '(none)'}")
     notes.append(f"trajectory {lb}: {' -> '.join(tb) or '(none)'}")
 
-    for key in ("terminal_status", "saw_built_state", "artifact_reused_on_same_spec"):
+    for key in ("terminal_status", "saw_built_state", "artifact_reused_on_same_spec",
+                "remote_build_evidence", "net_template_delta"):
         va = (a.get("context") or {}).get(key)
         vb = (b.get("context") or {}).get(key)
         if va is None and vb is None:
@@ -348,8 +371,32 @@ def compare(a: dict[str, Any], b: dict[str, Any]) -> tuple[list[str], list[str]]
             hard.append(f"context: terminal_status differs ({la}={va}, {lb}={vb})")
         elif key == "artifact_reused_on_same_spec" and va != vb:
             hard.append(f"context: artifact_reused_on_same_spec differs ({la}={va}, {lb}={vb})")
+        elif key == "net_template_delta" and va != vb:
+            # A run is supposed to put the environment back as it found it, so a
+            # difference here means one link leaks templates the other does not.
+            hard.append(f"context: net_template_delta differs ({la}={va}, {lb}={vb}); "
+                        "one link leaves residue the other does not")
         else:
             notes.append(f"context.{key}: {la}={va}, {lb}={vb}")
+
+    # Interpretation guardrails. A comparison of two runs that both failed early
+    # says nothing about the steps they never reached, and it is easy to read a
+    # clean diff as broader evidence than it is.
+    ta_status = (a.get("context") or {}).get("terminal_status")
+    tb_status = (b.get("context") or {}).get("terminal_status")
+    if ta_status == tb_status == "FAILED":
+        notes.append("both runs ended FAILED at the same point, so every step after it "
+                     "(definition/replica writes, status aggregation, a READY delete) "
+                     "was never exercised: a clean diff here is narrow evidence")
+    for label, trace in ((la, a), (lb, b)):
+        ctx = trace.get("context") or {}
+        if ctx.get("artifact_reused_on_same_spec") and ctx.get("remote_build_evidence") != "confirmed":
+            notes.append(f"{label}: the artifact was reused, so the image pull and "
+                         "mkfs path was not exercised by this run")
+        delta = ctx.get("net_template_delta")
+        if isinstance(delta, int) and delta != 0:
+            notes.append(f"{label}: leaked {delta} template(s); the residue will show up "
+                         "in every later run's list and can burn aliases")
 
     return hard, notes
 
