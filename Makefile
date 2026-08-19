@@ -125,6 +125,7 @@ help:
 	@printf "  cubeops-test  Run CubeOps unit tests in Docker\n"
 	@printf "  shim          Build containerd-shim-cube-rs and cube-runtime in Docker\n"
 	@printf "  cubemaster-test Run CubeMaster unit tests in Docker\n"
+	@printf "  cubetemplatecenter-test Run CubeTemplateCenter unit tests in Docker\n"
 	@printf "  cubelet-test  Run Cubelet unit tests in Docker\n"
 	@printf "  cube-proxy-test Run CubeProxy unit tests locally\n"
 	@printf "  cube-api-test Run CubeAPI unit tests in Docker\n"
@@ -331,6 +332,13 @@ cubeops-test: builder-image
 .PHONY: cubemaster-test
 cubemaster-test: builder-image
 	$(MAKE) builder-run BUILDER_CMD='cd /workspace/CubeMaster && go mod download && make test'
+
+# CubeTemplateCenter shares CubeMaster's pkg/templatecenter/image, which uses
+# Linux-only syscall constants, so its tests cannot run on a macOS host and go
+# through the builder like every other Go component.
+.PHONY: cubetemplatecenter-test
+cubetemplatecenter-test: builder-image
+	$(MAKE) builder-run BUILDER_CMD='cd /workspace/CubeTemplateCenter && go mod download && go test ./... -count=1'
 
 .PHONY: cubelet-test
 cubelet-test: builder-image
