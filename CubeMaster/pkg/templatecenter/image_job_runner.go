@@ -160,6 +160,12 @@ func finishTemplateImageJobAfterArtifact(
 		"artifact_id": artifact.ArtifactID,
 	})
 	readyTargets, expected, ready, failed, distErr := distributeRootfsArtifact(ctx, req, generatedReq, artifact, req.TemplateID, jobID)
+	// Logged at Info even on success: before this, the only way to tell a
+	// distribution that failed on every node from one that never ran was that
+	// template_definitions/replicas stayed empty, which looks identical to the
+	// pipeline silently not executing at all.
+	logger.Infof("distribute artifact: expected=%d ready=%d failed=%d err=%v",
+		expected, ready, failed, distErr)
 	if err := updateTemplateImageJob(ctx, jobID, map[string]any{
 		"phase":               JobPhaseCreatingTemplate,
 		"progress":            85,
@@ -170,19 +176,50 @@ func finishTemplateImageJobAfterArtifact(
 	}); err != nil {
 		logger.Errorf("update distribution status fail: %v", err)
 	}
-	if expected > 0 && ready == 0 {
+	// Any outcome with zero ready nodes is terminal. Note there is no minimum
+	// node count: expected==1 is a perfectly valid single-node deployment, and
+	// one ready node out of one is success.
+	//
+	// The guard used to read `expected > 0 && ready == 0`, which silently let
+	// through the case where distribution never reached a node at all
+	// (expected==0: no healthy node for the instance type, a
+	// distribution_scope matching nothing, or an artifact that failed the
+	// readiness guard). That path still ended FAILED — summarizeStatus of zero
+	// replicas is FAILED — but only after writing a template_definition for a
+	// template that can have no replicas, and the generic "creation failed on
+	// all nodes" message then overwrote distErr, destroying the only
+	// explanation of what actually went wrong.
+	if ready == 0 {
+		var failErr error
+		if expected == 0 {
+			// distErr is always set on this path, but keep a usable message if
+			// a future caller ever returns zero targets without an error.
+			if distErr == nil {
+				distErr = ErrNoTemplateNodes
+			}
+			failErr = fmt.Errorf("artifact distribution did not reach any node: %w", distErr)
+		} else {
+			failErr = fmt.Errorf("artifact distribution failed on all %d node(s): %v", expected, distErr)
+		}
+		logger.Errorf("%v; template_definitions/replicas are intentionally NOT written for this job", failErr)
+		// Persist the diagnosis BEFORE cleaning up. Cleanup deletes this
+		// template's per-node replica rows along with the artifact, so the
+		// per-node error messages recorded during distribution do not survive
+		// it; the job row is the only place the reason can still be read
+		// afterwards, and it must be written even if cleanup then fails.
+		if err := updateTemplateImageJob(ctx, jobID, map[string]any{
+			"status":        JobStatusFailed,
+			"phase":         JobPhaseDistributing,
+			"progress":      100,
+			"error_message": failErr.Error(),
+		}); err != nil {
+			logger.Errorf("record distribution failure on job fail: %v", err)
+		}
 		if builtFreshArtifact {
 			if cleanupErr := cleanupFailedRootfsArtifact(ctx, artifact, req.InstanceType, req.TemplateID); cleanupErr != nil {
 				logger.Errorf("cleanup fresh rootfs artifact after distribution failure fail: %v", cleanupErr)
 			}
 		}
-		failErr := fmt.Errorf("artifact distribution failed on all %d nodes: %v", expected, distErr)
-		_ = updateTemplateImageJob(ctx, jobID, map[string]any{
-			"status":        JobStatusFailed,
-			"phase":         JobPhaseDistributing,
-			"progress":      100,
-			"error_message": failErr.Error(),
-		})
 		return failErr
 	}
 	var info *TemplateInfo
@@ -198,6 +235,7 @@ func finishTemplateImageJobAfterArtifact(
 		return err
 	}
 	if _, err := ensureTemplateDefinitionWithOptions(ctx, req.TemplateID, storedReq, generatedReq.InstanceType, constants.GetAppSnapshotVersion(generatedReq.Annotations), definitionCreateOptions{}); err != nil {
+		logger.Errorf("write template definition fail: %v", err)
 		_ = updateTemplateImageJob(ctx, jobID, map[string]any{
 			"status":          JobStatusFailed,
 			"phase":           JobPhaseCreatingTemplate,
@@ -207,6 +245,7 @@ func finishTemplateImageJobAfterArtifact(
 		})
 		return err
 	}
+	logger.Infof("template definition written; creating replicas on %d node(s)", len(readyTargets))
 	replicas, persistErr := createTemplateReplicasOnNodes(ctx, req.TemplateID, generatedReq, readyTargets, replicaRunOptions{
 		ArtifactID: artifact.ArtifactID,
 		JobID:      jobID,

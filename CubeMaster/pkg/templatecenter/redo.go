@@ -175,6 +175,36 @@ func resolveRedoTargets(instanceType string, req *types.RedoTemplateFromImageReq
 	return filtered, nil
 }
 
+// rootfsArtifactReusableForRedo reports whether a redo may skip the rebuild and
+// reuse the artifact recorded on the previous job.
+//
+// This must be checked before honouring a resume phase of DISTRIBUTING or
+// later, because the "distribution failed on every node" path deletes the
+// artifact it just built (files, node copies and the DB row) on its way out.
+// A job that failed that way records phase=DISTRIBUTING, so determining the
+// resume phase from the phase alone sends every redo straight into
+// getRootfsArtifactByID on an artifact that no longer exists — the redo fails
+// with "record not found" and the template can never be retried at all.
+func rootfsArtifactReusableForRedo(ctx context.Context, artifactID string) bool {
+	artifactID = strings.TrimSpace(artifactID)
+	if artifactID == "" {
+		return false
+	}
+	artifact, err := getRootfsArtifactByID(ctx, artifactID)
+	if err != nil || artifact == nil {
+		return false
+	}
+	switch strings.ToUpper(strings.TrimSpace(artifact.Status)) {
+	case ArtifactStatusReady:
+		return true
+	default:
+		// PENDING/BUILDING is somebody else's in-flight build, and
+		// FAILED/CLEANUP_PENDING/ORPHANED must never be reused (the files are
+		// gone or going). In every one of those cases rebuilding is correct.
+		return false
+	}
+}
+
 func failRedoTemplateImageJob(ctx context.Context, jobID, phase, message string) {
 	_ = updateTemplateImageJob(ctx, jobID, map[string]any{
 		"status":        JobStatusFailed,
@@ -223,6 +253,21 @@ func runRedoTemplateImageJob(ctx context.Context, jobID string, req *types.RedoT
 	resumePhase := jobRecord.ResumePhase
 	if resumePhase == "" {
 		resumePhase = JobPhaseSnapshotting
+	}
+	// Downgrade to a full rebuild when the artifact this redo intended to reuse
+	// is no longer usable. Without this, a job that failed distribution on all
+	// nodes is unretryable forever: that path deletes the artifact, so the
+	// reuse branch below can only ever report "record not found".
+	if resumePhase != JobPhaseBuildingExt4 && !rootfsArtifactReusableForRedo(ctx, jobRecord.ArtifactID) {
+		logger.Infof("redo: artifact %q is not reusable, falling back to a full rebuild (resume_phase %s -> %s)",
+			jobRecord.ArtifactID, resumePhase, JobPhaseBuildingExt4)
+		resumePhase = JobPhaseBuildingExt4
+		if err := updateTemplateImageJob(ctx, jobID, map[string]any{
+			"phase":        JobPhaseBuildingExt4,
+			"resume_phase": JobPhaseBuildingExt4,
+		}); err != nil {
+			logger.Warnf("update redo resume phase fail: %v", err)
+		}
 	}
 	if resumePhase == JobPhaseBuildingExt4 {
 		if ShouldInjectEnvdIntoTemplate(&workingReq) {
