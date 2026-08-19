@@ -762,7 +762,11 @@ chmod +x "${PACKAGE_ROOT}/CubeMaster/docker-install-volume-deps.sh"
 # binary and conf on disk cost nothing, whereas a missing one would make
 # enabling the unit a re-install.
 copy_file "${CORE_BIN_DIR}/templatecenter" "${PACKAGE_ROOT}/CubeTemplateCenter/bin/templatecenter"
-copy_file "${ROOT_DIR}/CubeTemplateCenter/conf.yaml" "${PACKAGE_ROOT}/CubeTemplateCenter/conf.yaml"
+# The repo-root CubeTemplateCenter/conf.yaml is the Helm template (its db/redis/
+# port fields are {{ }} placeholders that are never rendered on a bare host), so
+# ship the single-node template, which install.sh resolves the same way it does
+# CubeMaster's.
+copy_file "${ROOT_DIR}/configs/single-node/templatecenter.yaml" "${PACKAGE_ROOT}/CubeTemplateCenter/conf.yaml"
 
 copy_file "${CORE_BIN_DIR}/cubelet" "${PACKAGE_ROOT}/Cubelet/bin/cubelet"
 copy_file "${CORE_BIN_DIR}/cubecli" "${PACKAGE_ROOT}/Cubelet/bin/cubecli"
