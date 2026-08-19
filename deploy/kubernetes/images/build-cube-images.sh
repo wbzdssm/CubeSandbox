@@ -92,6 +92,7 @@ ALL_IMAGES=(
   cube-api
   cube-ops
   cubemastercli
+  cube-templatecenter
   cube-proxy
   cube-lifecycle-manager
   cube-egress
@@ -115,6 +116,7 @@ PACKAGE_IMAGES=()
 SOURCE_IMAGES=(
   cube-master
   cubemastercli
+  cube-templatecenter
   cubelet
   cube-shim
   cube-api
@@ -379,8 +381,14 @@ ensure_source_tree() {
   # cubecow / deploy scripts + volume plugin examples.
   # cube-shim needs CubeShim / hypervisor / config-cube.toml + entrypoint.
   SOURCE_EXPORT_SET="CubeMaster CubeAPI CubeProxy CubeEgress cube-lifecycle-manager web deploy/one-click/webui"
-  if should_build cube-master || should_build cubemastercli; then
+  if should_build cube-master || should_build cubemastercli || should_build cube-templatecenter; then
     SOURCE_EXPORT_SET="${SOURCE_EXPORT_SET} cubelog CubeDB Cubelet"
+  fi
+  # cube-templatecenter is its own module and replaces CubeMaster / CubeDB /
+  # Cubelet / cubelog with local paths, so it needs its own directory on top of
+  # the four siblings added above.
+  if should_build cube-templatecenter; then
+    SOURCE_EXPORT_SET="${SOURCE_EXPORT_SET} CubeTemplateCenter"
   fi
   if should_build cube-master; then
     SOURCE_EXPORT_SET="${SOURCE_EXPORT_SET} deploy/scripts examples/volume/cos"
@@ -632,6 +640,28 @@ build_cube_master_image() {
     --build-arg "CUBE_COMMIT=${CUBE_COMMIT}" \
     --build-arg "CUBE_BUILD_TIME=${CUBE_BUILD_TIME}"
   record_built cube-master
+}
+
+# Same as .github/workflows/release-docker-images.yml for component
+# "cube-templatecenter": context=., file=CubeTemplateCenter/docker/Dockerfile,
+# CUBE_VERSION / CUBE_COMMIT / CUBE_BUILD_TIME.
+#
+# CubeTemplateCenter/go.mod replaces CubeMaster, CubeDB, Cubelet and cubelog with
+# local paths, so all four sibling modules must be present in the context.
+build_cube_templatecenter_image() {
+  [[ -f "${REPO_ROOT}/CubeTemplateCenter/docker/Dockerfile" ]] \
+    || fail "missing CubeTemplateCenter/docker/Dockerfile in ${REPO_ROOT}"
+  [[ -f "${REPO_ROOT}/CubeTemplateCenter/go.mod" ]] \
+    || fail "missing CubeTemplateCenter go.mod in ${REPO_ROOT}"
+  [[ -f "${REPO_ROOT}/CubeMaster/go.mod" ]] || fail "missing CubeMaster sibling module in ${REPO_ROOT}"
+  [[ -d "${REPO_ROOT}/cubelog" ]] || fail "missing cubelog sibling module in ${REPO_ROOT}"
+  [[ -d "${REPO_ROOT}/CubeDB" ]] || fail "missing CubeDB sibling module in ${REPO_ROOT}"
+  [[ -d "${REPO_ROOT}/Cubelet" ]] || fail "missing Cubelet sibling module in ${REPO_ROOT}"
+  build_image cube-templatecenter "${REPO_ROOT}" "${REPO_ROOT}/CubeTemplateCenter/docker/Dockerfile" \
+    --build-arg "CUBE_VERSION=${IMAGE_TAG}" \
+    --build-arg "CUBE_COMMIT=${CUBE_COMMIT}" \
+    --build-arg "CUBE_BUILD_TIME=${CUBE_BUILD_TIME}"
+  record_built cube-templatecenter
 }
 
 # Same as .github/workflows/release-docker-images.yml for component "cubemastercli":
@@ -1040,6 +1070,11 @@ run_selected_builds() {
   if should_build cubemastercli; then
     ensure_source_tree
     build_cubemastercli_image
+  fi
+
+  if should_build cube-templatecenter; then
+    ensure_source_tree
+    build_cube_templatecenter_image
   fi
 
   if should_build cube-proxy; then

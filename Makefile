@@ -107,6 +107,7 @@ help:
 	@printf "  builder-shell  Start interactive shell with persisted HOME (%s)\n" "$(BUILDER_HOME)"
 	@printf "  builder-run    Run command inside builder image (BUILDER_CMD=...)\n"
 	@printf "  cubemaster    Build cubemaster and cubemastercli in Docker\n"
+	@printf "  cubetemplatecenter Build templatecenter in Docker\n"
 	@printf "  cubelet       Build cubelet and cubecli in Docker\n"
 	@printf "  cubevsmapdump Build CubeVS eBPF business map dump tool in Docker\n"
 	@printf "  cubecow-sdk   Build cubecow static library for Cubelet\n"
@@ -263,6 +264,14 @@ cubecow-test-native: builder-image
 cubemaster: builder-image
 	@mkdir -p "$(OUTPUT_DIR)"
 	$(MAKE) builder-run BUILDER_CMD='cd /workspace/CubeMaster && make proto && CGO_ENABLED=0 make build && mkdir -p /workspace/_output/bin && cp build/cubemaster build/cubemastercli /workspace/_output/bin/'
+
+# CubeTemplateCenter is a separate module whose go.mod replaces CubeMaster,
+# CubeDB, Cubelet and cubelog with local paths, so it builds inside the same
+# builder image as every other Go component.
+.PHONY: cubetemplatecenter
+cubetemplatecenter: builder-image
+	@mkdir -p "$(OUTPUT_DIR)"
+	$(MAKE) builder-run BUILDER_CMD='cd /workspace/CubeTemplateCenter && go mod download && make build && mkdir -p /workspace/_output/bin && cp build/templatecenter /workspace/_output/bin/'
 
 .PHONY: cubelet
 cubelet: builder-image
