@@ -11,6 +11,20 @@ common:
   collect_metric_interval: 1s
   default_headless_service_nodes_num: 1
   enable_check_com_net_id_param: false
+  # Template build wiring. All three default to the pre-split behaviour:
+  # CubeMaster builds the ext4 in-process and serves /cube/template itself.
+  # Anything but "remote" / "proxy" reads as local (the code only tests for
+  # those two strings), so these are written explicitly to make the choice
+  # visible rather than relying on the empty default.
+  #
+  # To hand builds over to the CubeTemplateCenter service that is installed
+  # (but not enabled) by the same bundle, set template_build_mode to "remote"
+  # and point template_center_endpoint at it, then restart both
+  # cube-sandbox-cubemaster.service and cube-sandbox-cubetemplatecenter.service.
+  # TC reports build status back over http://127.0.0.1:8089.
+  template_build_mode: "local"
+  template_route_mode: "local"
+  template_center_endpoint: ""
 
 log:
   module: "cubemaster"
