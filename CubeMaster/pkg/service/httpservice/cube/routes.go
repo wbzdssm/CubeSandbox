@@ -62,16 +62,14 @@ func RegisterCubeRoutes(g *gin.RouterGroup) {
 	// only keeps the internal status-callback route below. CubeMaster is a
 	// thin reverse proxy for /cube/template/* so clients see a single entry
 	// point while the work happens in TC.
+	//
+	// Register only the exact path plus a single catch-all: gin forbids a
+	// concrete segment (e.g. /template/compat) alongside the /*any wildcard
+	// under the same prefix, and the catch-all already covers compat / redo /
+	// build / from-image / artifact/download. proxyToTemplateCenter forwards the
+	// original path untouched, and TC registers the concrete routes itself.
 	g.Any(TemplateAction, proxyToTemplateCenter)
 	g.Any(TemplateAction+"/*any", proxyToTemplateCenter)
-	g.Any(TemplateCompatAction, proxyToTemplateCenter)
-	g.Any(TemplateCompatAction+"/*any", proxyToTemplateCenter)
-	g.Any(TemplateRedoAction, proxyToTemplateCenter)
-	g.Any(TemplateBuildStatusAction+"/*any", proxyToTemplateCenter)
-	g.Any(TemplateFromImageAction, proxyToTemplateCenter)
-	g.Any(TemplateFromImageAction+"/*any", proxyToTemplateCenter)
-	g.Any(TemplateArtifactDownloadAction, proxyToTemplateCenter)
-	g.Any(TemplateArtifactDownloadAction+"/*any", proxyToTemplateCenter)
 
 	// Artifact / CA download: served locally from the shared artifact disk so
 	// Cubelet does not pay a second network hop through TC.
