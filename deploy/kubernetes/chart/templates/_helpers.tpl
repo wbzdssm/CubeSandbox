@@ -479,6 +479,7 @@ see validate.yaml) to avoid the double generation entirely.
 {{- randAlphaNum 32 -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
 
 {{- define "cube.templateCenterConfigSecretName" -}}
 {{- printf "%s-templatecenter-config" (include "cube.fullname" .) -}}

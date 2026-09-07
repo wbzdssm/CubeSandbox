@@ -10,10 +10,10 @@
 {{- if hasKey $templateCenter "routeMode" }}
 {{- fail "controlPlane.templateCenter.routeMode no longer exists: the route proxy was removed along with the build-mode string. CubeMaster always serves the public template API; use controlPlane.templateCenter.enabled only" }}
 {{- end }}
-{{- if and $templateCenter.enabled (not (and .Values.controlPlane.enabled .Values.controlPlane.master.enabled)) }}
+{{- if and $templateCenter.enabled .Values.controlPlane.enabled (not .Values.controlPlane.master.enabled) }}
 {{- fail "controlPlane.templateCenter.enabled=true requires controlPlane.master.enabled=true: TC writes the ext4 but CubeMaster is what serves it to Cubelet and owns every business-state write" }}
 {{- end }}
-{{- if and $templateCenter.enabled .Values.externalControlPlane.enabled }}
+{{- if and $templateCenter.enabled .Values.controlPlane.enabled .Values.externalControlPlane.enabled }}
 {{- fail "controlPlane.templateCenter.enabled=true is not supported with externalControlPlane.enabled=true: TC must share the artifact directory with the CubeMaster that serves downloads, which an out-of-cluster master cannot do" }}
 {{- end }}
 {{- if and $templateCenter.enabled $templateCenter.colocateWithMaster (gt (int .Values.controlPlane.master.replicas) 1) }}

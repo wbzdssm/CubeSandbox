@@ -7,16 +7,11 @@ metadata:
     {{- include "cube.labels" . | nindent 4 }}
     app.kubernetes.io/component: templatecenter
 spec:
-  # Replica count from values.yaml. Multi-replica artifact storage options:
-  #   1. CBS PVC with ReadWriteMany access mode (shared cloud disk)
-  #   2. S3/MinIO object storage (CUBE_S3_* env vars)
-  # Without either, artifacts are node-local and other replicas cannot read them.
-  #
-  # TC replicas coordinate via DB session locks (see pkg/lock) to prevent
-  # duplicate builds of the same spec. The lock key is the template spec
-  # fingerprint, so concurrent builds of DIFFERENT specs can proceed in
-  # parallel across replicas.
-  replicas: {{ .Values.controlPlane.templateCenter.replicas }}
+  # TC is a singleton builder: artifacts live on a node-local disk behind a
+  # ReadWriteOnce PVC, so a second replica could neither read the first one's
+  # ext4 nor take over its builds. validate.yaml rejects a `replicas` key under
+  # controlPlane.templateCenter; scale CubeMaster (the stateless half) instead.
+  replicas: 1
   # Recreate, never RollingUpdate: a build is in-memory progress state, so a
   # surge Pod cannot take over an interrupted build from the outgoing Pod. The
   # reconciler (pkg/reconcile) marks stale builds as FAILED after a timeout;
