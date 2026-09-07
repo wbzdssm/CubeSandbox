@@ -13,9 +13,9 @@
 //   - the artifact row itself (after the data is gone)
 //
 // Deletion is triggered two ways (belt and suspenders):
-//   1. Immediately, via POST /tc/api/v1/artifact/delete from CubeMaster.
-//   2. Lazily, by the reconciler sweeping CLEANUP_PENDING rows whose updated_at
-//      is older than a grace period (covers "Master crashed before notifying").
+//  1. Immediately, via POST /tc/api/v1/artifact/delete from CubeMaster.
+//  2. Lazily, by the reconciler sweeping CLEANUP_PENDING rows whose updated_at
+//     is older than a grace period (covers "Master crashed before notifying").
 package build
 
 import (

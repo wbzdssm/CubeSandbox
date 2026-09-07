@@ -452,7 +452,6 @@ http {
 {{- printf "%s-master-config" (include "cube.fullname" .) -}}
 {{- end -}}
 
-<<<<<<< HEAD
 {{/*
 cube.adminToken resolves the shared CubeProxy admin token. CubeProxy reads it at
 runtime as CUBE_PROXY_ADMIN_TOKEN and the lifecycle manager as CUBE_LCM_ADMIN_TOKEN
@@ -480,10 +479,9 @@ see validate.yaml) to avoid the double generation entirely.
 {{- randAlphaNum 32 -}}
 {{- end -}}
 {{- end -}}
-=======
+
 {{- define "cube.templateCenterConfigSecretName" -}}
 {{- printf "%s-templatecenter-config" (include "cube.fullname" .) -}}
->>>>>>> c9569978 (feat(templatecenter): standalone template build service)
 {{- end -}}
 
 {{- define "cube.masterStoragePVCName" -}}

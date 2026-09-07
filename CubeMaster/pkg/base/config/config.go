@@ -74,11 +74,11 @@ type CommonConf struct {
 	HttpPort               int           `yaml:"http_port"`
 	// HttpBind is the HTTP listen address. Empty means 0.0.0.0 (all
 	// interfaces); set to 127.0.0.1 to keep the API loopback-only.
-	HttpBind                       string            `yaml:"http_bind"`
-	WriteTimeout                   int               `yaml:"http_writetimeout"`
-	ReadTimeout                    int               `yaml:"http_readtimeout"`
-	IdleTimeout                    int               `yaml:"http_idletimeout"`
-	GraceFullStopTimeoutInSec      int               `yaml:"gracefull_stop_timeout_insec"`
+	HttpBind                  string `yaml:"http_bind"`
+	WriteTimeout              int    `yaml:"http_writetimeout"`
+	ReadTimeout               int    `yaml:"http_readtimeout"`
+	IdleTimeout               int    `yaml:"http_idletimeout"`
+	GraceFullStopTimeoutInSec int    `yaml:"gracefull_stop_timeout_insec"`
 	// CubeOps node-management base URL.
 	CubeOpsAddr string `yaml:"cube_ops_addr"`
 	// CubeMaster's HTTP base URL, used by CubeTemplateCenter to report build

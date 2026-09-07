@@ -1637,4 +1637,3 @@ func TestRunRedoTemplateImageJobFailsOnArtifactReloadError(t *testing.T) {
 		t.Fatalf("unexpected reload failure message: %q", got)
 	}
 }
-

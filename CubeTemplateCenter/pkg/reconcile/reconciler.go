@@ -58,9 +58,9 @@ const (
 	// CubeMaster/pkg/templatecenter.runningStaleAfter (which uses the same
 	// tiered logic): both sweeps scan the same rows, so different thresholds
 	// would mean whichever process happened to run decided the outcome.
-	defaultPendingStaleAfter  = 10 * time.Minute
-	defaultPullingStaleAfter  = 30 * time.Minute
-	defaultRunningStaleAfter  = 1 * time.Hour
+	defaultPendingStaleAfter = 10 * time.Minute
+	defaultPullingStaleAfter = 30 * time.Minute
+	defaultRunningStaleAfter = 1 * time.Hour
 
 	// cleanupPendingGrace is how long an artifact row marked CLEANUP_PENDING
 	// must age before the reconciler deletes it as a backstop. The primary

@@ -52,7 +52,7 @@ type RemoteBuildResult struct {
 	//
 	// This is why TC and CubeMaster must share the artifact directory (one CBS
 	// disk / PVC): the file is written by TC and served by CubeMaster.
-	MasterNodeIP            string
+	MasterNodeIP string
 	// ArtifactURL is the S3/MinIO presigned download URL. When non-empty,
 	// distribution uses this URL directly instead of building a local HTTP URL
 	// from MasterNodeIP.

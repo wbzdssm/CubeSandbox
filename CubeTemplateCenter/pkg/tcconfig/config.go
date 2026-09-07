@@ -114,11 +114,11 @@ const (
 	// Cubelet / s3lvol / volume plugins already read, so a deployment configures
 	// S3 once and every component picks it up. When the variables are absent or
 	// incomplete TC falls back to local disk storage.
-	EnvS3Endpoint = "CUBE_S3_ENDPOINT"
-	EnvS3Bucket   = "CUBE_S3_BUCKET"
-	EnvS3AccessKey = "CUBE_S3_ACCESS_KEY"
-	EnvS3SecretKey = "CUBE_S3_SECRET_KEY"
-	EnvS3Region    = "CUBE_S3_REGION"
+	EnvS3Endpoint     = "CUBE_S3_ENDPOINT"
+	EnvS3Bucket       = "CUBE_S3_BUCKET"
+	EnvS3AccessKey    = "CUBE_S3_ACCESS_KEY"
+	EnvS3SecretKey    = "CUBE_S3_SECRET_KEY"
+	EnvS3Region       = "CUBE_S3_REGION"
 	EnvS3UsePathStyle = "CUBE_S3_USE_PATH_STYLE"
 	EnvS3UseSSL       = "CUBE_S3_USE_SSL"
 
@@ -168,8 +168,6 @@ func S3Config() (enabled bool, endpoint, bucket, accessKey, secretKey, region st
 	}
 	return true, endpoint, bucket, accessKey, secretKey, region, usePathStyle, useSSL, artifactPrefix
 }
-
-
 
 var (
 	warnMu   sync.Mutex

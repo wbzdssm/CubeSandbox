@@ -20,15 +20,15 @@ import (
 
 // Config holds S3/MinIO connection parameters.
 type Config struct {
-	Endpoint        string // e.g. "play.min.io" or "s3.amazonaws.com"
-	Bucket          string
-	AccessKey       string
-	SecretKey       string
-	Region          string // optional; some S3-compatible stores ignore it
-	UsePathStyle    bool   // true for MinIO; false for AWS S3 virtual-hosted style
-	UseSSL          bool   // true for https, false for http
-	PresignExpiry   time.Duration
-	ArtifactPrefix  string // object key prefix, e.g. "template-artifacts/"
+	Endpoint       string // e.g. "play.min.io" or "s3.amazonaws.com"
+	Bucket         string
+	AccessKey      string
+	SecretKey      string
+	Region         string // optional; some S3-compatible stores ignore it
+	UsePathStyle   bool   // true for MinIO; false for AWS S3 virtual-hosted style
+	UseSSL         bool   // true for https, false for http
+	PresignExpiry  time.Duration
+	ArtifactPrefix string // object key prefix, e.g. "template-artifacts/"
 }
 
 // DefaultPresignExpiry is the default presigned URL validity (7 days, the

@@ -299,15 +299,15 @@ func (c *layerCache) evictIfNeeded(ctx context.Context) error {
 // the prefetch file and the cache blob in a single pass (io.MultiWriter)
 // without buffering the whole layer in memory.
 type layerCacheTeeWriter struct {
-	ctx    context.Context
-	cache  *layerCache
-	digest string
-	tmp    *os.File
+	ctx     context.Context
+	cache   *layerCache
+	digest  string
+	tmp     *os.File
 	tmpPath string
-	hash   hash.Hash
-	size   int64
-	err    error
-	closed bool
+	hash    hash.Hash
+	size    int64
+	err     error
+	closed  bool
 }
 
 func newLayerCacheTeeWriter(ctx context.Context, c *layerCache, digest string) *layerCacheTeeWriter {

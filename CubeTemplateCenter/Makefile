@@ -1,4 +1,4 @@
-.PHONY: build test clean proto
+.PHONY: build test clean proto fmt lint
 
 GOPATH ?= $(shell go env GOPATH)
 BUILD_FLAGS := -trimpath
@@ -31,6 +31,13 @@ test:
 
 test-integration:
 	CGO_ENABLED=0 CUBEMASTER_REQUIRE_DOCKER_TESTS=1 go test -count=1 ./...
+
+fmt:
+	go fmt ./...
+
+lint:
+	go fmt ./...
+	golangci-lint run
 
 clean:
 	rm -rf build/

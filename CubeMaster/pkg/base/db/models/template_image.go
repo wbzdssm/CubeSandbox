@@ -27,10 +27,10 @@ type RootfsArtifact struct {
 	// ArtifactURL is the S3/MinIO presigned download URL. When non-empty,
 	// distribution uses this URL directly instead of building a local HTTP URL
 	// from MasterNodeIP. Empty means the legacy local download path.
-	ArtifactURL             string `json:"artifact_url" gorm:"column:artifact_url"`
-	Status                  string `json:"status" gorm:"column:status"`
-	LastError               string `json:"last_error" gorm:"column:last_error"`
-	GCDeadline              int64  `json:"gc_deadline" gorm:"column:gc_deadline"`
+	ArtifactURL string `json:"artifact_url" gorm:"column:artifact_url"`
+	Status      string `json:"status" gorm:"column:status"`
+	LastError   string `json:"last_error" gorm:"column:last_error"`
+	GCDeadline  int64  `json:"gc_deadline" gorm:"column:gc_deadline"`
 
 	// CubeEgress CA bake metadata (see design/cube-egress-ca-bake.md).
 	// Used for audit/triage; the artifact reuse cache key folds

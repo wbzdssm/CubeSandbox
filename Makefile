@@ -654,6 +654,8 @@ ifeq ($(IN_CUBE_SANDBOX_BUILDER),1)
 	@$(MAKE) -C pkgs/proto fmt
 	@printf '  %-8s %s\n' "FMT" "CubeMaster"
 	@$(MAKE) -C CubeMaster fmt
+	@printf '  %-8s %s\n' "FMT" "CubeTemplateCenter"
+	@$(MAKE) -C CubeTemplateCenter fmt
 	@printf '  %-8s %s\n' "FMT" "CubeNet"
 	@$(MAKE) -C CubeNet fmt
 	@printf '  %-8s %s\n' "FMT" "CubeOps"

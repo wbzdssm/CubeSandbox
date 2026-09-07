@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	cubeboxv1 "github.com/tencentcloud/CubeSandbox/pkgs/proto/services/cubebox/v1"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
+	cubeboxv1 "github.com/tencentcloud/CubeSandbox/pkgs/proto/services/cubebox/v1"
 )
 
 // deleteFlowRecorder captures which parts of the delete flow ran, so ordering
