@@ -273,10 +273,49 @@ volumeS3:
 When `minio.rootPassword` is set, it must be at least 8 characters (MinIO
 requirement).
 
+## Template builds (CubeTemplateCenter)
+
+`cube-templatecenter` (TC) is the only component that builds template ext4
+images; CubeMaster orchestrates (job rows, forwarding, callbacks,
+distribution). TC deploys automatically whenever `controlPlane.enabled=true`
+— there is no enable switch, and `CUBE_TEMPLATE_CENTER_ADDR` /
+`CUBE_MASTER_ADDR` are wired on both sides by the chart.
+
+Artifact downloads are always reverse-proxied from CubeMaster to TC
+(`GET /cube/template/artifact/download`), so **any** master replica can serve
+an artifact regardless of where it was built.
+
+Supported topologies:
+
+| Topology | TC replicas | Artifact store | Notes |
+| --- | --- | --- | --- |
+| Single replica (default) | 1 | node-local disk | `controlPlane.templateCenter.persistence.enabled=true` (PVC) recommended; with emptyDir a TC pod restart loses all artifacts and the next create rebuilds them. Multi-replica **master** works here (downloads proxy to the single TC), but not with the default ReadWriteOnce artifact PVC — use `controlPlane.master.persistence.enabled=false` or ReadWriteMany |
+| Multi-replica | ≥2 | `controlPlane.artifactStore.s3Backed=true` (S3/MinIO durable, local disk scratch only), or a ReadWriteMany shared volume (CFS/NFS) | replicas deduplicate same-spec builds via DB session locks (`GET_LOCK` keyed by build fingerprint); validate requires `controlPlane.master.persistence.enabled=false` in S3 mode |
+
+**Multi-replica TC + node-local disk is refused by validate**: each replica's
+builds land on its own disk, but downloads are load-balanced across replicas,
+so a pull can hit a replica that never built the artifact (404). Keep
+`controlPlane.templateCenter.replicas=1`, enable `s3Backed`, or provide a
+ReadWriteMany volume.
+
+For `s3Backed` with an external store, `volumeS3.pathStyle` defaults by
+endpoint shape: known public clouds (amazonaws.com / myqcloud.com /
+aliyuncs.com / googleapis.com) → virtual-host; everything else (external
+MinIO, Ceph, IP literals, in-cluster DNS) → path-style. Set
+`volumeS3.pathStyle` explicitly to override. At startup TC probes the bucket
+and logs an ERROR when `CUBE_S3_*` is configured but unreachable — without a
+reachable bucket, uploads silently fall back to node-local storage and
+multi-replica downloads 404.
+
 ## CubeMaster configuration
 
 The `cube-master` image is built like CI from `CubeMaster/docker/Dockerfile` (repository-root context) and does not carry a Kubernetes-specific entrypoint or bundled `conf.yaml`.
 The chart stores the One-click `CubeMaster/conf.yaml` at `deploy/kubernetes/chart/files/cube-master/conf.yaml`, renders MySQL/Redis values into it, creates a release-scoped Secret named `<release>-master-config`, and mounts it to `/usr/local/services/cubetoolbox/CubeMaster/conf.yaml` (same path as one-click); `CUBE_MASTER_CONFIG_PATH` points CubeMaster to that mounted file.
+
+During the `CREATING_TEMPLATE` phase, the CubeMaster-to-Cubelet `AppSnapshot`
+RPC defaults to a 300-second deadline. Increase
+`controlPlane.master.appSnapshotTimeoutSeconds` for large templates or slow
+networks/disks. Non-positive values fall back to 300 seconds.
 
 CubeMaster artifact storage maps to `/data/CubeMaster/storage`, matching one-click.
 The chart uses PVC-backed persistence by default so state can survive
@@ -378,11 +417,11 @@ PVC / LoadBalancer only — it does not set `global.imageRegistry`).
 
 ## Database migration
 
-The chart does not deliver a separate DB migration Job or image. CubeMaster owns MySQL schema migration and runs its embedded `CubeMaster/pkg/base/dao/migrate/migrations/mysql` migrations during startup.
+The chart does not deliver a separate DB migration Job or image. CubeMaster and CubeOps share the `pkgs/cubedb` migrator and apply the embedded SQL under `pkgs/cubedb/migrate/migrations/{mysql,postgres}` at process startup.
 
-- CubeMaster uses the configured MySQL endpoint, user, password, and database.
+- CubeMaster and CubeOps use the configured database endpoint, user, password, and database.
 - The chart does not package or maintain SQL files under `files/`; do not add migration SQL copies to the chart.
-- CubeMaster records applied versions in `goose_db_version` and serializes concurrent migration attempts through the migration lock implemented by CubeMaster.
+- Applied versions are recorded in `goose_db_version`. Concurrent migration attempts are serialized by the cluster lock in `pkgs/cubedb`.
 - There is no chart-managed SQL data seed, and the one-click single-node seed file `sql/002_seed_single_node.sql` is intentionally not rendered by the chart. Node registration must come from real Cube Node Pods selected by `placement.compute.nodeSelector`.
 - When using a third-party database, set `mysql.host` or `postgres.host` (matching `database.driver`) and ensure the configured user can create/alter tables in that database.
 
