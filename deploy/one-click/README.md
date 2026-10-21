@@ -227,7 +227,7 @@ Select the log backend with `CUBE_LOGS_BACKEND=loki|elasticsearch`. Loki is the
 current and forward-looking default; choose Elasticsearch for an existing ES
 platform or richer full-text search. The installer activates one log backend
 at a time and does not duplicate logs by default.
-See the [CubeObservability guide](../../CubeObservability/README.md) for component
+See the [observability guide](../../docs/guide/observability.md) for component
 versions, Collector configuration, external backends, and operations.
 
 The one-click installation path is fixed at `/usr/local/services/cubetoolbox`.

@@ -6,8 +6,9 @@ on:
     paths:
       - 'Cubelet/Dockerfile'
       - 'deploy/kubernetes/chart/**'
-      - 'CubeObservability/deploy/kubernetes/**'
-      - 'CubeObservability/deploy/one-click/grafana/dashboards/**'
+      - 'deploy/kubernetes/observability/**'
+      - 'CubeObservability/Dockerfile'
+      - 'CubeObservability/grafana/dashboards/**'
       - 'deploy/kubernetes/images/scripts/**'
       - 'scripts/bump-image.sh'
       - '.github/workflows/kubernetes-chart-check.yml'
@@ -15,8 +16,9 @@ on:
     paths:
       - 'Cubelet/Dockerfile'
       - 'deploy/kubernetes/chart/**'
-      - 'CubeObservability/deploy/kubernetes/**'
-      - 'CubeObservability/deploy/one-click/grafana/dashboards/**'
+      - 'deploy/kubernetes/observability/**'
+      - 'CubeObservability/Dockerfile'
+      - 'CubeObservability/grafana/dashboards/**'
       - 'deploy/kubernetes/images/scripts/**'
       - 'scripts/bump-image.sh'
       - '.github/workflows/kubernetes-chart-check.yml'
@@ -123,7 +125,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash -n CubeObservability/deploy/kubernetes/install.sh
+          bash -n deploy/kubernetes/observability/install.sh
           tmp="$(mktemp -d)"
           trap 'rm -rf "${tmp}"' EXIT
           common=(
@@ -137,12 +139,12 @@ jobs:
             CUBE_LOGS_AUTHORIZATION="Bearer ci-logs-token" \
             CUBE_LOGS_TENANT_ID=ci \
             CUBE_OTEL_CONFIG_OUTPUT="${tmp}/k8s-loki.yaml" \
-            bash CubeObservability/deploy/kubernetes/install.sh render
+            bash deploy/kubernetes/observability/install.sh render
           env "${common[@]}" \
             CUBE_LOGS_ES_ENDPOINT=http://elasticsearch:9200 \
             CUBE_LOGS_ES_API_KEY=ci-api-key \
             CUBE_OTEL_CONFIG_OUTPUT="${tmp}/k8s-es.yaml" \
-            bash CubeObservability/deploy/kubernetes/install.sh render
+            bash deploy/kubernetes/observability/install.sh render
           for config in "${tmp}"/*.yaml; do
             docker run --rm \
               -e CUBE_METRICS_BACKEND_URL=http://prometheus:9092/api/v1/otlp \
@@ -166,7 +168,7 @@ jobs:
           done
           for dashboard in cubesandbox-host-sandbox.json cubesandbox-logs.json cubesandbox-logs-elasticsearch.json; do
             cmp \
-              "CubeObservability/deploy/one-click/grafana/dashboards/${dashboard}" \
+              "CubeObservability/grafana/dashboards/${dashboard}" \
               "deploy/kubernetes/chart/files/observability/dashboards/${dashboard}"
           done
       - name: Check startup-gate shell syntax

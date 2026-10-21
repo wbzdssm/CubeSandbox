@@ -11,7 +11,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DASHBOARD_DIR="${SCRIPT_DIR}/dashboards"
+if [[ -n "${CUBE_OBSERVABILITY_DASHBOARD_DIR:-}" ]]; then
+  DASHBOARD_DIR="${CUBE_OBSERVABILITY_DASHBOARD_DIR}"
+elif [[ -d "${SCRIPT_DIR}/../../CubeObservability/grafana/dashboards" ]]; then
+  DASHBOARD_DIR="${SCRIPT_DIR}/../../CubeObservability/grafana/dashboards"
+elif [[ -d "${SCRIPT_DIR}/../../../../CubeObservability/grafana/dashboards" ]]; then
+  DASHBOARD_DIR="${SCRIPT_DIR}/../../../../CubeObservability/grafana/dashboards"
+else
+  echo "[cube-grafana] ERROR: CubeObservability dashboard assets were not found" >&2
+  exit 1
+fi
 
 GRAFANA_VERSION="${CUBE_GRAFANA_VERSION:-10.4.18}"
 GRAFANA_USER="cube-grafana"

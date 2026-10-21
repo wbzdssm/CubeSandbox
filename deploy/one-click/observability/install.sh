@@ -10,8 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-COMPONENT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-COMPONENT_PARENT="$(cd "${COMPONENT_ROOT}/.." && pwd)"
+ONE_CLICK_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 OTELCOL_VERSION="0.162.0"
 PROMETHEUS_VERSION="3.13.4"
@@ -21,6 +20,21 @@ GRAFANA_VERSION="10.4.18"
 
 log() { echo "[cube-observability] $*" >&2; }
 die() { echo "[cube-observability] ERROR: $*" >&2; exit 1; }
+
+resolve_observability_asset_root() {
+  local candidate
+  for candidate in \
+    "${CUBE_OBSERVABILITY_ASSET_ROOT:-}" \
+    "${ONE_CLICK_ROOT}/CubeObservability" \
+    "${SCRIPT_DIR}/../../../CubeObservability"; do
+    if [[ -n "${candidate}" &&
+          -d "${candidate}/grafana/dashboards" ]]; then
+      (cd "${candidate}" && pwd)
+      return
+    fi
+  done
+  die "CubeObservability dashboard assets were not found"
+}
 
 append_shell_env() {
   local file="$1"
@@ -66,8 +80,7 @@ load_one_click_env_defaults() {
   for f in \
     "${ONE_CLICK_RUNTIME_ENV_FILE:-/usr/local/services/cubetoolbox/.one-click.env}" \
     "${ONE_CLICK_ENV_FILE:-}" \
-    "${COMPONENT_PARENT}/deploy/one-click/.env" \
-    "${COMPONENT_PARENT}/.env"; do
+    "${ONE_CLICK_ROOT}/.env"; do
     [[ -n "${f}" && -f "${f}" ]] || continue
     while IFS= read -r line || [[ -n "${line}" ]]; do
       line="${line#"${line%%[![:space:]]*}"}"
@@ -125,12 +138,10 @@ resolve_one_click_control_ip() {
 resolve_terraform_dir() {
   if [[ -n "${CUBE_TERRAFORM_DIR:-}" ]]; then
     printf '%s' "${CUBE_TERRAFORM_DIR}"
-  elif [[ -d "${COMPONENT_PARENT}/deploy/one-click/terraform/tencentcloud" ]]; then
-    printf '%s' "${COMPONENT_PARENT}/deploy/one-click/terraform/tencentcloud"
-  elif [[ -d "${COMPONENT_PARENT}/terraform/tencentcloud" ]]; then
-    printf '%s' "${COMPONENT_PARENT}/terraform/tencentcloud"
+  elif [[ -d "${ONE_CLICK_ROOT}/terraform/tencentcloud" ]]; then
+    printf '%s' "${ONE_CLICK_ROOT}/terraform/tencentcloud"
   else
-    printf '%s' "${COMPONENT_PARENT}/deploy/one-click/terraform/tencentcloud"
+    printf '%s' "${ONE_CLICK_ROOT}/terraform/tencentcloud"
   fi
 }
 
@@ -167,7 +178,7 @@ logs_backend() {
 
 usage() {
   cat <<'EOF'
-Usage: ./CubeObservability/deploy/one-click/install.sh <command> [sub-action]
+Usage: ./deploy/one-click/observability/install.sh <command> [sub-action]
 
 Commands:
   auto | one-click    Auto-detect role from one-click (.one-click.env / .env):
@@ -396,11 +407,15 @@ install_terraform() {
   local cluster="${CUBE_OBSERVABILITY_CLUSTER_ID:-${tke_cluster_id:-cubesandbox}}"
 
   log "Syncing one-click observability bundle to jumpserver (${jump_pub})..."
-  local bundle_tmp env_tmp
+  local bundle_tmp env_tmp asset_root asset_parent
   bundle_tmp="$(mktemp /tmp/cube-observability-XXXXXX.tar.gz)"
   env_tmp="$(mktemp /tmp/cube-observability-env-XXXXXX)"
   trap "rm -f -- $(printf '%q' "${bundle_tmp}") $(printf '%q' "${env_tmp}")" EXIT
-  tar -C "${COMPONENT_PARENT}" -czf "${bundle_tmp}" CubeObservability
+  asset_root="$(resolve_observability_asset_root)"
+  asset_parent="$(cd "${asset_root}/.." && pwd)"
+  tar -czf "${bundle_tmp}" \
+    -C "${ONE_CLICK_ROOT}" observability \
+    -C "${asset_parent}" CubeObservability/grafana/dashboards
 
   scp -P "${ssh_port}" -i "${ssh_key}" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
     "${bundle_tmp}" "root@${jump_pub}:/tmp/cube-observability.tar.gz"
@@ -428,7 +443,7 @@ install_terraform() {
     ssh "${jump_ssh_opts[@]}" "root@${jump_pub}" \
       "set -e; set -a; . /tmp/cube-observability-backend.env; set +a; rm -f /tmp/cube-observability-backend.env; \
        mkdir -p /opt/cube-observability; tar -C /opt/cube-observability -xzf /tmp/cube-observability.tar.gz; \
-       /opt/cube-observability/CubeObservability/deploy/one-click/install.sh backend"
+       /opt/cube-observability/observability/install.sh backend"
   else
     ssh "${jump_ssh_opts[@]}" "root@${jump_pub}" \
       "mkdir -p /opt/cube-observability && tar -C /opt/cube-observability -xzf /tmp/cube-observability.tar.gz"
@@ -468,7 +483,7 @@ install_terraform() {
        ssh -p '${compute_ssh_port}' -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@${ip} \
          'set -e; set -a; . /tmp/cube-observability-node.env; set +a; rm -f /tmp/cube-observability-node.env; \
           mkdir -p /opt/cube-observability; tar -C /opt/cube-observability -xzf /tmp/cube-observability.tar.gz; \
-          /opt/cube-observability/CubeObservability/deploy/one-click/otel-systemd/install.sh install'"
+          /opt/cube-observability/observability/otel-systemd/install.sh install'"
   done
 
   rm -f -- "${bundle_tmp}" "${env_tmp}"
@@ -504,19 +519,20 @@ check_status() {
   if [[ "${http_code}" == "200" ]]; then
     if grep -q "cubesandbox_node_sandbox_count" "${body_tmp}" 2>/dev/null; then
       echo " [OK]   Cubelet Resource Metrics (127.0.0.1:9998/v1/metrics/resource, HTTP 200)"
-      echo "        -> Cubelet Version    : ${cubelet_ver} (supports node_sandbox_count + host_sandbox_*)"
+      echo "        -> Cubelet Version    : ${cubelet_ver}"
     elif grep -Eq "cubesandbox_(host_sandbox|guest_workload)_" "${body_tmp}" 2>/dev/null; then
-      echo " [OK]   Cubelet Resource Metrics (127.0.0.1:9998/v1/metrics/resource, HTTP 200)"
-      echo "        -> Cubelet Version    : ${cubelet_ver} (node_sandbox_count unavailable; dashboard count fallback active)"
+      echo " [WARN] Cubelet Resource Metrics does not expose cubesandbox_node_sandbox_count"
+      echo "        -> Cubelet Version    : ${cubelet_ver}"
+      echo "        -> Check              : deployed Cubelet build and resource-metrics plugin configuration"
     else
       echo " [WARN] Cubelet Resource Metrics returned HTTP 200 without sandbox series"
       echo "        -> Cubelet Version    : ${cubelet_ver}"
-      echo "        -> Cause              : idle v0.7.0-v0.7.2 node, disabled plugin/scope, or first sample not ready"
+      echo "        -> Check              : resource-metrics plugin configuration and first-sample readiness"
     fi
   elif [[ "${http_code}" == "404" ]]; then
     echo " [WARN] Cubelet Resource Metrics returned HTTP 404 (127.0.0.1:9998/v1/metrics/resource)"
     echo "        -> Cubelet Version    : ${cubelet_ver}"
-    echo "        -> Cause              : Cubelet without the /v1/metrics/resource route (typically < v0.7.0)"
+    echo "        -> Check              : deployed Cubelet build and resource-metrics endpoint configuration"
   else
     echo " [SKIP] Cubelet Resource Metrics (127.0.0.1:9998 not listening on this host; version=${cubelet_ver})"
   fi

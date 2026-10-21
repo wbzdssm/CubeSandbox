@@ -1,8 +1,8 @@
 # CubeObservability 与 OTel Collector 方案
 
-## 1. 目标与边界
+## 1. 目标
 
-本期目标是为沙箱提供统一的资源指标和标准输出/标准错误日志采集链路，同时保持
+本方案为沙箱提供统一的资源指标和标准输出/标准错误日志采集链路，同时保持
 Cubelet 轻量、后端可替换、标准部署默认关闭。
 
 采集范围：
@@ -10,16 +10,8 @@ Cubelet 轻量、后端可替换、标准部署默认关闭。
 - Cubelet `/v1/metrics/resource` 暴露的沙箱 CPU、内存和实例计数。
 - `/data/cubelet/log/<sandbox-id>/{stdout,stderr}` 中的沙箱标准输出/标准错误日志。
 
-不在本期范围：
-
-- 节点 CPU、内存、磁盘、网络等宿主机资源指标。
-- 控制面、平台组件、模板构建和 systemd 日志。
-- OCI Exec 独立日志文件、历史查询或 Grafana 维度。Exec 继续使用现有实时
-  stdout/stderr 返回链路。
-- CubeAPI / SDK 历史指标与日志查询接口。
-
 Prometheus、Grafana 和 Loki / Elasticsearch 日志后端可以一键部署，但只存储和
-展示上述沙箱数据。Loki 是默认和后续推荐选择，Elasticsearch 保留为可选后端。
+展示上述沙箱数据。Loki 是默认和推荐选择，Elasticsearch 保留为可选后端。
 
 ## 2. 当前数据源
 
@@ -33,10 +25,6 @@ Cubelet 在 `127.0.0.1:9998/v1/metrics/resource` 暴露 Prometheus 文本格式�
 | `cubesandbox_node_sandbox_available_count` | 当前有新鲜资源样本的沙箱数 |
 | `cubesandbox_host_sandbox_cpu_*` | 沙箱 cgroup CPU 累计时间、限额和节流 |
 | `cubesandbox_host_sandbox_memory_*` | 沙箱 cgroup 当前内存、限额和失败次数 |
-
-前两个节点计数指标属于本次开发改动；正式发布的 `v0.7.0 ~ v0.7.2` 尚未包含。
-存量版本只能在有活跃沙箱资源序列时通过 `count(...)` 回退估算，空节点无法返回稳定的
-`0`。
 
 默认 `host_sandbox` scope 表示按沙箱宿主侧 cgroup 记账，不等同于节点整体资源
 监控。Collector 只转发该接口的数据，不额外读取 `/proc` 或 `/sys`。
@@ -156,8 +144,6 @@ receivers:
 | one-click 计算节点 | systemd Collector | 推送到控制节点或显式外部地址 |
 | Kubernetes Helm | 计算节点 DaemonSet | Chart 内置后端或外部后端 |
 | Terraform 腾讯云 | 仅 CVM 沙箱计算节点 systemd Collector | Jumpserver 后端或外部后端 |
-| 存量 systemd 部署 | `CubeObservability/deploy/one-click/install.sh cvm` | 任意兼容后端 |
-| 存量 Kubernetes 部署 | `CubeObservability/deploy/kubernetes/install.sh` | 任意兼容后端 |
 
 所有标准部署入口默认关闭，通过以下配置启用：
 
@@ -169,8 +155,8 @@ receivers:
 或 `observability.logs.backend`（Helm）选择；独立 Kubernetes Collector 则只配置
 对应的 Loki OTLP 或 Elasticsearch endpoint。一次只启用一个日志后端。
 
-通用配置与 one-click 命令见 `CubeObservability/README_zh.md`，独立 Kubernetes
-Collector 命令见 `CubeObservability/deploy/kubernetes/README_zh.md`。
+通用配置、one-click 与独立 Kubernetes Collector 命令见
+[可观测性部署指南](../guide/observability.md)。
 
 ## 6. Grafana
 
@@ -198,16 +184,8 @@ Loki 只索引 `service_name`、`cubesandbox_cluster_id`、`host_name`，Sandbox
   CA 场景需先扩展该能力，不能通过关闭证书校验代替。
 - 日志正文可能含用户数据；应限制 Loki / Elasticsearch 与 Grafana 的网络访问和账号权限。
 
-## 8. 后续能力
+## 8. 扩展要求
 
-后续若扩展范围，应分别设计并显式启用，不能隐式混入当前管道：
-
-1. Cubelet、CubeMaster 等平台组件日志；每类组件使用独立 receiver/pipeline 并默认
-   关闭，字段、挂载和高基数约束见 `CubeObservability/README_zh.md` 的 4.5 节。
-2. CubeAPI / SDK 的历史指标与日志查询。
-3. 沙箱 rootfs 容量和 page cache 指标。
-4. OCI Exec 日志持久化的数据模型、保留策略和权限边界。
-5. Kubernetes Collector 状态目录的容量监控和清理策略。
-
-任何新增来源都应同时更新 Collector 配置、字段契约、双语文档、Grafana 看板和回归
-测试。
+扩展数据源时，应同时更新 Collector 配置、字段契约、双语文档、Grafana 看板和回归
+测试；组件日志的 receiver、字段、挂载和高基数约束见
+[可观测性部署指南](../guide/observability.md#45-扩展采集其他组件日志)。

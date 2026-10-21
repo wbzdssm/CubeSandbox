@@ -39,18 +39,15 @@ deploy the compute-node Collector, Prometheus, Loki, and Grafana. Loki is the
 default and recommended log backend; set
 `observability.logs.backend=elasticsearch` to use Elasticsearch instead.
 
-The Collector reads only Cubelet sandbox CPU/memory/count metrics and sandbox
-standard output (`stdout`) and standard error (`stderr`) logs. It does not
-collect host or control-plane telemetry, and it does not add separate OCI Exec
-logs.
+The Collector reads Cubelet sandbox CPU/memory/count metrics and sandbox
+standard output (`stdout`) and standard error (`stderr`) logs.
 See `observability` in [values.yaml](values.yaml) for endpoints, credentials,
 persistence, and retention settings.
 
-For an existing Kubernetes deployment that does not use this chart, use the
-[standalone Collector](../../../CubeObservability/deploy/kubernetes/README.md).
-Shared backend and
-Collector details are documented in the
-[CubeObservability guide](../../../CubeObservability/README.md).
+For a standalone Collector, use
+[`../observability/install.sh`](../observability/install.sh). Shared backend
+and Collector details are documented in the
+[observability guide](../../../docs/guide/observability.md).
 
 ## Architecture
 

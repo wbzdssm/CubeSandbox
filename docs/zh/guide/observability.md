@@ -1,6 +1,6 @@
 # CubeObservability：CubeSandbox 沙箱可观测性部署
 
-[English](./README.md) | 简体中文
+[English](../../guide/observability.md) | 简体中文
 
 CubeSandbox 的标准部署入口默认不安装可观测性组件。需要启用时，使用
 one-click / Terraform 的环境变量或 Helm Value；不提供额外的安装命令参数。
@@ -12,30 +12,28 @@ one-click / Terraform 的环境变量或 Helm Value；不提供额外的安装�
 - 日志：仅采集沙箱标准输出（stdout）与标准错误（stderr）日志，
   落盘路径为 `/data/cubelet/log/<sandbox-id>/{stdout,stderr}`。
 
-Prometheus、Grafana 和日志后端一键部署，暂时接收并展示上述沙箱可观测数据。
+Prometheus、Grafana 和日志后端一键部署，用于接收和展示上述沙箱可观测数据。
 日志后端同时支持 Loki 与 Elasticsearch，默认选择 Loki。
 
-可观测性部署文件按部署形态归档：
+目录按组件资产和部署职责划分：
 
+- Grafana 镜像构建与 Dashboard 源文件：`CubeObservability/`；
 - one-click、systemd 与腾讯云 Terraform：
-  `CubeObservability/deploy/one-click/`；
-- 独立 Kubernetes Collector：`CubeObservability/deploy/kubernetes/`；
+  `deploy/one-click/observability/`；
+- 独立 Kubernetes Collector：`deploy/kubernetes/observability/`；
 - Helm 内置 Collector 与后端：`deploy/kubernetes/chart/`。
 
-## 1. 兼容性、版本与安装前自检
+## 1. 能力、版本与安装前自检
 
-### 1.1 Cubelet 兼容矩阵
+### 1.1 Cubelet 能力基线
 
-| Cubelet 版本 | 本方案实际可采集内容 | 兼容性说明 |
-| --- | --- | --- |
-| 包含本次节点计数改动的后续发布版 | 沙箱 CPU/Memory 指标（逐沙箱序列带 `sandbox_id`；`guest_workload` 还带 `container_id`）、`cubesandbox_node_sandbox_count` / `available_count`、沙箱标准输出/标准错误日志 | 无活跃沙箱时节点计数仍返回 `0`；节点计数本身不携带 Sandbox ID。具体最低版本以承载该改动的正式发布说明为准。 |
-| `v0.7.1 ~ v0.7.2` | 带 `sandbox_id` 的沙箱 CPU/Memory 指标、沙箱标准输出/标准错误日志 | 正式版本均没有节点计数指标；看板用 `count(cubesandbox_host_sandbox_memory_current_bytes)` 回退。有活跃沙箱时可计数，空节点可能显示 No data，而不是 `0`。 |
-| `v0.7.0` | 带 `sandbox_id` 的沙箱 CPU/Memory 指标 | 没有节点计数指标；沙箱日志仍位于旧 bundle 路径，不符合本方案的 `/data/cubelet/log/<sandbox-id>/` 采集路径。需要日志监控时升级到 `>= v0.7.1`。 |
-| `< v0.7.0` | 不支持当前指标与日志 | 没有 `/v1/metrics/resource`，也没有当前标准沙箱日志路径；应先升级 Cubelet。 |
+本方案使用当前 Cubelet 提供的以下数据：
 
-当前 Cubelet 沙箱资源接口只提供 CPU/Memory 与实例计数，不提供 Network/Disk 指标；
-本方案也不通过 `hostmetrics` 补采节点指标。“全量宿主机指标”“全链路日志”不属于本期
-口径。
+- `/v1/metrics/resource` 暴露的沙箱 CPU/Memory 指标。逐沙箱序列带
+  `sandbox_id`，`guest_workload` 序列还带 `container_id`。
+- `cubesandbox_node_sandbox_count` 与
+  `cubesandbox_node_sandbox_available_count` 节点级 Gauge；无活跃沙箱时返回 `0`。
+- `/data/cubelet/log/<sandbox-id>/{stdout,stderr}` 中的沙箱标准输出/标准错误日志。
 
 完整指标名、类型、单位和标签以
 [CubeSandbox GitHub 沙箱资源指标文档](https://github.com/tencentcloud/CubeSandbox/blob/master/docs/zh/guide/resource-metrics.md)
@@ -46,8 +44,8 @@ Prometheus、Grafana 和日志后端一键部署，暂时接收并展示上述�
 
 #### 安装前自检
 
-存量节点或独立加装场景先执行以下命令。全新 one-click 安装尚无 Cubelet 时，先按
-[2.1](#21-one-click) 完成第一台节点安装，再执行同一组检查：
+Cubelet 安装完成后执行以下检查。全新 one-click 环境先按
+[2.1](#21-one-click) 完成第一台节点安装：
 
 ```bash
 # Cubelet version and service
@@ -65,9 +63,9 @@ SANDBOX_ID=019abc-example
 ls -l "/data/cubelet/log/${SANDBOX_ID}"/{stdout,stderr}
 ```
 
-没有活跃沙箱时，`sandbox_id` 检查可以没有输出。`v0.7.0 ~ v0.7.2` 的空节点也没有
-`cubesandbox_node_sandbox_*`；插件禁用或首次采样尚未完成时同样可能为空。应结合
-Cubelet 版本、插件配置和活跃沙箱状态判断。
+没有活跃沙箱时，`sandbox_id` 检查可以没有输出，两个
+`cubesandbox_node_sandbox_*` Gauge 应返回 `0`。插件未启用或首次采样尚未完成时，
+指标也可能为空，应结合插件配置和服务状态判断。
 
 ### 1.2 安装器版本与兼容基线
 
@@ -123,7 +121,8 @@ CUBE_LOGS_BACKEND=loki
 | --- | --- | --- |
 | one-click 第一台节点（默认 all-in-one） | `deploy/one-click/install.sh` | 设置 `ONE_CLICK_ENABLE_OBSERVABILITY=1` 后正常执行安装 |
 | one-click 计算节点 | `deploy/one-click/install-compute.sh` | 设置 `ONE_CLICK_ENABLE_OBSERVABILITY=1` 和第一台节点地址；仅安装节点 Collector |
-| Kubernetes Helm | `deploy/kubernetes/chart` | 安装或升级时传 `--set observability.enabled=true` |
+| one-click 存量部署 | 原 `install.sh` / `install-compute.sh` | 修改原 `.env` 后以 `--mode=upgrade --yes` 执行，详见 [2.1 C](#c-在-one-click-存量部署中启用) |
+| Kubernetes Helm | `deploy/kubernetes/chart` | 安装时传 `--set observability.enabled=true` |
 | Terraform 腾讯云 | `deploy/one-click/terraform/tencentcloud/create.sh` | 在 `.env` 中设置 `TENCENTCLOUD_ENABLE_OBSERVABILITY='true'` 后正常执行 `create.sh` |
 
 ### 2.1 one-click
@@ -145,8 +144,6 @@ cd deploy/one-click
 [[ -f .env ]] || cp env.example .env
 chmod 600 .env
 ```
-
-   升级已有环境时不要重新覆盖 `.env`，只修改现有文件中的目标键。
 
 2. 确认一张后续计算节点可访问的内网 IP，例如 `10.0.0.10`，然后在 `.env` 中设置：
 
@@ -185,7 +182,7 @@ grep '^CUBE_SANDBOX_NODE_IP=' \
 6. 在第一台节点验收：
 
 ```bash
-sudo /usr/local/services/cubetoolbox/CubeObservability/deploy/one-click/install.sh status
+sudo /usr/local/services/cubetoolbox/observability/install.sh status
 sudo systemctl --no-pager --full status cube-sandbox-otelcol.service
 curl -fsS http://127.0.0.1:9092/-/ready
 curl -fsS http://127.0.0.1:3100/ready
@@ -216,7 +213,7 @@ CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod
 CUBE_LOGS_BACKEND=loki
 ```
 
-   `ONE_CLICK_CONTROL_PLANE_IP` 就是已有第一台 CubeSandbox 节点的内网 IP，不是单独
+   `ONE_CLICK_CONTROL_PLANE_IP` 就是第一台 CubeSandbox 节点的内网 IP，不是单独
    新建的监控节点。`install-compute.sh` 会自动设置
    `ONE_CLICK_DEPLOY_ROLE=compute`，无需在 `.env` 中重复配置。没有显式外部 endpoint
    时，安装器会从该 IP 推导 Prometheus 和所选日志后端地址。
@@ -232,53 +229,43 @@ sudo journalctl -u cube-sandbox-otelcol.service -n 100 --no-pager
 4. 创建一个测试沙箱后，在第一台节点的 Grafana 中按 `node_id`、`sandbox_id` 查询；
    如果没有数据，先检查本机 `127.0.0.1:9998`、日志目录和到第一台节点所需端口。
 
-#### C. 存量 one-click 部署启用
+#### C. 在 one-click 存量部署中启用
 
-存量 one-click 节点应继续通过原安装入口启用，使开关和后端配置持久化到
-`.one-click.env`。不要直接编辑该运行时文件，也不要用整份 `env.example` 覆盖原
-`.env`。请使用包含 `CubeObservability/` 的同版本或更高版本 one-click 发布包，并按
-[1.1](#11-cubelet-兼容矩阵) 先确认 Cubelet 兼容性。
+使用包含可观测性部署文件的 one-click 发布包，并继续维护原安装目录中的 `.env`；
+不要用 `env.example` 覆盖现有配置，也不要直接编辑安装目录下生成的
+`.one-click.env`。
 
-下面使用仅包含本次变更的临时环境文件，安装器会把它与存量配置合并。先在第一台节点
-执行：
+1. 在第一台节点的 `.env` 中增加或更新：
 
-```bash
-cat > observability-upgrade.env <<'EOF'
+```dotenv
 ONE_CLICK_ENABLE_OBSERVABILITY=1
 CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod
 CUBE_LOGS_BACKEND=loki
-CUBE_GRAFANA_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD'
-EOF
-chmod 600 observability-upgrade.env
-
-sudo env ONE_CLICK_ENV_FILE="$PWD/observability-upgrade.env" \
-  ./install.sh --mode=upgrade --yes
-rm -f observability-upgrade.env
+CUBE_GRAFANA_ADMIN_PASSWORD='<strong-password>'
 ```
 
-执行前必须替换 Grafana 密码。`--mode=upgrade` 会保留现有配置，并在
-`/usr/local/services/cubetoolbox/.backup/` 下创建升级备份，但也会校验并更新
-CubeSandbox 主组件。如果只想旁路加装可观测性、不升级主栈，使用[第 3 节](#3-存量部署不升级主栈时独立加装)。
-
-第一台节点成功且 `9092`、`3100`（或 `9200`）可达后，再在每台存量计算节点执行：
+2. 使用原 one-click 入口执行升级：
 
 ```bash
-cat > observability-upgrade.env <<'EOF'
+sudo ./install.sh --mode=upgrade --yes
+```
+
+3. 第一台节点验收通过后，在每台计算节点的 `.env` 中增加或更新：
+
+```dotenv
 ONE_CLICK_CONTROL_PLANE_IP=10.0.0.10
 ONE_CLICK_ENABLE_OBSERVABILITY=1
 CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod
 CUBE_LOGS_BACKEND=loki
-EOF
-chmod 600 observability-upgrade.env
-
-sudo env ONE_CLICK_ENV_FILE="$PWD/observability-upgrade.env" \
-  ./install-compute.sh --mode=upgrade --yes
-rm -f observability-upgrade.env
 ```
 
-将 `10.0.0.10` 替换为第一台节点的可达内网 IP，并保持集群 ID 与日志后端一致。
-如果原发布目录仍保留受维护的 `.env`，也可以直接把相同键加入该文件后重跑升级；
-不要同时维护两份配置。升级完成后按 A、B 两节的命令验收。
+```bash
+sudo ./install-compute.sh --mode=upgrade --yes
+```
+
+将 `10.0.0.10` 替换为第一台节点的可达内网 IP，并确保所有节点使用相同的集群 ID
+和日志后端。上述命令会按原 `.env` 协调 one-click 主组件和可观测性组件，执行前应按
+现有运维流程备份配置。
 
 #### D. 在线安装
 
@@ -306,7 +293,7 @@ curl -fsSL https://raw.githubusercontent.com/tencentcloud/CubeSandbox/master/dep
 也不使用单独的监控参数。需要填写鉴权 Token 等敏感值时，优先下载 release 包后写入
 权限为 `0600` 的 `.env`，不要把秘密留在 shell 历史中。
 
-#### E. 外部后端与升级
+#### E. 外部后端
 
 ```dotenv
 ONE_CLICK_OBSERVABILITY_ROLE=auto
@@ -315,10 +302,8 @@ CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp
 CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp
 ```
 
-显式配置外部 endpoint 后，`auto` 只在节点安装 Collector，不再安装本地后端。升级时
-若检测到旧的 one-click Elasticsearch 且未显式选择，会继续使用 Elasticsearch；
-确认切换到 Loki 后设置 `CUBE_LOGS_BACKEND=loki`。安装器会停用旧 ES 服务，但不会
-迁移或删除其历史数据。外部后端的鉴权配置见[4.1](#41-核心环境变量与上报鉴权)。
+显式配置外部 endpoint 后，`auto` 只在节点安装 Collector，不再安装本地后端。
+外部后端的鉴权配置见[4.1](#41-核心环境变量与上报鉴权)。
 
 ### 2.2 Kubernetes Helm
 
@@ -327,21 +312,6 @@ CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp
 ```bash
 helm upgrade --install cube ./deploy/kubernetes/chart \
   -n cube-system --create-namespace \
-  -f /path/to/runtime-values.yaml \
-  --set observability.enabled=true \
-  --set observability.clusterId=k8s-prod \
-  --set observability.logs.backend=loki
-```
-
-存量 Helm release 使用同一个 `helm upgrade` 入口。先备份当前用户 Value，再使用原
-`runtime-values.yaml` 和包含可观测性模板的新 Chart 升级；不要只传可观测性参数而
-遗漏原数据库、Redis、存储或调度配置：
-
-```bash
-(umask 077; helm get values cube -n cube-system -o yaml > cube-values.before-observability.yaml)
-
-helm upgrade cube ./deploy/kubernetes/chart \
-  -n cube-system \
   -f /path/to/runtime-values.yaml \
   --set observability.enabled=true \
   --set observability.clusterId=k8s-prod \
@@ -476,25 +446,15 @@ TENCENTCLOUD_ENABLE_OBSERVABILITY=true bash ./create.sh
 `CUBE_LOGS_BACKEND='elasticsearch'`，或执行
 `CUBE_LOGS_BACKEND=elasticsearch TENCENTCLOUD_ENABLE_OBSERVABILITY=true bash ./create.sh`。
 
-存量 Terraform 部署应在原 Terraform 工作目录和 state 上修改同一份 `.env`，然后
-重跑 `bash ./create.sh`。脚本会先按现有 state 对基础设施执行幂等 reconcile，再在
-跳板机安装后端并为现有 CVM 计算节点安装 Collector；不要逐台手工调用 one-click
-安装器。执行前应按现有运维流程备份 Terraform state，并审阅脚本输出的变更。
+该形态在跳板机部署后端，并在 CVM 沙箱计算节点部署 Collector。
 
-该形态在跳板机部署后端，只在 CVM 沙箱计算节点部署 Collector；不采集 TKE
-控制面工作负载。
+## 3. 独立安装（可选）
 
-## 3. 存量部署：不升级主栈时独立加装
-
-本节适用于未由当前 one-click / Helm / Terraform 管理的存量部署，或者暂时不希望升级
-CubeSandbox 主栈、只想旁路安装可观测性组件的场景。独立安装器只管理
+不使用 one-click / Helm / Terraform 标准入口时，也可以直接安装可观测性组件。
+独立安装器管理
 `cube-sandbox-otelcol`、Prometheus、Loki/Elasticsearch 和 Grafana，不修改
 CubeMaster、Cubelet 等主服务。
-
-标准 one-click 存量部署优先使用 [2.1 C](#c-存量-one-click-部署启用)，否则以后以
-`ONE_CLICK_ENABLE_OBSERVABILITY=0` 重跑 one-click 时，独立加装的组件会被按关闭状态
-清理。开始前先执行[安装前自检](#安装前自检)，并选定一台其他计算节点可访问的后端
-节点。
+开始前先执行[安装前自检](#安装前自检)，并选定一台其他计算节点可访问的后端节点。
 
 ### 3.1 单节点或第一台后端节点
 
@@ -505,7 +465,7 @@ sudo env \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_LOGS_BACKEND=loki \
   CUBE_GRAFANA_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
-  ./CubeObservability/deploy/one-click/install.sh all
+  ./deploy/one-click/observability/install.sh all
 ```
 
 如果该节点只承载后端、不运行沙箱，则不安装本机 Collector：
@@ -515,7 +475,7 @@ sudo env \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_LOGS_BACKEND=loki \
   CUBE_GRAFANA_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
-  ./CubeObservability/deploy/one-click/install.sh backend
+  ./deploy/one-click/observability/install.sh backend
 ```
 
 执行前必须替换 Grafana 密码。选择 Elasticsearch 时将
@@ -531,7 +491,7 @@ sudo env \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp \
   CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp \
-  ./CubeObservability/deploy/one-click/install.sh cvm
+  ./deploy/one-click/observability/install.sh cvm
 ```
 
 Elasticsearch 场景删除 `CUBE_LOGS_OTLP_HTTP_ENDPOINT`，改为：
@@ -542,38 +502,50 @@ sudo env \
   CUBE_LOGS_BACKEND=elasticsearch \
   CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp \
   CUBE_LOGS_ES_ENDPOINT=http://10.0.0.10:9200 \
-  ./CubeObservability/deploy/one-click/install.sh cvm
+  ./deploy/one-click/observability/install.sh cvm
 ```
 
 外部后端需要 Token、租户 Header、ES API Key 或 Basic Auth 时，按
 [4.1](#41-核心环境变量与上报鉴权) 增加对应环境变量。
 
-### 3.3 未使用本 Chart 的存量 Kubernetes 集群
+### 3.3 Kubernetes 独立 Collector
 
-独立安装 Collector DaemonSet，并指向已有后端：
+命名空间必须已存在，目标计算节点必须带有
+`cube.tencent.com/cube-node=true` 标签；Cubelet 必须在宿主机网络命名空间监听
+`127.0.0.1:9998`。
+
+```bash
+kubectl get namespace cube-system >/dev/null 2>&1 || \
+  kubectl create namespace cube-system
+kubectl label node <计算节点名称> cube.tencent.com/cube-node=true --overwrite
+```
+
+然后安装 Collector DaemonSet，并指向指定后端：
 
 ```bash
 env \
-  CUBE_LOGS_BACKEND=loki \
   CUBE_METRICS_NAMESPACE=cube-system \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp \
   CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp \
-  ./CubeObservability/deploy/kubernetes/install.sh install
+  ./deploy/kubernetes/observability/install.sh install
 ```
 
 ### 3.4 验收与卸载
 
 ```bash
-# systemd / CVM
-sudo ./CubeObservability/deploy/one-click/install.sh status
+# systemd all-in-one 完整安装
+sudo ./deploy/one-click/observability/install.sh status
+
+# 仅安装 Collector 的 systemd 计算节点
+sudo systemctl --no-pager --full status cube-sandbox-otelcol.service
 
 # Remove independently installed systemd components; data directories are retained.
-sudo ./CubeObservability/deploy/one-click/install.sh uninstall all
+sudo ./deploy/one-click/observability/install.sh uninstall all
 
 # Kubernetes
 kubectl -n cube-system rollout status daemonset/cube-node-otelcol
-./CubeObservability/deploy/kubernetes/install.sh uninstall
+./deploy/kubernetes/observability/install.sh uninstall
 ```
 
 ## 4. OTel Collector 配置
@@ -587,8 +559,7 @@ kubectl -n cube-system rollout status daemonset/cube-node-otelcol
 
 表中的名称来自 systemd/独立 Kubernetes 生成器；Helm 使用功能相同的
 `prometheus/cubelet_resource_metrics`、`filelog/sandbox_stdio` 和 `logs` 名称。
-实现细节见 [systemd 设计](deploy/one-click/otel-systemd/方案.md) 与
-[Kubernetes 设计](deploy/kubernetes/README_zh.md)。
+实现细节见 [OTel 方案设计](../dev/sandbox-otel-recommendation.md)。
 
 ### 4.1 核心环境变量与上报鉴权
 
@@ -612,9 +583,8 @@ kubectl -n cube-system rollout status daemonset/cube-node-otelcol
 | `CUBE_LOGS_SANDBOX_ID` | `*` | `019abc-example` | systemd 形态可限制为一个沙箱 ID |
 | `CUBE_LOGS_FILE_START_AT` | `beginning` | `end` | 仅 systemd：首次读取位置，可选 `beginning` 或 `end` |
 
-内置 Grafana provisioning 会复用上述指标/日志凭证配置数据源。对已有 Grafana 执行
-`grafana/install.sh dashboards` 时会按 UID 创建或更新数据源，轮换 endpoint 或凭证
-不会继续保留旧的数据源配置。
+内置 Grafana provisioning 会复用上述指标/日志凭证配置数据源。执行
+`grafana/install.sh dashboards` 时会按 UID 创建或更新数据源。
 
 Terraform 形态未显式设置 `CUBE_OBSERVABILITY_CLUSTER_ID` 时，会优先使用 Terraform
 输出的 TKE cluster ID；无法取得时才回退到 `cubesandbox`。
@@ -687,8 +657,8 @@ CUBE_LOGS_AUTHORIZATION='Bearer <logs-token>'
 
 | 形态 | 安装后的配置位置 | 使用已配置变量查看渲染结果 |
 | --- | --- | --- |
-| systemd | `/etc/cube-sandbox/otelcol.yaml` | `./CubeObservability/deploy/one-click/install.sh render cvm` |
-| 独立 Kubernetes 脚本 | ConfigMap `cube-node-otelcol` | `./CubeObservability/deploy/kubernetes/install.sh render` |
+| systemd | `/etc/cube-sandbox/otelcol.yaml` | `./deploy/one-click/observability/install.sh render cvm` |
+| 独立 Kubernetes 脚本 | ConfigMap `cube-node-otelcol` | `./deploy/kubernetes/observability/install.sh render` |
 | Helm | ConfigMap `<release>-node-otelcol-config` | 使用下方 `helm template` 命令 |
 
 Helm 使用 `values.yaml` / `--set` 中的 `observability.*` Value，不会自动读取
@@ -720,7 +690,7 @@ helm template cube ./deploy/kubernetes/chart \
 
 这是渲染结果示例，不是需要再次维护的配置模板。`render` 和 `install` 都会自动将
 已经配置的环境变量写入 YAML，并补全鉴权、队列和节点标签；无需手工替换下面的
-示例值。环境变量变更后重新执行安装或升级即可重新生成配置。
+示例值。环境变量变更后重新执行安装即可重新生成配置。
 
 ```yaml
 receivers:
@@ -853,13 +823,12 @@ service:
 
 | 类型 | 当前支持规则 | 可配置入口 |
 | --- | --- | --- |
-| 沙箱指标 | 只抓取本机 Cubelet `/v1/metrics/resource`；当前包含沙箱 CPU、Memory 和版本支持时的节点沙箱计数 | 集群/节点标签、OTLP 或 Remote Write 目标；Helm 还可配置 `observability.otelCollector.scrapeInterval` |
+| 沙箱指标 | 只抓取本机 Cubelet `/v1/metrics/resource`；包含沙箱 CPU、Memory 和节点沙箱计数 | 集群/节点标签、OTLP 或 Remote Write 目标；Helm 还可配置 `observability.otelCollector.scrapeInterval` |
 | 沙箱日志 | 按行读取 `/data/cubelet/log/<sandbox-id>/{stdout,stderr}`，从路径提取 Sandbox ID 和 stdout/stderr | 默认通过 OTLP 写 Loki，也可写 Elasticsearch；systemd 可通过 `CUBE_LOGS_SANDBOX_ID` 和 `CUBE_LOGS_FILE_START_AT` 控制范围与首次读取位置 |
 | 状态与重试 | filelog 游标和 OTLP 队列使用 `file_storage`；Remote Write 使用 WAL；Elasticsearch 使用内存队列且最多重试 5 次 | systemd 文件状态保存在宿主机目录；Kubernetes 按节点保存在 `/var/lib/cube-sandbox/otelcol-k8s` |
 
-不采集宿主机指标、控制面日志、systemd 日志、模板日志或 OCI Exec 独立日志。日志
-Receiver 不做 JSON 或多行合并解析，`Body` 保留每一行的原始内容；单条日志记录的内置
-上限在 systemd 和独立 Kubernetes 脚本中设置为 `1MiB`。
+日志 Receiver 按行保留原始 `Body`；单条日志记录的内置上限在 systemd 和独立
+Kubernetes 脚本中设置为 `1MiB`。
 
 两个后端都保留以下语义字段（Loki 会把 OTel 属性名中的 `.` 规范化为 `_`）：
 
@@ -905,7 +874,7 @@ cubesandbox_sandbox_id:"<sandbox-id>"
 | 参数 | 当前内置值 | 建议 |
 | --- | --- | --- |
 | 指标抓取周期 / 超时 | systemd、独立 K8s：`5s / 3s`；Helm：`15s / 10s` | systemd/独立 K8s 保持内置值；Helm 周期不得小于固定的 `10s` 超时，较大规模建议保留默认 `15s` |
-| `CUBE_LOGS_FILE_START_AT`（仅 systemd） | `beginning` | 新部署保留 `beginning`；在已有大量历史日志的节点加装时建议使用 `end` |
+| `CUBE_LOGS_FILE_START_AT`（仅 systemd） | `beginning` | 需要读取当前文件全部内容时保留 `beginning`；只采集 Collector 启动后新增内容时使用 `end` |
 | `CUBE_LOGS_SANDBOX_ID`（仅 systemd） | `*` | 正常运行保持 `*`；只在单沙箱排障或临时降低日志量时指定 ID |
 | Memory limiter | 固定 `256MiB`；Kubernetes Pod memory request/limit 为 `128Mi / 512Mi` | 先使用默认值；仅提高 Pod limit 不会改变 limiter，目前安装器未提供 limiter 调参入口 |
 | Batch | `1024` 条；systemd/独立 K8s 超时 `2s`，Helm 超时 `5s` | 低延迟优先保持当前值；不要直接修改生成文件，后续重新安装会覆盖手工修改 |
@@ -947,27 +916,25 @@ Helm 内置 Prometheus、所选日志后端和 Grafana 默认使用 PVC。可在
 # Any memory-limit failure during the last five minutes
 increase(cubesandbox_host_sandbox_memory_failures_total[5m]) > 0
 
-# Newer Cubelet only: a sandbox exists but its resource sample is unavailable
+# A sandbox exists but its resource sample is unavailable
 cubesandbox_node_sandbox_count
   - cubesandbox_node_sandbox_available_count > 0
 ```
 
-CPU/Memory 百分比表达式只适用于导出了有限资源上限的沙箱；节点计数表达式只适用于
-包含节点计数指标的后续 Cubelet 发布版。
+CPU/Memory 百分比表达式只适用于导出了有限资源上限的沙箱。
 
-### 4.5 扩展采集其他组件日志（默认不启用）
+### 4.5 扩展采集其他组件日志
 
-当前安装器仍只采集沙箱标准输出/标准错误日志。下面是新增 Cubelet、CubeMaster 等组件日志时的
-扩展约定，不代表这些日志已默认启用。不要直接修改安装后的
-`/etc/cube-sandbox/otelcol.yaml` 或 ConfigMap：重新安装/升级会覆盖生成文件，应修改
+扩展 Cubelet、CubeMaster 等组件日志时，按下面的约定修改对应生成器。不要直接修改
+安装后的 `/etc/cube-sandbox/otelcol.yaml` 或 ConfigMap：重新安装会覆盖生成文件，应修改
 对应生成器并纳入测试。
 
 三个部署形态的修改入口分别是：
 
-- systemd：`CubeObservability/deploy/one-click/otel-systemd/install.sh` 中的
+- systemd：`deploy/one-click/observability/otel-systemd/install.sh` 中的
   `write_otel_config()`；确认 Collector 运行用户对新增路径只有必要的只读权限。
 - 独立 Kubernetes：
-  `CubeObservability/deploy/kubernetes/install.sh` 中的 `k8s_config()` 和
+  `deploy/kubernetes/observability/install.sh` 中的 `k8s_config()` 和
   DaemonSet `volumeMounts` / `hostPath`；新增宿主机目录必须只读挂载。
 - Helm：`deploy/kubernetes/chart/templates/observability.yaml` 中的 Collector
   ConfigMap、`volumeMounts` 与 `volumes`；同时在 `values.yaml` 暴露明确开关，默认
@@ -991,7 +958,7 @@ Loki 使用 `otlp_http/logs`，选择 Elasticsearch 时改为
 ```yaml
 receivers:
   filelog/component_cubelet:
-    # Collect only new records when enabling an existing node.
+    # Collect only records written after the Collector starts.
     include:
       - /data/log/Cubelet/*.log
     exclude:
@@ -1053,7 +1020,7 @@ Grafana 自动加载两张 sandbox-only 看板：
   `cubesandbox-logs`），查询条件改为 Lucene。
 
 one-click/systemd 安装后可用
-`sudo ./CubeObservability/deploy/one-click/install.sh status` 检查 Collector 与后端，并用
+`sudo ./deploy/one-click/observability/install.sh status` 检查 Collector 与后端，并用
 `curl -fsS http://127.0.0.1:3100/ready` 检查默认 Loki；选择 Elasticsearch 时使用
 `curl -fsS 'http://127.0.0.1:9200/cubesandbox-logs*/_count'`。沙箱销毁会删除本地
 日志目录，因此 Collector 必须在沙箱存活期间持续 tail 并写入远端后端。

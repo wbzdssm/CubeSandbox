@@ -5838,10 +5838,8 @@ main() {
 	if [ "${TENCENTCLOUD_ENABLE_OBSERVABILITY:-false}" = "true" ]; then
 		banner "Step: Deploy observability stack (Prometheus + ${CUBE_LOGS_BACKEND:-loki} + Grafana + OTel Collector)"
 		local obs_tf_installer=""
-		if [ -f "${SCRIPT_DIR}/../../CubeObservability/deploy/one-click/install.sh" ]; then
-			obs_tf_installer="${SCRIPT_DIR}/../../CubeObservability/deploy/one-click/install.sh"
-		elif [ -f "${SCRIPT_DIR}/../../../../CubeObservability/deploy/one-click/install.sh" ]; then
-			obs_tf_installer="${SCRIPT_DIR}/../../../../CubeObservability/deploy/one-click/install.sh"
+		if [ -f "${SCRIPT_DIR}/../../observability/install.sh" ]; then
+			obs_tf_installer="${SCRIPT_DIR}/../../observability/install.sh"
 		fi
 		if [ -n "${obs_tf_installer}" ]; then
 			CUBE_TERRAFORM_DIR="${SCRIPT_DIR}" \
@@ -5853,7 +5851,7 @@ main() {
 				exit 1
 			}
 		else
-			echo -e "${RED}✗ Observability is enabled, but the CubeObservability installer was not found.${NC}"
+			echo -e "${RED}✗ Observability is enabled, but observability/install.sh was not found.${NC}"
 			exit 1
 		fi
 	fi

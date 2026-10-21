@@ -214,7 +214,7 @@ curl -fsSL https://raw.githubusercontent.com/tencentcloud/CubeSandbox/master/dep
 已有 ES 平台或需要复杂全文检索时可选择 Elasticsearch。安装器一次只启用一个日志
 后端，不默认双写。
 组件版本、Collector 配置、外部后端和运维命令见
-[CubeObservability 中文说明](../../CubeObservability/README_zh.md)。
+[可观测性部署指南](../../docs/zh/guide/observability.md)。
 
 one-click 固定安装到 `/usr/local/services/cubetoolbox`。
 

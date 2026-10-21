@@ -2,7 +2,7 @@
 
 CubeSandbox sandbox observability deployment and operations.
 
-English | [简体中文](./README_zh.md)
+English | [简体中文](../zh/guide/observability.md)
 
 All standard CubeSandbox deployment entrypoints leave observability disabled by
 default. Enable it through the one-click / Terraform environment files or the
@@ -15,38 +15,34 @@ Collection is intentionally sandbox-only:
 - Logs: only sandbox standard output (`stdout`) and standard error (`stderr`)
   logs at
   `/data/cubelet/log/<sandbox-id>/{stdout,stderr}`.
-- Host resource metrics, template logs, platform component logs, and journald
-  are not collected.
-- Separate OCI Exec log persistence is out of scope. Existing live Exec
-  stdout/stderr behavior is unchanged.
 
-Prometheus, Grafana, and the selected log backend can still be deployed as a
-bundle, but they receive and display only the sandbox telemetry above. Both
-Loki and Elasticsearch are supported; Loki is the default.
+Prometheus, Grafana, and the selected log backend can be deployed as a bundle
+to receive and display the sandbox telemetry above. Both Loki and
+Elasticsearch are supported; Loki is the default.
 
-Deployment assets are owned by their deployment topology:
+Repository ownership follows component and deployment responsibilities:
 
+- Grafana image build and dashboard sources: `CubeObservability/`;
 - one-click, systemd, and Tencent Cloud Terraform:
-  `CubeObservability/deploy/one-click/`;
+  `deploy/one-click/observability/`;
 - standalone Kubernetes Collector:
-  `CubeObservability/deploy/kubernetes/`;
+  `deploy/kubernetes/observability/`;
 - Helm-integrated Collector and backends: `deploy/kubernetes/chart/`.
 
-## 1. Compatibility, versions, and preflight
+## 1. Capabilities, versions, and preflight
 
-### 1.1 Cubelet compatibility
+### 1.1 Cubelet capability baseline
 
-| Cubelet version | Telemetry available to this solution | Compatibility notes |
-| --- | --- | --- |
-| A future release containing the node-count change | Sandbox CPU/Memory metrics (each per-sandbox series has `sandbox_id`; `guest_workload` also has `container_id`), `cubesandbox_node_sandbox_count` / `available_count`, and sandbox `stdout`/`stderr` logs | Node counts remain present with value `0` when no sandbox is active. Node counts do not carry Sandbox IDs. Use the eventual release notes to determine the exact minimum released version. |
-| `v0.7.1 ~ v0.7.2` | Sandbox CPU/Memory metrics with `sandbox_id`, and sandbox `stdout`/`stderr` logs | These released versions have no node-count metrics. The dashboard falls back to `count(cubesandbox_host_sandbox_memory_current_bytes)`; it can count active series but an idle node may show No data rather than `0`. |
-| `v0.7.0` | Sandbox CPU/Memory metrics with `sandbox_id` | Node-count metrics are absent, and logs still use the legacy bundle path instead of `/data/cubelet/log/<sandbox-id>/`. Upgrade to `>= v0.7.1` for log collection. |
-| `< v0.7.0` | Not supported by the current metrics or logs pipelines | Upgrade Cubelet before enabling this solution. |
+This solution uses the following data from the current Cubelet:
 
-The current Cubelet endpoint exposes sandbox CPU/Memory metrics and instance
-counts only. It does not expose Network/Disk metrics, and this solution does
-not add node metrics through `hostmetrics`. “Full host metrics” and
-“end-to-end platform logs” are outside the current scope.
+- Sandbox CPU and memory metrics from `/v1/metrics/resource`. Each per-sandbox
+  series carries `sandbox_id`; `guest_workload` series also carry
+  `container_id`.
+- The node-level `cubesandbox_node_sandbox_count` and
+  `cubesandbox_node_sandbox_available_count` gauges. Both return `0` when no
+  sandbox is active.
+- Sandbox `stdout` and `stderr` logs from
+  `/data/cubelet/log/<sandbox-id>/{stdout,stderr}`.
 
 For the complete metric names, types, units, and labels, see the
 [CubeSandbox resource metrics guide on GitHub](https://github.com/tencentcloud/CubeSandbox/blob/master/docs/guide/resource-metrics.md).
@@ -58,9 +54,8 @@ do not contain a list of Sandbox IDs.
 
 #### Preflight
 
-Run these checks before adding observability to an existing node. On a fresh
-one-click node with no Cubelet yet, complete the first-node steps in
-[2.1](#21-one-click), then run the same checks:
+Run these checks after Cubelet is installed. For a new one-click environment,
+complete the first-node steps in [2.1](#21-one-click) first:
 
 ```bash
 # Cubelet version and service
@@ -78,11 +73,10 @@ SANDBOX_ID=019abc-example
 ls -l "/data/cubelet/log/${SANDBOX_ID}"/{stdout,stderr}
 ```
 
-The `sandbox_id` check can be empty when no sandbox is active. Idle nodes on
-`v0.7.0` through `v0.7.2` also have no `cubesandbox_node_sandbox_*` series.
-A disabled plugin or pending first sample can produce an empty result as well;
-interpret the output together with the Cubelet version, plugin configuration,
-and active-sandbox state.
+The `sandbox_id` check can be empty when no sandbox is active; both
+`cubesandbox_node_sandbox_*` gauges should still return `0`. A disabled plugin
+or pending first sample can also produce an empty result, so interpret it
+together with the plugin configuration and service state.
 
 ### 1.2 Installer versions and external compatibility baselines
 
@@ -143,6 +137,7 @@ and [Elasticsearch Query DSL](https://www.elastic.co/docs/explore-analyze/query-
 | --- | --- | --- |
 | first one-click node (all-in-one by default) | `deploy/one-click/install.sh` | Set `ONE_CLICK_ENABLE_OBSERVABILITY=1`, then run the normal installer |
 | one-click compute node | `deploy/one-click/install-compute.sh` | Set `ONE_CLICK_ENABLE_OBSERVABILITY=1` and the first-node address; only the node Collector is installed |
+| existing one-click deployment | original `install.sh` / `install-compute.sh` | Update the original `.env`, then run with `--mode=upgrade --yes`; see [2.1 C](#c-enable-observability-in-an-existing-one-click-deployment) |
 | Kubernetes Helm | `deploy/kubernetes/chart` | Pass `--set observability.enabled=true` |
 | Tencent Cloud Terraform | `deploy/one-click/terraform/tencentcloud/create.sh` | Set `TENCENTCLOUD_ENABLE_OBSERVABILITY='true'` in `.env`, then run `create.sh` |
 
@@ -166,9 +161,6 @@ cd deploy/one-click
 [[ -f .env ]] || cp env.example .env
 chmod 600 .env
 ```
-
-   Do not overwrite an existing `.env` during an upgrade. Change only the
-   intended keys in the current file.
 
 2. Choose a private IP reachable from later compute nodes, such as
    `10.0.0.10`, and set:
@@ -210,7 +202,7 @@ grep '^CUBE_SANDBOX_NODE_IP=' \
 6. Verify the first node:
 
 ```bash
-sudo /usr/local/services/cubetoolbox/CubeObservability/deploy/one-click/install.sh status
+sudo /usr/local/services/cubetoolbox/observability/install.sh status
 sudo systemctl --no-pager --full status cube-sandbox-otelcol.service
 curl -fsS http://127.0.0.1:9092/-/ready
 curl -fsS http://127.0.0.1:3100/ready
@@ -243,8 +235,8 @@ CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod
 CUBE_LOGS_BACKEND=loki
 ```
 
-   `ONE_CLICK_CONTROL_PLANE_IP` is the existing first CubeSandbox node's
-   private IP, not a newly created monitoring node. `install-compute.sh`
+   `ONE_CLICK_CONTROL_PLANE_IP` is the first CubeSandbox node's private IP,
+   not a newly created monitoring node. `install-compute.sh`
    exports `ONE_CLICK_DEPLOY_ROLE=compute` automatically, so do not repeat it
    in `.env`. With no explicit external endpoints, the installer derives the
    Prometheus and selected log-backend addresses from this IP.
@@ -261,60 +253,46 @@ sudo journalctl -u cube-sandbox-otelcol.service -n 100 --no-pager
    the first node. If no data arrives, first check local `127.0.0.1:9998`, the
    log path, and connectivity to the required first-node ports.
 
-#### C. Enable an existing one-click deployment
+#### C. Enable observability in an existing one-click deployment
 
-Keep using the original one-click entrypoints so the desired state and backend
-settings are persisted to `.one-click.env`. Do not edit that runtime file
-directly, and do not replace an existing `.env` with the full `env.example`.
-Use a same-version or newer one-click release that contains
-`CubeObservability/`, and check Cubelet compatibility in
-[1.1](#11-cubelet-compatibility) first.
+Use a one-click release that contains the observability deployment files and
+keep maintaining the `.env` in the original installation directory. Do not
+overwrite it with `env.example`, and do not edit the generated
+`.one-click.env` directly.
 
-The following minimal environment file is merged with the existing
-configuration. Run this on the first node:
+1. Add or update these values in `.env` on the first node:
 
-```bash
-cat > observability-upgrade.env <<'EOF'
+```dotenv
 ONE_CLICK_ENABLE_OBSERVABILITY=1
 CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod
 CUBE_LOGS_BACKEND=loki
-CUBE_GRAFANA_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD'
-EOF
-chmod 600 observability-upgrade.env
-
-sudo env ONE_CLICK_ENV_FILE="$PWD/observability-upgrade.env" \
-  ./install.sh --mode=upgrade --yes
-rm -f observability-upgrade.env
+CUBE_GRAFANA_ADMIN_PASSWORD='<strong-password>'
 ```
 
-Replace the Grafana password before running the command. `--mode=upgrade`
-preserves the existing configuration and creates an upgrade backup under
-`/usr/local/services/cubetoolbox/.backup/`, but it also validates and updates
-the main CubeSandbox components. To add observability without upgrading the
-main stack, use [section 3](#3-existing-deployments-standalone-add-on-without-a-main-stack-upgrade).
-
-After the first node succeeds and `9092` plus `3100` (or `9200`) are reachable,
-run this on every existing compute node:
+2. Run the original one-click entrypoint in upgrade mode:
 
 ```bash
-cat > observability-upgrade.env <<'EOF'
+sudo ./install.sh --mode=upgrade --yes
+```
+
+3. After verifying the first node, add or update these values in `.env` on
+   every compute node:
+
+```dotenv
 ONE_CLICK_CONTROL_PLANE_IP=10.0.0.10
 ONE_CLICK_ENABLE_OBSERVABILITY=1
 CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod
 CUBE_LOGS_BACKEND=loki
-EOF
-chmod 600 observability-upgrade.env
-
-sudo env ONE_CLICK_ENV_FILE="$PWD/observability-upgrade.env" \
-  ./install-compute.sh --mode=upgrade --yes
-rm -f observability-upgrade.env
 ```
 
-Replace `10.0.0.10` with the first node's reachable private IP, and keep the
-cluster ID and log backend identical. If the original release directory still
-has a maintained `.env`, add the same keys there and rerun the upgrade instead;
-do not maintain two configuration sources. Verify the result with the commands
-in sections A and B.
+```bash
+sudo ./install-compute.sh --mode=upgrade --yes
+```
+
+Replace `10.0.0.10` with the first node's reachable private IP, and use the
+same cluster ID and log backend on every node. These commands reconcile the
+one-click stack and observability components from the original `.env`; back up
+the configuration through the normal operations process before running them.
 
 #### D. Online installation
 
@@ -344,7 +322,7 @@ is not a separate deployment topology. For authentication tokens and other
 secrets, prefer downloading the release and storing values in a mode-`0600`
 `.env` rather than leaving secrets in shell history.
 
-#### E. External backends and upgrades
+#### E. External backends
 
 ```dotenv
 ONE_CLICK_OBSERVABILITY_ROLE=auto
@@ -354,11 +332,9 @@ CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp
 ```
 
 With explicit external endpoints, `auto` installs only the node Collector, not
-local backends. During an upgrade, an existing one-click Elasticsearch service
-is preserved when no backend is selected. To switch, set
-`CUBE_LOGS_BACKEND=loki`; the installer disables the old ES service but does
-not migrate or delete its data. See [4.1](#41-core-environment-variables-and-export-authentication)
-for external-backend authentication.
+local backends. See
+[4.1](#41-core-environment-variables-and-export-authentication) for
+external-backend authentication.
 
 ### 2.2 Kubernetes Helm
 
@@ -367,22 +343,6 @@ Deploy the in-cluster backend and the compute-node Collector:
 ```bash
 helm upgrade --install cube ./deploy/kubernetes/chart \
   -n cube-system --create-namespace \
-  -f /path/to/runtime-values.yaml \
-  --set observability.enabled=true \
-  --set observability.clusterId=k8s-prod \
-  --set observability.logs.backend=loki
-```
-
-For an existing Helm release, use the same `helm upgrade` entrypoint. Back up
-the current user values, then upgrade with the original `runtime-values.yaml`
-and a new chart that contains the observability templates. Do not omit the
-existing database, Redis, storage, or placement configuration:
-
-```bash
-(umask 077; helm get values cube -n cube-system -o yaml > cube-values.before-observability.yaml)
-
-helm upgrade cube ./deploy/kubernetes/chart \
-  -n cube-system \
   -f /path/to/runtime-values.yaml \
   --set observability.enabled=true \
   --set observability.clusterId=k8s-prod \
@@ -524,31 +484,17 @@ Loki is installed by default. To use Elasticsearch, set
 `CUBE_LOGS_BACKEND='elasticsearch'` in `.env`, or run
 `CUBE_LOGS_BACKEND=elasticsearch TENCENTCLOUD_ENABLE_OBSERVABILITY=true bash ./create.sh`.
 
-For an existing Terraform deployment, modify the same `.env` in the original
-Terraform working directory and rerun `bash ./create.sh` against the existing
-state. The script reconciles infrastructure from that state, then installs the
-backend on the jumpserver and Collectors on existing CVM compute nodes. Do not
-invoke the one-click installer manually on each node. Back up Terraform state
-through the deployment's normal operations workflow and review the reported
-changes first.
+This topology installs the backend on the jumpserver and Collectors on CVM
+sandbox compute nodes.
 
-This topology installs the backend on the jumpserver and Collectors only on CVM
-sandbox compute nodes. TKE control-plane workloads are not collected.
+## 3. Standalone installation (optional)
 
-## 3. Existing deployments: standalone add-on without a main-stack upgrade
-
-Use this section when the existing deployment is not managed by the current
-one-click / Helm / Terraform entrypoints, or when the main CubeSandbox stack
-must not be upgraded yet. The standalone installer manages only
-`cube-sandbox-otelcol`, Prometheus, Loki/Elasticsearch, and Grafana. It does not
-modify CubeMaster, Cubelet, or other main services.
-
-For a standard one-click deployment, prefer
-[2.1 C](#c-enable-an-existing-one-click-deployment). A later one-click run with
-`ONE_CLICK_ENABLE_OBSERVABILITY=0` otherwise reconciles the independently
-installed components as disabled and removes their services. Run the
-[preflight](#preflight) first, then choose a backend node reachable from the
-other compute nodes.
+When the one-click, Helm, and Terraform entrypoints are not used, the
+observability components can also be installed directly. The standalone
+installer manages `cube-sandbox-otelcol`, Prometheus, Loki/Elasticsearch, and
+Grafana without modifying CubeMaster, Cubelet, or other main services.
+Run the [preflight](#preflight) first, then choose a backend node reachable
+from the other compute nodes.
 
 ### 3.1 Single node or first backend node
 
@@ -560,7 +506,7 @@ sudo env \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_LOGS_BACKEND=loki \
   CUBE_GRAFANA_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
-  ./CubeObservability/deploy/one-click/install.sh all
+  ./deploy/one-click/observability/install.sh all
 ```
 
 If that node hosts only the backend and runs no sandboxes, omit the local
@@ -571,7 +517,7 @@ sudo env \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_LOGS_BACKEND=loki \
   CUBE_GRAFANA_ADMIN_PASSWORD='REPLACE_WITH_STRONG_PASSWORD' \
-  ./CubeObservability/deploy/one-click/install.sh backend
+  ./deploy/one-click/observability/install.sh backend
 ```
 
 Replace the Grafana password before running either command. To use
@@ -588,7 +534,7 @@ sudo env \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp \
   CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp \
-  ./CubeObservability/deploy/one-click/install.sh cvm
+  ./deploy/one-click/observability/install.sh cvm
 ```
 
 For Elasticsearch, remove `CUBE_LOGS_OTLP_HTTP_ENDPOINT` and use:
@@ -599,39 +545,51 @@ sudo env \
   CUBE_LOGS_BACKEND=elasticsearch \
   CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp \
   CUBE_LOGS_ES_ENDPOINT=http://10.0.0.10:9200 \
-  ./CubeObservability/deploy/one-click/install.sh cvm
+  ./deploy/one-click/observability/install.sh cvm
 ```
 
 Add the variables from
 [4.1](#41-core-environment-variables-and-export-authentication) when the
 external backend requires a token, tenant header, ES API key, or Basic Auth.
 
-### 3.3 Existing Kubernetes cluster not using this chart
+### 3.3 Standalone Kubernetes Collector
 
-Install the standalone Collector DaemonSet and point it at existing backends:
+The namespace must already exist, and each target compute node must have the
+`cube.tencent.com/cube-node=true` label. Cubelet must listen on
+`127.0.0.1:9998` in the host network namespace.
+
+```bash
+kubectl get namespace cube-system >/dev/null 2>&1 || \
+  kubectl create namespace cube-system
+kubectl label node <compute-node-name> cube.tencent.com/cube-node=true --overwrite
+```
+
+Then install the Collector DaemonSet and point it at the selected backends:
 
 ```bash
 env \
-  CUBE_LOGS_BACKEND=loki \
   CUBE_METRICS_NAMESPACE=cube-system \
   CUBE_OBSERVABILITY_CLUSTER_ID=cube-prod \
   CUBE_METRICS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:9092/api/v1/otlp \
   CUBE_LOGS_OTLP_HTTP_ENDPOINT=http://10.0.0.10:3100/otlp \
-  ./CubeObservability/deploy/kubernetes/install.sh install
+  ./deploy/kubernetes/observability/install.sh install
 ```
 
 ### 3.4 Verification and uninstall
 
 ```bash
-# systemd / CVM
-sudo ./CubeObservability/deploy/one-click/install.sh status
+# Full systemd all-in-one installation
+sudo ./deploy/one-click/observability/install.sh status
+
+# Collector-only systemd node
+sudo systemctl --no-pager --full status cube-sandbox-otelcol.service
 
 # Remove independently installed systemd components; data directories are retained.
-sudo ./CubeObservability/deploy/one-click/install.sh uninstall all
+sudo ./deploy/one-click/observability/install.sh uninstall all
 
 # Kubernetes
 kubectl -n cube-system rollout status daemonset/cube-node-otelcol
-./CubeObservability/deploy/kubernetes/install.sh uninstall
+./deploy/kubernetes/observability/install.sh uninstall
 ```
 
 ## 4. OTel Collector configuration
@@ -648,8 +606,7 @@ These names come from the systemd and standalone Kubernetes generators. Helm
 uses the equivalent `prometheus/cubelet_resource_metrics`,
 `filelog/sandbox_stdio`, and `logs` names.
 Implementation details are documented in the
-[systemd design](deploy/one-click/otel-systemd/DESIGN.md) and
-[Kubernetes design](deploy/kubernetes/README.md).
+[OTel design](../dev/sandbox-otel-recommendation.md).
 
 ### 4.1 Core environment variables and export authentication
 
@@ -674,9 +631,8 @@ Implementation details are documented in the
 | `CUBE_LOGS_FILE_START_AT` | `beginning` | `end` | systemd only: initial file position, either `beginning` or `end` |
 
 The bundled Grafana provisioning reuses these metrics/log credentials for its
-datasources. Running `grafana/install.sh dashboards` against an existing
-Grafana creates or updates datasources by UID, so endpoint and credential
-rotation does not leave stale datasource settings.
+datasources. Running `grafana/install.sh dashboards` creates or updates
+datasources by UID.
 
 When `CUBE_OBSERVABILITY_CLUSTER_ID` is unset in the Terraform topology, the
 Terraform TKE cluster ID is preferred; `cubesandbox` is only the fallback.
@@ -757,8 +713,8 @@ standalone run, export the variables first or pass them with `env`.
 
 | Topology | Installed configuration | Render with configured values |
 | --- | --- | --- |
-| systemd | `/etc/cube-sandbox/otelcol.yaml` | `./CubeObservability/deploy/one-click/install.sh render cvm` |
-| standalone Kubernetes | ConfigMap `cube-node-otelcol` | `./CubeObservability/deploy/kubernetes/install.sh render` |
+| systemd | `/etc/cube-sandbox/otelcol.yaml` | `./deploy/one-click/observability/install.sh render cvm` |
+| standalone Kubernetes | ConfigMap `cube-node-otelcol` | `./deploy/kubernetes/observability/install.sh render` |
 | Helm | ConfigMap `<release>-node-otelcol-config` | Use the `helm template` command below |
 
 Helm uses `observability.*` values from `values.yaml` or `--set`; it does not
@@ -789,7 +745,7 @@ to appear in the generated file.
 
 This is generated output, not a second configuration source. `render` and
 `install` substitute the configured environment values automatically. Rerun
-install or upgrade after changing those values.
+the installation after changing those values.
 
 ```yaml
 receivers:
@@ -923,14 +879,12 @@ same.
 
 | Type | Supported rule | Configuration |
 | --- | --- | --- |
-| Sandbox metrics | Scrape only the local Cubelet `/v1/metrics/resource`; currently CPU, memory, and node sandbox counts when supported by the Cubelet version | Cluster/node labels and either an OTLP or Remote Write destination; Helm also exposes `observability.otelCollector.scrapeInterval` |
+| Sandbox metrics | Scrape only the local Cubelet `/v1/metrics/resource`; includes sandbox CPU, memory, and node sandbox counts | Cluster/node labels and either an OTLP or Remote Write destination; Helm also exposes `observability.otelCollector.scrapeInterval` |
 | Sandbox logs | Read `/data/cubelet/log/<sandbox-id>/{stdout,stderr}` line by line and extract the sandbox ID and stream from the path | Send to Loki over OTLP by default, or to Elasticsearch; systemd also exposes `CUBE_LOGS_SANDBOX_ID` and `CUBE_LOGS_FILE_START_AT` |
 | State and retry | Use `file_storage` for file offsets and OTLP queues, a WAL for Remote Write, and an in-memory queue with at most five retries for Elasticsearch | File state lives on the host for systemd and at `/var/lib/cube-sandbox/otelcol-k8s` per Kubernetes node |
 
-Host metrics, control-plane logs, systemd logs, template logs, and separate OCI
-Exec logs are excluded. The log receiver does not parse JSON or join multiline
-records; `Body` keeps each original line. The systemd and standalone Kubernetes
-generators set a `1MiB` maximum log-record size.
+The log receiver keeps each original line in `Body`. The systemd and standalone
+Kubernetes generators set a `1MiB` maximum log-record size.
 
 Both backends retain these semantic fields (Loki normalizes `.` in OTel
 attribute names to `_`):
@@ -979,7 +933,7 @@ cubesandbox_sandbox_id:"<sandbox-id>"
 | Setting | Built-in value | Recommendation |
 | --- | --- | --- |
 | Scrape interval / timeout | systemd and standalone Kubernetes: `5s / 3s`; Helm: `15s / 10s` | Keep script defaults; Helm intervals must not be shorter than the fixed `10s` timeout, and larger deployments should keep the default `15s` |
-| `CUBE_LOGS_FILE_START_AT` (systemd only) | `beginning` | Keep `beginning` for a fresh deployment; use `end` when adding collection to a node with a large historical backlog |
+| `CUBE_LOGS_FILE_START_AT` (systemd only) | `beginning` | Keep `beginning` to read the current files in full; use `end` to collect only records written after the Collector starts |
 | `CUBE_LOGS_SANDBOX_ID` (systemd only) | `*` | Keep `*` normally; specify one ID only for focused troubleshooting or temporary volume reduction |
 | Memory limiter | Fixed at `256MiB`; Kubernetes memory request/limit `128Mi / 512Mi` | Start with the defaults; raising only the Pod limit does not change the limiter, which currently has no installer setting |
 | Batch | `1024` records; timeout `2s` for scripts and `5s` for Helm | Keep the defaults for normal low-latency delivery |
@@ -1025,30 +979,27 @@ immediately or use only a short delay.
 # Any memory-limit failure during the last five minutes
 increase(cubesandbox_host_sandbox_memory_failures_total[5m]) > 0
 
-# Newer Cubelet only: an existing sandbox has no available resource sample
+# A sandbox exists but has no available resource sample
 cubesandbox_node_sandbox_count
   - cubesandbox_node_sandbox_available_count > 0
 ```
 
 CPU and memory ratios only apply when a finite resource-limit series exists.
-The node-count expression requires a later Cubelet release that includes those
-metrics.
 
-### 4.5 Extending collection to component logs (disabled by default)
+### 4.5 Extending collection to component logs
 
-The installer still collects only sandbox `stdout`/`stderr` logs by default. The following
-is the extension contract for adding Cubelet, CubeMaster, or other component
-logs; it does not mean those logs are already enabled. Do not edit the installed
-`/etc/cube-sandbox/otelcol.yaml` or ConfigMap directly: installation and
-upgrades regenerate them. Change the corresponding generator and test it.
+When extending collection to Cubelet, CubeMaster, or other component logs,
+apply the following contract to the corresponding generator. Do not edit the
+installed `/etc/cube-sandbox/otelcol.yaml` or ConfigMap directly: installation
+regenerates them. Change the corresponding generator and test it.
 
 The implementation points for each deployment topology are:
 
 - systemd: `write_otel_config()` in
-  `CubeObservability/deploy/one-click/otel-systemd/install.sh`; ensure the
+  `deploy/one-click/observability/otel-systemd/install.sh`; ensure the
   Collector user has only the required read access to each added path;
 - standalone Kubernetes: `k8s_config()` plus the DaemonSet `volumeMounts` and
-  `hostPath` entries in `CubeObservability/deploy/kubernetes/install.sh`; mount
+  `hostPath` entries in `deploy/kubernetes/observability/install.sh`; mount
   every added host directory read-only;
 - Helm: the Collector ConfigMap, `volumeMounts`, and `volumes` in
   `deploy/kubernetes/chart/templates/observability.yaml`; expose an explicit
@@ -1074,7 +1025,7 @@ Elasticsearch is selected:
 ```yaml
 receivers:
   filelog/component_cubelet:
-    # Collect only new records when enabling an existing node.
+    # Collect only records written after the Collector starts.
     include:
       - /data/log/Cubelet/*.log
     exclude:
@@ -1142,7 +1093,7 @@ See [1.2](#12-installer-versions-and-external-compatibility-baselines) for
 backend versions, default ports, and external-component baselines.
 
 After a one-click/systemd installation, run
-`sudo ./CubeObservability/deploy/one-click/install.sh status` to check the Collector
+`sudo ./deploy/one-click/observability/install.sh status` to check the Collector
 and backends. Check the default Loki with
 `curl -fsS http://127.0.0.1:3100/ready`; for Elasticsearch, use
 `curl -fsS 'http://127.0.0.1:9200/cubesandbox-logs*/_count'`. A sandbox removal

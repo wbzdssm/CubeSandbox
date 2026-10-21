@@ -16,8 +16,11 @@ on:
       - 'deploy/one-click/env.example'
       - 'deploy/one-click/lib/**'
       - 'deploy/one-click/tests/**'
-      - 'CubeObservability/README*'
-      - 'CubeObservability/deploy/one-click/**'
+      - 'deploy/one-click/observability/**'
+      - 'CubeObservability/Dockerfile'
+      - 'CubeObservability/grafana/dashboards/**'
+      - 'docs/guide/observability.md'
+      - 'docs/zh/guide/observability.md'
       - 'deploy/one-click/CubeAPI/**'
       - 'deploy/one-click/CubeMaster/**'
       - 'deploy/scripts/docker-install-volume-deps.sh'
@@ -105,24 +108,24 @@ jobs:
         run: |
           set -euo pipefail
           bash -n \
-            CubeObservability/deploy/one-click/install.sh \
-            CubeObservability/deploy/one-click/otel-systemd/install.sh \
-            CubeObservability/deploy/one-click/prometheus/install.sh \
-            CubeObservability/deploy/one-click/prometheus/render.sh \
-            CubeObservability/deploy/one-click/loki/install.sh \
-            CubeObservability/deploy/one-click/elasticsearch/install.sh \
-            CubeObservability/deploy/one-click/grafana/install.sh
-          for dashboard in CubeObservability/deploy/one-click/grafana/dashboards/*.json; do
+            deploy/one-click/observability/install.sh \
+            deploy/one-click/observability/otel-systemd/install.sh \
+            deploy/one-click/observability/prometheus/install.sh \
+            deploy/one-click/observability/prometheus/render.sh \
+            deploy/one-click/observability/loki/install.sh \
+            deploy/one-click/observability/elasticsearch/install.sh \
+            deploy/one-click/observability/grafana/install.sh
+          for dashboard in CubeObservability/grafana/dashboards/*.json; do
             python3 -m json.tool "${dashboard}" >/dev/null
           done
           cmp \
-            CubeObservability/deploy/one-click/grafana/dashboards/cubesandbox-host-sandbox.json \
+            CubeObservability/grafana/dashboards/cubesandbox-host-sandbox.json \
             deploy/kubernetes/chart/files/observability/dashboards/cubesandbox-host-sandbox.json
           cmp \
-            CubeObservability/deploy/one-click/grafana/dashboards/cubesandbox-logs.json \
+            CubeObservability/grafana/dashboards/cubesandbox-logs.json \
             deploy/kubernetes/chart/files/observability/dashboards/cubesandbox-logs.json
           cmp \
-            CubeObservability/deploy/one-click/grafana/dashboards/cubesandbox-logs-elasticsearch.json \
+            CubeObservability/grafana/dashboards/cubesandbox-logs-elasticsearch.json \
             deploy/kubernetes/chart/files/observability/dashboards/cubesandbox-logs-elasticsearch.json
 
       - name: Validate generated OTel Collector configs
@@ -142,12 +145,12 @@ jobs:
             CUBE_LOGS_AUTHORIZATION="Bearer ci-logs-token" \
             CUBE_LOGS_TENANT_ID=ci \
             CUBE_OTEL_CONFIG_OUTPUT="${tmp}/systemd-loki.yaml" \
-            bash CubeObservability/deploy/one-click/otel-systemd/install.sh render
+            bash deploy/one-click/observability/otel-systemd/install.sh render
           env "${common[@]}" \
             CUBE_LOGS_ES_ENDPOINT=http://elasticsearch:9200 \
             CUBE_LOGS_ES_API_KEY=ci-api-key \
             CUBE_OTEL_CONFIG_OUTPUT="${tmp}/systemd-es.yaml" \
-            bash CubeObservability/deploy/one-click/otel-systemd/install.sh render
+            bash deploy/one-click/observability/otel-systemd/install.sh render
           for config in "${tmp}"/*.yaml; do
             docker run --rm \
               -e CUBE_METRICS_BACKEND_URL=http://prometheus:9092/api/v1/otlp \

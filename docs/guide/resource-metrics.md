@@ -166,10 +166,6 @@ CPU and memory limit metrics are exported only when the cgroup has a finite limi
 
 When `host_sandbox` is enabled, Cubelet always exports these gauges without dynamic labels, including when their value is `0`:
 
-These gauges are new on the current development branch. Released versions
-`v0.7.0` through `v0.7.2` do not contain them; use the eventual release notes
-to determine the exact minimum released version.
-
 | Metric | Type | Unit and meaning |
 | --- | --- | --- |
 | `cubesandbox_node_sandbox_count` | Gauge | Total sandboxes currently present in the HostSandbox sampler inventory. |

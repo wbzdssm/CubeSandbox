@@ -1925,8 +1925,8 @@ fi
 # Inventory component_versions before replacing toolbox.
 inventory_package_component_versions
 
-# Remove pre-CubeObservability installer directories on upgrade too. Runtime
-# observability data lives outside these source trees and remains intact.
+# Replace packaged observability deployment files on upgrade. Runtime data
+# lives outside these source trees and remains intact.
 rm -rf \
   "${INSTALL_PREFIX}/network-agent" \
   "${INSTALL_PREFIX}/CubeAPI" \
@@ -1968,6 +1968,9 @@ if [[ "${DEPLOY_ROLE}" == "compute" ]]; then
   # the target it replaces is still running.
   copy_dir_contents "${PKG_ROOT}/systemd" "${INSTALL_PREFIX}/systemd"
   copy_dir_contents "${PKG_ROOT}/scripts" "${INSTALL_PREFIX}/scripts"
+  if [[ -d "${PKG_ROOT}/observability" ]]; then
+    copy_dir_contents "${PKG_ROOT}/observability" "${INSTALL_PREFIX}/observability"
+  fi
   if [[ -d "${PKG_ROOT}/CubeObservability" ]]; then
     copy_dir_contents "${PKG_ROOT}/CubeObservability" "${INSTALL_PREFIX}/CubeObservability"
   fi
@@ -2273,8 +2276,8 @@ chmod +x "${INSTALL_PREFIX}/scripts/systemd/"*.sh
 chmod +x "${INSTALL_PREFIX}/scripts/cube-egress/"*.sh 2>/dev/null || true
 chmod +x "${INSTALL_PREFIX}/CubeS3lvol/scripts/"*.sh 2>/dev/null || true
 chmod +x "${INSTALL_PREFIX}/CubeS3lvol/bin/s3lvol_tgt" 2>/dev/null || true
-if [[ -d "${INSTALL_PREFIX}/CubeObservability" ]]; then
-  find "${INSTALL_PREFIX}/CubeObservability" -type f \( -name "*.sh" -o -name "*.py" \) -exec chmod +x {} \; 2>/dev/null || true
+if [[ -d "${INSTALL_PREFIX}/observability" ]]; then
+  find "${INSTALL_PREFIX}/observability" -type f \( -name "*.sh" -o -name "*.py" \) -exec chmod +x {} \; 2>/dev/null || true
 fi
 
 if [[ -z "${CUBE_SANDBOX_NETWORK_CIDR:-}" ]]; then
@@ -2321,12 +2324,10 @@ if [[ "${ONE_CLICK_RUN_QUICKCHECK:-1}" == "1" ]]; then
 fi
 
 obs_installer=""
-if [[ -f "${INSTALL_PREFIX}/CubeObservability/deploy/one-click/install.sh" ]]; then
-  obs_installer="${INSTALL_PREFIX}/CubeObservability/deploy/one-click/install.sh"
-elif [[ -f "${SCRIPT_DIR}/CubeObservability/deploy/one-click/install.sh" ]]; then
-  obs_installer="${SCRIPT_DIR}/CubeObservability/deploy/one-click/install.sh"
-elif [[ -f "${SCRIPT_DIR}/../../CubeObservability/deploy/one-click/install.sh" ]]; then
-  obs_installer="${SCRIPT_DIR}/../../CubeObservability/deploy/one-click/install.sh"
+if [[ -f "${INSTALL_PREFIX}/observability/install.sh" ]]; then
+  obs_installer="${INSTALL_PREFIX}/observability/install.sh"
+elif [[ -f "${SCRIPT_DIR}/observability/install.sh" ]]; then
+  obs_installer="${SCRIPT_DIR}/observability/install.sh"
 fi
 
 if [[ "${ONE_CLICK_ENABLE_OBSERVABILITY}" == "1" ]]; then
@@ -2335,7 +2336,7 @@ if [[ "${ONE_CLICK_ENABLE_OBSERVABILITY}" == "1" ]]; then
     ONE_CLICK_RUNTIME_ENV_FILE="${RUNTIME_ENV_FILE}" \
       bash "${obs_installer}" auto
   else
-    log "WARNING: observability enabled but CubeObservability installer was not found"
+    log "WARNING: observability enabled but observability/install.sh was not found"
   fi
 elif [[ -n "${obs_installer}" ]]; then
   # Match bundled MinIO's reconciliation semantics: the persisted effective

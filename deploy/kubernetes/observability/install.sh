@@ -4,7 +4,7 @@
 #
 # Kubernetes / TKE compute-node collector (DaemonSet cube-node-otelcol).
 # Supports both metrics (OTLP/HTTP or Prometheus Remote Write) and logs
-# (Elasticsearch or OTLP/HTTP). See 方案.md in this directory.
+# (Elasticsearch or OTLP/HTTP). See docs/guide/observability.md.
 set -euo pipefail
 
 OTELCOL_VERSION="0.162.0"
