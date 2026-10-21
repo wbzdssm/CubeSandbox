@@ -129,6 +129,37 @@ test_component_build_inputs_exist() {
   if grep -q -- '--aws' "${ROOT_DIR}/examples/volume/s3/install-deps.sh"; then
     fail "S3 install-deps.sh must not offer --aws"
   fi
+
+  # Observability must be present in both the nested sandbox package and the
+  # top-level release bundle. Keep the selectable log backends and both
+  # dashboard variants together so online/compute installs cannot be partial.
+  local observability_file observability_copy_count
+  for observability_file in \
+    deploy/one-click/install.sh \
+    deploy/one-click/otel-systemd/install.sh \
+    deploy/one-click/prometheus/install.sh \
+    deploy/one-click/loki/install.sh \
+    deploy/one-click/elasticsearch/install.sh \
+    deploy/one-click/grafana/install.sh \
+    deploy/kubernetes/install.sh \
+    deploy/one-click/grafana/dashboards/cubesandbox-host-sandbox.json \
+    deploy/one-click/grafana/dashboards/cubesandbox-logs.json \
+    deploy/one-click/grafana/dashboards/cubesandbox-logs-elasticsearch.json; do
+    require_file "${ROOT_DIR}/CubeObservability/${observability_file}" \
+      "observability bundle file"
+    grep -q -F "${observability_file}" "${BUNDLE_SH}" || \
+      fail "build-release-bundle.sh must verify CubeObservability/${observability_file}"
+  done
+  require_file "${ROOT_DIR}/CubeObservability/README_zh.md" \
+    "CubeObservability Chinese README"
+  grep -q -F 'ensure_file "${PACKAGE_ROOT}/CubeObservability/${_mf}"' "${BUNDLE_SH}" || \
+    fail "build-release-bundle.sh must verify nested observability package files"
+  grep -q -F 'ensure_file "${DIST_ROOT}/CubeObservability/${_mf}"' "${BUNDLE_SH}" || \
+    fail "build-release-bundle.sh must verify top-level observability package files"
+  observability_copy_count="$(grep -c -F 'copy_dir_contents "${ROOT_DIR}/CubeObservability"' "${BUNDLE_SH}" || true)"
+  if [[ "${observability_copy_count}" -lt 2 ]]; then
+    fail "build-release-bundle.sh must copy CubeObservability into both package layers"
+  fi
 }
 
 # 2) The component image base names must match between what build_images.sh

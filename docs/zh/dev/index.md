@@ -11,6 +11,7 @@
 ## 服务设计
 
 - [CubeTemplateCenter 设计](./templatecenter-design)——独立模板构建服务：管控面/数据面拆分、路由规则、回调认证、artifact 生命周期、部署接线与已知限制。
+- [CubeObservability 与 OTel Collector](./sandbox-otel-recommendation)——仅沙箱指标与标准输出/标准错误日志的范围、Collector Pipeline、后端选择、部署映射和安全边界。
 
 ## 适合放在这里的内容
 

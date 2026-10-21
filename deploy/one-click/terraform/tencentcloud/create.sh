@@ -15,6 +15,8 @@
 #   TENCENTCLOUD_REINSTALL               force re-run the compute-node install even if already installed (0)
 #   TENCENTCLOUD_RESET_DB                drop+recreate the cube database on this run (0)
 #   TENCENTCLOUD_ALLOW_INSECURE_DEFAULTS allow the built-in demo passwords on a non-interactive run (0)
+#   TENCENTCLOUD_ENABLE_OBSERVABILITY     deploy the monitoring stack after provisioning (true|false; default false)
+#   CUBE_LOGS_BACKEND                     log backend (loki|elasticsearch; default loki)
 #   TENCENTCLOUD_LOCAL_BUNDLE            path to cube-sandbox-one-click-*.tar.gz (auto-detected inside a bundle)
 #   TENCENTCLOUD_PVM_KERNEL_VMLINUX      path to vmlinux-pvm (only if the bundle ships none)
 #   TENCENTCLOUD_PVM_KERNEL_RPM_URL      PVM kernel RPM URL (OpenCloudOS mirror default)
@@ -887,6 +889,25 @@ setup_env() {
 	# TENCENTCLOUD_USE_TCR=true to create/use a private TCR and build images.
 	TENCENTCLOUD_USE_TCR="${TENCENTCLOUD_USE_TCR:-false}"
 	TENCENTCLOUD_USE_CFS="${TENCENTCLOUD_USE_CFS:-false}"
+	# Keep Terraform-style booleans consistent in memory and in the generated
+	# .env. Legacy truthy inputs such as 1 remain accepted by _bool_json, but are
+	# persisted as the canonical strings true/false.
+	TENCENTCLOUD_ENABLE_OBSERVABILITY="$(_bool_json "${TENCENTCLOUD_ENABLE_OBSERVABILITY:-false}")"
+	export TENCENTCLOUD_ENABLE_OBSERVABILITY
+	CUBE_LOGS_BACKEND="${CUBE_LOGS_BACKEND:-}"
+	if [ -z "${CUBE_LOGS_BACKEND}" ] && [ -n "${CUBE_LOGS_ES_ENDPOINT:-}" ]; then
+		CUBE_LOGS_BACKEND="elasticsearch"
+	fi
+	CUBE_LOGS_BACKEND="${CUBE_LOGS_BACKEND:-loki}"
+	case "${CUBE_LOGS_BACKEND}" in
+	loki) ;;
+	elasticsearch | es) CUBE_LOGS_BACKEND="elasticsearch" ;;
+	*)
+		echo -e "${RED}✗ CUBE_LOGS_BACKEND must be loki or elasticsearch (got: '${CUBE_LOGS_BACKEND}').${NC}" >&2
+		exit 1
+		;;
+	esac
+	export CUBE_LOGS_BACKEND
 	export TF_VAR_use_tcr="$TENCENTCLOUD_USE_TCR"
 	export TF_VAR_use_cfs="$TENCENTCLOUD_USE_CFS"
 	CUBE_IMAGE_TAG="${TENCENTCLOUD_CUBE_IMAGE_TAG:-v0.7.2}"
@@ -4418,6 +4439,44 @@ TENCENTCLOUD_ENABLE_PUBLIC_NETWORK='${TF_VAR_enable_public_network:-${TENCENTCLO
 TENCENTCLOUD_LOCAL_BUNDLE='${LOCAL_BUNDLE:-${TENCENTCLOUD_LOCAL_BUNDLE:-}}'
 TENCENTCLOUD_PVM_KERNEL_VMLINUX='${PVM_KERNEL_VMLINUX:-${TENCENTCLOUD_PVM_KERNEL_VMLINUX:-}}'
 TENCENTCLOUD_VERBOSE='${VERBOSE:-1}'
+TENCENTCLOUD_ENABLE_OBSERVABILITY='${TENCENTCLOUD_ENABLE_OBSERVABILITY:-false}'
+CUBE_LOGS_BACKEND='${CUBE_LOGS_BACKEND:-loki}'
+CUBE_OBSERVABILITY_CLUSTER_ID='${CUBE_OBSERVABILITY_CLUSTER_ID:-}'
+CUBE_BACKEND_PRIVATE_IP='${CUBE_BACKEND_PRIVATE_IP:-}'
+CUBE_TERRAFORM_INSTALL_BACKEND='${CUBE_TERRAFORM_INSTALL_BACKEND:-true}'
+CUBE_METRICS_OTLP_HTTP_ENDPOINT='${CUBE_METRICS_OTLP_HTTP_ENDPOINT:-}'
+CUBE_METRICS_REMOTE_WRITE_URL='${CUBE_METRICS_REMOTE_WRITE_URL:-}'
+CUBE_METRICS_AUTHORIZATION='${CUBE_METRICS_AUTHORIZATION:-}'
+CUBE_METRICS_REMOTE_WRITE_TOKEN='${CUBE_METRICS_REMOTE_WRITE_TOKEN:-}'
+CUBE_METRICS_TENANT_ID='${CUBE_METRICS_TENANT_ID:-}'
+CUBE_LOGS_OTLP_HTTP_ENDPOINT='${CUBE_LOGS_OTLP_HTTP_ENDPOINT:-}'
+CUBE_LOGS_AUTHORIZATION='${CUBE_LOGS_AUTHORIZATION:-}'
+CUBE_LOGS_TOKEN='${CUBE_LOGS_TOKEN:-}'
+CUBE_LOGS_TENANT_ID='${CUBE_LOGS_TENANT_ID:-}'
+CUBE_LOGS_ES_ENDPOINT='${CUBE_LOGS_ES_ENDPOINT:-}'
+CUBE_LOGS_ES_INDEX='${CUBE_LOGS_ES_INDEX:-}'
+CUBE_LOGS_ES_USER='${CUBE_LOGS_ES_USER:-}'
+CUBE_LOGS_ES_PASSWORD='${CUBE_LOGS_ES_PASSWORD:-}'
+CUBE_LOGS_ES_API_KEY='${CUBE_LOGS_ES_API_KEY:-}'
+CUBE_LOGS_ES_TLS_INSECURE_SKIP_VERIFY='${CUBE_LOGS_ES_TLS_INSECURE_SKIP_VERIFY:-}'
+CUBE_LOGS_SANDBOX_ID='${CUBE_LOGS_SANDBOX_ID:-}'
+CUBE_LOGS_FILE_START_AT='${CUBE_LOGS_FILE_START_AT:-}'
+CUBE_PROMETHEUS_LISTEN_ADDRESS='${CUBE_PROMETHEUS_LISTEN_ADDRESS:-}'
+CUBE_PROMETHEUS_RETENTION_TIME='${CUBE_PROMETHEUS_RETENTION_TIME:-}'
+CUBE_PROMETHEUS_RETENTION_SIZE='${CUBE_PROMETHEUS_RETENTION_SIZE:-}'
+CUBE_PROMETHEUS_HEALTH_URL='${CUBE_PROMETHEUS_HEALTH_URL:-}'
+CUBE_PROMETHEUS_HEALTH_AUTHORIZATION='${CUBE_PROMETHEUS_HEALTH_AUTHORIZATION:-}'
+CUBE_LOKI_LISTEN_ADDRESS='${CUBE_LOKI_LISTEN_ADDRESS:-}'
+CUBE_LOKI_RETENTION_PERIOD='${CUBE_LOKI_RETENTION_PERIOD:-}'
+CUBE_LOKI_DATA_DIR='${CUBE_LOKI_DATA_DIR:-}'
+CUBE_ES_LISTEN_ADDRESS='${CUBE_ES_LISTEN_ADDRESS:-}'
+CUBE_ES_HEAP_SIZE='${CUBE_ES_HEAP_SIZE:-}'
+CUBE_ES_DATA_DIR='${CUBE_ES_DATA_DIR:-}'
+CUBE_ES_LOG_DIR='${CUBE_ES_LOG_DIR:-}'
+CUBE_GRAFANA_LISTEN_ADDRESS='${CUBE_GRAFANA_LISTEN_ADDRESS:-}'
+CUBE_GRAFANA_ADMIN_USER='${CUBE_GRAFANA_ADMIN_USER:-}'
+CUBE_GRAFANA_ADMIN_PASSWORD='${CUBE_GRAFANA_ADMIN_PASSWORD:-}'
+CUBE_GRAFANA_ES_INDEX='${CUBE_GRAFANA_ES_INDEX:-}'
 EOF
 	)
 	chmod 600 "${ENV_FILE}" 2>/dev/null || true
@@ -4976,6 +5035,26 @@ print_cluster_operator_help() {
 		echo -e "      • 8089 → cube-master"
 	fi
 	echo -e "    Jumpserver SSH 443 lives on cubesandbox-sg-jumpserver, not the CLB group."
+	echo ""
+
+	# 5) Observability (OTel Collector / Prometheus / Loki or Elasticsearch / Grafana)
+	echo -e "${CYAN}▶ 5. Observability (Prometheus + ${CUBE_LOGS_BACKEND:-loki} + Grafana + OTel Collector)${NC}"
+	if [ "${TENCENTCLOUD_ENABLE_OBSERVABILITY:-false}" = "true" ]; then
+		echo -e "    ${GREEN}Installed on jumpserver${NC} (${js_ip:-<jumpserver_ip>}):"
+		echo -e "      • Grafana (:3001)       : jumpserver loopback (dashboards pre-provisioned)"
+		echo -e "      • Prometheus (:9092)    : jumpserver private service; do not expose publicly"
+		if [ "${CUBE_LOGS_BACKEND:-loki}" = "loki" ]; then
+			echo -e "      • Loki (:3100)           : jumpserver private service; do not expose publicly"
+		else
+			echo -e "      • Elasticsearch (:9200)  : jumpserver private service; do not expose publicly"
+		fi
+		echo -e "    OTel Collector runs on CVM sandbox compute nodes only; TKE control-plane workloads are excluded."
+		echo -e "    ${YELLOW}Tip: forward Grafana locally via SSH tunnel:${NC}"
+		echo -e "      ssh -i ${key_file} -p 443 -L 3001:127.0.0.1:3001 root@${js_ip:-<jumpserver_ip>}"
+	else
+		echo -e "    To deploy sandbox observability (Jumpserver backend + all CVM compute nodes) at any time:"
+		echo -e "      ${GREEN}TENCENTCLOUD_ENABLE_OBSERVABILITY=true bash ./create.sh${NC}"
+	fi
 	echo ""
 }
 
@@ -5754,6 +5833,29 @@ main() {
 		exit 1
 	else
 		echo -e "  ${CYAN}Compute node count is 0 (set TENCENTCLOUD_COMPUTE_NODE_COUNT to add nodes); nothing to initialize.${NC}"
+	fi
+
+	if [ "${TENCENTCLOUD_ENABLE_OBSERVABILITY:-false}" = "true" ]; then
+		banner "Step: Deploy observability stack (Prometheus + ${CUBE_LOGS_BACKEND:-loki} + Grafana + OTel Collector)"
+		local obs_tf_installer=""
+		if [ -f "${SCRIPT_DIR}/../../CubeObservability/deploy/one-click/install.sh" ]; then
+			obs_tf_installer="${SCRIPT_DIR}/../../CubeObservability/deploy/one-click/install.sh"
+		elif [ -f "${SCRIPT_DIR}/../../../../CubeObservability/deploy/one-click/install.sh" ]; then
+			obs_tf_installer="${SCRIPT_DIR}/../../../../CubeObservability/deploy/one-click/install.sh"
+		fi
+		if [ -n "${obs_tf_installer}" ]; then
+			CUBE_TERRAFORM_DIR="${SCRIPT_DIR}" \
+				CUBE_LOGS_BACKEND="${CUBE_LOGS_BACKEND:-loki}" \
+				TENCENTCLOUD_SSH_PRIVATE_KEY_PATH="${TENCENTCLOUD_SSH_PRIVATE_KEY_PATH:-$SSH_PRI_KEY}" \
+				bash "${obs_tf_installer}" terraform || {
+				echo -e "${RED}✗ Observability installation failed; the deployment is incomplete.${NC}"
+				echo -e "  ${YELLOW}Fix the reported error, then re-run '${obs_tf_installer} terraform'.${NC}"
+				exit 1
+			}
+		else
+			echo -e "${RED}✗ Observability is enabled, but the CubeObservability installer was not found.${NC}"
+			exit 1
+		fi
 	fi
 
 	# ============================================================

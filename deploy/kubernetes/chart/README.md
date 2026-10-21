@@ -31,6 +31,27 @@ Official docs (source of truth; do not keep a parallel copy under this chart):
 - [FAQ](https://cubesandbox.com/guide/kubernetes/faq) — common install and runtime issues
 - Chinese: [https://cubesandbox.com/zh/guide/kubernetes/](https://cubesandbox.com/zh/guide/kubernetes/)
 
+## Sandbox observability
+
+Observability is disabled by default. Add
+`--set observability.enabled=true` to the normal Helm install or upgrade to
+deploy the compute-node Collector, Prometheus, Loki, and Grafana. Loki is the
+default and recommended log backend; set
+`observability.logs.backend=elasticsearch` to use Elasticsearch instead.
+
+The Collector reads only Cubelet sandbox CPU/memory/count metrics and sandbox
+standard output (`stdout`) and standard error (`stderr`) logs. It does not
+collect host or control-plane telemetry, and it does not add separate OCI Exec
+logs.
+See `observability` in [values.yaml](values.yaml) for endpoints, credentials,
+persistence, and retention settings.
+
+For an existing Kubernetes deployment that does not use this chart, use the
+[standalone Collector](../../../CubeObservability/deploy/kubernetes/README.md).
+Shared backend and
+Collector details are documented in the
+[CubeObservability guide](../../../CubeObservability/README.md).
+
 ## Architecture
 
 See the [Architecture](https://cubesandbox.com/guide/kubernetes/architecture) guide for component layering, the four compute DaemonSets, DNS/Proxy/Egress flows, and external control plane / compute-only mode.

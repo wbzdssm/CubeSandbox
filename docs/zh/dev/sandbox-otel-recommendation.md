@@ -1,0 +1,213 @@
+# CubeObservability 与 OTel Collector 方案
+
+## 1. 目标与边界
+
+本期目标是为沙箱提供统一的资源指标和标准输出/标准错误日志采集链路，同时保持
+Cubelet 轻量、后端可替换、标准部署默认关闭。
+
+采集范围：
+
+- Cubelet `/v1/metrics/resource` 暴露的沙箱 CPU、内存和实例计数。
+- `/data/cubelet/log/<sandbox-id>/{stdout,stderr}` 中的沙箱标准输出/标准错误日志。
+
+不在本期范围：
+
+- 节点 CPU、内存、磁盘、网络等宿主机资源指标。
+- 控制面、平台组件、模板构建和 systemd 日志。
+- OCI Exec 独立日志文件、历史查询或 Grafana 维度。Exec 继续使用现有实时
+  stdout/stderr 返回链路。
+- CubeAPI / SDK 历史指标与日志查询接口。
+
+Prometheus、Grafana 和 Loki / Elasticsearch 日志后端可以一键部署，但只存储和
+展示上述沙箱数据。Loki 是默认和后续推荐选择，Elasticsearch 保留为可选后端。
+
+## 2. 当前数据源
+
+### 2.1 沙箱资源指标
+
+Cubelet 在 `127.0.0.1:9998/v1/metrics/resource` 暴露 Prometheus 文本格式：
+
+| 指标族 | 含义 |
+| --- | --- |
+| `cubesandbox_node_sandbox_count` | 当前 HostSandbox 采样器清单中的沙箱数 |
+| `cubesandbox_node_sandbox_available_count` | 当前有新鲜资源样本的沙箱数 |
+| `cubesandbox_host_sandbox_cpu_*` | 沙箱 cgroup CPU 累计时间、限额和节流 |
+| `cubesandbox_host_sandbox_memory_*` | 沙箱 cgroup 当前内存、限额和失败次数 |
+
+前两个节点计数指标属于本次开发改动；正式发布的 `v0.7.0 ~ v0.7.2` 尚未包含。
+存量版本只能在有活跃沙箱资源序列时通过 `count(...)` 回退估算，空节点无法返回稳定的
+`0`。
+
+默认 `host_sandbox` scope 表示按沙箱宿主侧 cgroup 记账，不等同于节点整体资源
+监控。Collector 只转发该接口的数据，不额外读取 `/proc` 或 `/sys`。
+
+### 2.2 沙箱标准输出/标准错误日志
+
+```text
+/data/cubelet/log/<sandbox-id>/stdout
+/data/cubelet/log/<sandbox-id>/stderr
+```
+
+CubeShim 拉取沙箱的标准输出流（stdout）与标准错误流（stderr），并由
+Cubelet 链路追加写盘。沙箱销毁时目录会被删除，因此需要节点 Collector 在沙箱存活
+期间持续 tail 并写入远端日志后端。
+
+## 3. 推荐架构
+
+![CubeSandbox 沙箱可观测性架构](./assets/cvm-observability-architecture.svg)
+
+```mermaid
+flowchart LR
+  subgraph Node["沙箱计算节点"]
+    Cubelet["Cubelet<br/>:9998/v1/metrics/resource"]
+    Files["/data/cubelet/log/&lt;sandbox-id&gt;/<br/>stdout | stderr"]
+    OTel["OTel Collector Contrib<br/>prometheus + filelog"]
+    Cubelet --> OTel
+    Files --> OTel
+  end
+
+  OTel -->|"OTLP/HTTP 或 Remote Write"| Prom["Prometheus"]
+  OTel -->|"OTLP/HTTP（默认）或 Elasticsearch Bulk"| Logs["Loki / Elasticsearch"]
+  Prom --> Grafana["Grafana"]
+  Logs --> Grafana
+```
+
+选择 OTel Collector Contrib 的原因：
+
+- Prometheus receiver 可直接抓取 Cubelet，无需修改 Cubelet 上报逻辑。
+- filelog receiver 支持路径解析和基于 `file_storage` 的读取游标。
+- 同时支持 OTLP/HTTP、Prometheus Remote Write 和 Elasticsearch exporter。
+- systemd 与 Kubernetes 使用同一数据模型和大部分配置。
+
+## 4. Collector Pipeline
+
+### 4.1 指标
+
+```text
+prometheus receiver
+  -> memory_limiter
+  -> cluster / node resource labels
+  -> batch
+  -> otlp_http/metrics 或 prometheus_remote_write
+```
+
+抓取配置：
+
+```yaml
+receivers:
+  prometheus:
+    trim_metric_suffixes: false
+    config:
+      scrape_configs:
+        - job_name: cubesandbox-resource
+          scrape_interval: 5s
+          scrape_timeout: 3s
+          metrics_path: /v1/metrics/resource
+          static_configs:
+            - targets: ["127.0.0.1:9998"]
+```
+
+### 4.2 日志
+
+```text
+filelog/sandbox
+  -> 从路径提取 sandbox_id 和 stdout|stderr
+  -> 写入 OTel resource + 兼容 Elasticsearch 查询的扁平字段
+  -> batch
+  -> elasticsearch/logs 或 otlp_http/logs
+```
+
+核心 receiver：
+
+```yaml
+receivers:
+  filelog/sandbox:
+    include:
+      - /data/cubelet/log/*/stdout
+      - /data/cubelet/log/*/stderr
+    start_at: beginning
+    storage: file_storage
+    include_file_path: true
+    operators:
+      - type: regex_parser
+        parse_from: attributes["log.file.path"]
+        regex: '^/data/cubelet/log/(?P<sandbox_id>[^/]+)/(?P<stream>stdout|stderr)$'
+```
+
+标准字段：
+
+| OTel / 日志后端字段 | 含义 |
+| --- | --- |
+| `service.name` / `service_name` | 固定为 `cubesandbox-sandbox` |
+| `cubesandbox.log.source` / `cubesandbox_log_source` | 固定为 `sandbox-init` |
+| `cubesandbox.cluster.id` / `cubesandbox_cluster_id` | 集群 ID |
+| `host.name` / `host_name` | 节点 IP 或 Kubernetes Node 名 |
+| `cubesandbox.sandbox.id` / `cubesandbox_sandbox_id` | 沙箱 ID |
+| `log.iostream` / `log_iostream` | `stdout` 或 `stderr` |
+| `log_file_path` | 原始文件路径 |
+| `Body` | 日志正文 |
+| `@timestamp` | 采集时间 |
+
+## 5. 部署映射
+
+| 形态 | Collector | 可选后端 |
+| --- | --- | --- |
+| one-click 第一台节点（默认 all-in-one） | systemd Collector | 本机 Prometheus + Loki（默认）或 Elasticsearch + Grafana |
+| one-click 计算节点 | systemd Collector | 推送到控制节点或显式外部地址 |
+| Kubernetes Helm | 计算节点 DaemonSet | Chart 内置后端或外部后端 |
+| Terraform 腾讯云 | 仅 CVM 沙箱计算节点 systemd Collector | Jumpserver 后端或外部后端 |
+| 存量 systemd 部署 | `CubeObservability/deploy/one-click/install.sh cvm` | 任意兼容后端 |
+| 存量 Kubernetes 部署 | `CubeObservability/deploy/kubernetes/install.sh` | 任意兼容后端 |
+
+所有标准部署入口默认关闭，通过以下配置启用：
+
+- one-click：`.env` 中 `ONE_CLICK_ENABLE_OBSERVABILITY=1`
+- Helm：`--set observability.enabled=true`
+- Terraform：`.env` 中 `TENCENTCLOUD_ENABLE_OBSERVABILITY='true'`
+
+日志后端通过 `CUBE_LOGS_BACKEND=loki|elasticsearch`（one-click / Terraform）
+或 `observability.logs.backend`（Helm）选择；独立 Kubernetes Collector 则只配置
+对应的 Loki OTLP 或 Elasticsearch endpoint。一次只启用一个日志后端。
+
+通用配置与 one-click 命令见 `CubeObservability/README_zh.md`，独立 Kubernetes
+Collector 命令见 `CubeObservability/deploy/kubernetes/README_zh.md`。
+
+## 6. Grafana
+
+提供两张 sandbox-only 看板：
+
+- `cubesandbox-host-sandbox.json`：沙箱数量、CPU、内存、限额与节流。
+- `cubesandbox-logs.json`：默认 Loki / LogQL 看板，按 Cluster、Node、Sandbox ID、
+  stdout/stderr 和正文正则检索沙箱标准输出/标准错误日志。
+- `cubesandbox-logs-elasticsearch.json`：选择 Elasticsearch 时使用的 Lucene 看板。
+
+两个日志看板都固定筛选 `service_name=cubesandbox-sandbox`，避免其他类型日志混入。
+Loki 只索引 `service_name`、`cubesandbox_cluster_id`、`host_name`，Sandbox ID
+保留为 structured metadata，避免高基数 stream。
+
+## 7. 可靠性与安全
+
+- systemd 形态将 filelog 游标和 OTLP 队列持久化到
+  `/var/lib/cube-sandbox/otelcol/storage`。
+- Kubernetes 按节点使用 `/var/lib/cube-sandbox/otelcol-k8s` hostPath 保存状态；
+  同一节点上的 Pod 替换可恢复 filelog 游标和发送队列。
+- Cubelet `:9998` 没有内置 TLS 或鉴权，只应监听回环地址或受信管理网络。
+- systemd 形态的后端凭证通过环境变量注入；独立 Kubernetes 安装器将配置的指标和
+  日志凭证写入 Secret；Helm 通过 `auth.existingSecret` 引用已有 Secret。
+- HTTPS endpoint 默认验证系统信任链；Helm 当前未提供自定义 CA Secret 挂载，私有
+  CA 场景需先扩展该能力，不能通过关闭证书校验代替。
+- 日志正文可能含用户数据；应限制 Loki / Elasticsearch 与 Grafana 的网络访问和账号权限。
+
+## 8. 后续能力
+
+后续若扩展范围，应分别设计并显式启用，不能隐式混入当前管道：
+
+1. Cubelet、CubeMaster 等平台组件日志；每类组件使用独立 receiver/pipeline 并默认
+   关闭，字段、挂载和高基数约束见 `CubeObservability/README_zh.md` 的 4.5 节。
+2. CubeAPI / SDK 的历史指标与日志查询。
+3. 沙箱 rootfs 容量和 page cache 指标。
+4. OCI Exec 日志持久化的数据模型、保留策略和权限边界。
+5. Kubernetes Collector 状态目录的容量监控和清理策略。
+
+任何新增来源都应同时更新 Collector 配置、字段契约、双语文档、Grafana 看板和回归
+测试。

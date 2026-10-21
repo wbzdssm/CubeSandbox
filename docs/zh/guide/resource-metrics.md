@@ -158,9 +158,9 @@ curl -fsS http://127.0.0.1:9998/v1/metrics/resource | \
 2. 重启 Cubelet；
 3. 确认沙箱内的 `cube-agent` 兼容资源指标能力版本 `1`。
 
-端点返回 HTTP 200 但响应体为空不一定表示故障。以下情况都会产生空结果：
+端点返回 HTTP 200 但没有逐沙箱资源序列不一定表示故障。以下情况都可能只剩节点聚合 Gauge，或在未启用 `host_sandbox` 时产生空结果：
 
-- 节点上没有运行中的沙箱；
+- 节点上没有可采样的运行中沙箱；
 - 插件已禁用；
 - Cubelet 尚未完成首次采样。
 
@@ -169,6 +169,20 @@ curl -fsS http://127.0.0.1:9998/v1/metrics/resource | \
 Cubelet 仅导出 Counter 和 Gauge 类型的基础指标。CPU 使用核数以及 CPU、内存使用率等派生值由 Prometheus 查询计算。
 
 CPU 和内存上限仅在 cgroup 配置了有限值时导出。未配置上限时，不会使用 `0` 或某个极大值代替。当前内存用量不受此限制，只要对应统计视角可用就会导出。
+
+### 节点聚合指标
+
+启用 `host_sandbox` 时，Cubelet 始终导出下面两个不带动态标签的 Gauge，包括值为 `0` 的情况：
+
+这两个 Gauge 属于当前开发分支新增能力；正式发布的 `v0.7.0 ~ v0.7.2` 尚未包含。
+具体最低正式版本应以承载该改动的后续发布说明为准。
+
+| 指标                                              | 类型  | 单位与说明                                                       |
+| ------------------------------------------------- | ----- | ---------------------------------------------------------------- |
+| `cubesandbox_node_sandbox_count`                  | Gauge | HostSandbox 采样器当前清单中的沙箱总数。                         |
+| `cubesandbox_node_sandbox_available_count`        | Gauge | 当前状态为 `HostSandboxAvailable`、资源样本可用的沙箱数。        |
+
+采集系统可在抓取时附加 `cluster`、`node` 标签，用于按集群和单机聚合。`available_count` 是资源采样可用性口径，不是完整业务状态的 `running` 实例数；它会受到暂停、采集错误和 `stale_after` 的影响。两个指标也不包含沙箱 ID 列表，不能替代控制面或 CubeBox Store inventory。
 
 ### `host_sandbox` 指标
 
@@ -368,7 +382,7 @@ Prometheus 不理解 Cubelet 的统计周期语义。只有累计值实际下降
 
 资源端点只保存最新样本，不保存历史；发生在两次 Prometheus 抓取之间的短时内存峰值不会被保留。CPU 速率查询窗口内应包含多个成功写入 Prometheus 的样本。
 
-两个间隔都不会减少活跃时间序列数量。显式设置 `export_scopes = ["all"]` 时，单容器沙箱最多导出 22 条时间序列；如需减少序列数量，应调整 `export_scopes` 或使用 Prometheus `metric_relabel_configs`。
+两个间隔都不会减少活跃时间序列数量。显式设置 `export_scopes = ["all"]` 时，单容器沙箱最多导出 22 条时间序列，节点另外固定导出 2 条聚合 Gauge；如需减少序列数量，应调整 `export_scopes` 或使用 Prometheus `metric_relabel_configs`。
 :::
 
 ## 升级旧模板和快照
@@ -399,7 +413,7 @@ Prometheus 不理解 Cubelet 的统计周期语义。只有累计值实际下降
 | 现象                                      | 常见原因与处理方式                                           |
 | ----------------------------------------- | ------------------------------------------------------------ |
 | 无法连接 `9998`                           | 确认 `cube-sandbox-cubelet.service` 正常运行，并检查监听地址、防火墙和安全组。 |
-| HTTP 200，但没有任何 `cubesandbox_*` 指标 | 确认插件为 `enabled = true`，节点上存在状态为 `Up` 的沙箱，并等待至少一个 `collection_interval`。暂停的沙箱不会导出指标。 |
+| HTTP 200，但没有逐沙箱 `cubesandbox_*` 指标 | 确认插件为 `enabled = true`，节点上存在状态为 `Up` 的沙箱，并等待至少一个 `collection_interval`。暂停的沙箱不会导出逐沙箱资源序列；启用 `host_sandbox` 时应仍能看到两个节点聚合 Gauge。 |
 | 配置了 `guest_workload`，但没有对应指标   | 确认 `export_scopes` 为 `["guest_workload"]` 或 `["all"]`。如果配置正确，通常是沙箱内的 `cube-agent` 未声明资源指标能力版本 `1`；镜像构建模板可执行 template `redo`。如果模板兼容但问题仍然存在，检查 Cubelet 业务日志中的 `Task.Stats` 错误。 |
 | 原有指标突然消失                          | 沙箱可能已暂停或删除；也可能是连续采集失败后，样本年龄超过了 `stale_after`。 |
 | 新沙箱没有 `host_sandbox` 指标            | Cubelet 可能在创建阶段已耗尽宿主机 cgroup 分配基线的读取尝试。检查 Cubelet 日志中的 `capture host metrics baseline`，修复持续存在的宿主机 cgroup 读取问题后重新创建沙箱。 |

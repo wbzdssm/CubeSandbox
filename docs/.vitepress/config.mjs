@@ -351,7 +351,8 @@ export default withMermaid(defineConfig({
               text: 'Developer Docs',
               items: [
                 { text: 'Overview', link: '/dev/' },
-                { text: 'Redis Key Convention', link: '/dev/redis-key-spec' }
+                { text: 'Redis Key Convention', link: '/dev/redis-key-spec' },
+                { text: 'Sandbox Observability & OTel', link: '/dev/sandbox-otel-recommendation' }
               ]
             }
           ]
@@ -568,7 +569,8 @@ export default withMermaid(defineConfig({
               text: '开发者文档',
               items: [
                 { text: '概览', link: '/zh/dev/' },
-                { text: 'Redis Key 命名规范', link: '/zh/dev/redis-key-spec' }
+                { text: 'Redis Key 命名规范', link: '/zh/dev/redis-key-spec' },
+                { text: '沙箱可观测性与 OTel', link: '/zh/dev/sandbox-otel-recommendation' }
               ]
             }
           ]
