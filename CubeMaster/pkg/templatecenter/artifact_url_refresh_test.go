@@ -99,27 +99,35 @@ func TestArtifactDownloadURLFallsBackToStored(t *testing.T) {
 func TestArtifactStoreKeyStripsConfiguredPrefix(t *testing.T) {
 	artifact := &models.RootfsArtifact{ArtifactID: "rfs-1", ObjectKey: "template-artifacts/rfs-1.ext4"}
 	ctx := context.Background()
-	got := artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
+	got, err := artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "rfs-1.ext4" {
 		t.Fatalf("prefixed object_key: got %q want rfs-1.ext4", got)
 	}
 	artifact.ObjectKey = "rfs-1.ext4"
-	got = artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
+	got, err = artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "rfs-1.ext4" {
 		t.Fatalf("user-key object_key: got %q", got)
 	}
 	artifact.ObjectKey = "old-prefix/nested/rfs-1.ext4"
-	got = artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
-	if got != "rfs-1.ext4" {
-		t.Fatalf("foreign prefix must fall back to derived key, got %q", got)
+	if _, err := artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts"); err == nil {
+		t.Fatal("foreign prefix unexpectedly fell back to the current store")
 	}
 	artifact.ObjectKey = ""
-	got = artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
+	got, err = artifactStoreKeyWithPrefix(ctx, artifact, "template-artifacts")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got != "rfs-1.ext4" {
 		t.Fatalf("empty object_key: got %q", got)
 	}
-	if artifactStoreKey(ctx, nil) != "" {
-		t.Fatal("nil artifact")
+	if _, err := artifactStoreKey(ctx, nil); err == nil {
+		t.Fatal("nil artifact unexpectedly accepted")
 	}
 	if userKeyFromStoredObjectKey("/template-artifacts/rfs-1.ext4", "template-artifacts") != "rfs-1.ext4" {
 		t.Fatal("leading slash on stored key")

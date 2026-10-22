@@ -54,20 +54,25 @@ func generateTemplateCreateRequest(ctx context.Context, req *types.CreateTemplat
 			},
 		},
 	}
-	// Always hand Cubelets / create-requests the CubeMaster download endpoint,
-	// never a direct S3 presigned URL. The endpoint is the one address the
-	// deployment guarantees every node can reach; it can then proxy to
-	// CubeTemplateCenter / S3 as needed. This avoids K8s multi-node drift where
-	// some nodes can dial the object store endpoint and others cannot.
-	downloadURL := buildDownloadURL(effectiveArtifactDownloadBaseURL(downloadBaseURL, artifact), artifact.ArtifactID, artifact.DownloadToken)
+	ticketURL, err := artifactDownloadTicketURL(
+		effectiveArtifactDownloadBaseURL(downloadBaseURL, artifact),
+		artifact.ArtifactID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	downloadOrigin, err := artifactDirectDownloadOrigin(ctx, artifact)
+	if err != nil {
+		return nil, err
+	}
 	imageAnnotations := map[string]string{
-		constants.CubeAnnotationRootfsArtifactID:        artifact.ArtifactID,
-		constants.CubeAnnotationRootfsArtifactURL:       downloadURL,
-		constants.CubeAnnotationRootfsArtifactToken:     artifact.DownloadToken,
-		constants.CubeAnnotationRootfsArtifactSHA256:    artifact.Ext4SHA256,
-		constants.CubeAnnotationRootfsArtifactSizeBytes: strconv.FormatInt(artifact.Ext4SizeBytes, 10),
-		constants.CubeAnnotationWritableLayerSize:       req.WritableLayerSize,
-		constants.CubeAnnotationTemplateSpecFingerprint: artifact.TemplateSpecFingerprint,
+		constants.CubeAnnotationRootfsArtifactID:             artifact.ArtifactID,
+		constants.CubeAnnotationRootfsArtifactTicketURL:      ticketURL,
+		constants.CubeAnnotationRootfsArtifactDownloadOrigin: downloadOrigin,
+		constants.CubeAnnotationRootfsArtifactSHA256:         artifact.Ext4SHA256,
+		constants.CubeAnnotationRootfsArtifactSizeBytes:      strconv.FormatInt(artifact.Ext4SizeBytes, 10),
+		constants.CubeAnnotationWritableLayerSize:            req.WritableLayerSize,
+		constants.CubeAnnotationTemplateSpecFingerprint:      artifact.TemplateSpecFingerprint,
 	}
 	command := imageCfg.Entrypoint
 	args := imageCfg.Cmd

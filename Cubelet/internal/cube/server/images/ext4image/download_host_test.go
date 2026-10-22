@@ -43,6 +43,22 @@ func TestRewriteDownloadHostRewritesCubeMasterRoute(t *testing.T) {
 // TestRewriteDownloadHostEmptyEndpointPassesThrough covers the case where
 // cubemaster_http_addr is unset (e.g. MetaServerConfig missing), which must
 // stay a plain passthrough rather than producing a broken URL.
+func TestRewriteDownloadHostRewritesTicketURL(t *testing.T) {
+	raw := "http://10.0.0.5:8089/internal/template/artifacts/artifact-1/download-ticket"
+	got := rewriteDownloadHost(raw, "cubemaster.svc:8089")
+	want := "http://cubemaster.svc:8089/internal/template/artifacts/artifact-1/download-ticket"
+	if got != want {
+		t.Fatalf("rewriteDownloadHost = %q, want %q", got, want)
+	}
+}
+
+func TestRewriteDownloadHostLeavesTemplateCenterURLUntouched(t *testing.T) {
+	raw := "http://tc.internal:8090/internal/artifacts/artifact-1/ext4"
+	if got := rewriteDownloadHost(raw, "cubemaster.svc:8089"); got != raw {
+		t.Fatalf("rewriteDownloadHost rewrote TC URL to %q", got)
+	}
+}
+
 func TestRewriteDownloadHostEmptyEndpointPassesThrough(t *testing.T) {
 	raw := "https://minio.internal:9000/bucket/rfs-x?X-Amz-Signature=abc"
 	if got := rewriteDownloadHost(raw, ""); got != raw {

@@ -110,6 +110,8 @@ type RemoteBuildResult struct {
 	ArtifactURL             string
 	StorageBackend          string
 	ObjectKey               string
+	StorageRef              string
+	OwnerTCDownloadBase     string
 	CubeEgressCABaked       bool
 	CubeEgressCAFingerprint string
 	CubeEgressCATargets     int
@@ -624,6 +626,14 @@ func finalizeRemoteArtifact(
 	record.ArtifactURL = result.ArtifactURL
 	record.StorageBackend = result.StorageBackend
 	record.ObjectKey = result.ObjectKey
+	record.StorageRef = result.StorageRef
+	record.OwnerTCDownloadBase = result.OwnerTCDownloadBase
+	if record.OwnerTCDownloadBase == "" {
+		record.OwnerTCDownloadBase = configuredTemplateCenterDownloadBase()
+	}
+	if record.Generation <= 0 {
+		record.Generation = 1
+	}
 	record.Status = ArtifactStatusReady
 	record.GCDeadline = time.Now().Add(defaultTemplateArtifactTTL).Unix()
 	record.CubeEgressCABaked = result.CubeEgressCABaked
@@ -660,6 +670,9 @@ func finalizeRemoteArtifact(
 		"artifact_url":                   record.ArtifactURL,
 		"storage_backend":                record.StorageBackend,
 		"object_key":                     record.ObjectKey,
+		"storage_ref":                    record.StorageRef,
+		"owner_tc_download_base":         record.OwnerTCDownloadBase,
+		"generation":                     record.Generation,
 		"status":                         record.Status,
 		"gc_deadline":                    record.GCDeadline,
 		"last_error":                     "",

@@ -61,9 +61,12 @@ type templateResponse struct {
 }
 
 type templateListResponse struct {
-	Ret   *types.Ret        `json:"ret,omitempty"`
-	Data  []templateSummary `json:"data,omitempty"`
-	Total int               `json:"total,omitempty"`
+	Ret     *types.Ret        `json:"ret,omitempty"`
+	Data    []templateSummary `json:"data,omitempty"`
+	Total   int               `json:"total,omitempty"`
+	Limit   int               `json:"limit,omitempty"`
+	Offset  int               `json:"offset,omitempty"`
+	HasMore bool              `json:"has_more"`
 }
 
 type templateSummary struct {
@@ -1207,11 +1210,16 @@ var TemplateListCommand = cli.Command{
 		},
 		cli.IntFlag{
 			Name:  "limit",
-			Usage: "max templates to return (0 = all)",
+			Value: 50,
+			Usage: "max templates to return (server maximum 200)",
 		},
 		cli.IntFlag{
 			Name:  "offset",
 			Usage: "number of templates to skip",
+		},
+		cli.BoolFlag{
+			Name:  "all",
+			Usage: "fetch all templates by walking bounded server pages",
 		},
 		cli.StringFlag{
 			Name:  "output,o",
@@ -1227,15 +1235,27 @@ var TemplateListCommand = cli.Command{
 		port = c.GlobalString("port")
 		requestID := uuid.New().String()
 		host := serverList[rand.Int()%len(serverList)]
-		url := fmt.Sprintf("http://%s/cube/template", net.JoinHostPort(host, port))
-		paged := false
-		if query := templateListQuery(c); query != "" {
-			url += "?" + query
-			paged = true
+		baseURL := fmt.Sprintf("http://%s/cube/template", net.JoinHostPort(host, port))
+		if c.Bool("all") && (c.IsSet("limit") || c.IsSet("offset")) {
+			return errors.New("--all cannot be combined with --limit or --offset")
+		}
+		if !c.Bool("all") && c.Int("limit") <= 0 {
+			return errors.New("--limit must be greater than zero; use --all to fetch every template")
+		}
+		if c.Int("offset") < 0 {
+			return errors.New("--offset must be non-negative")
 		}
 
-		rsp := &templateListResponse{}
-		if err := doHttpReq(c, url, http.MethodGet, requestID, nil, rsp); err != nil {
+		var rsp *templateListResponse
+		var err error
+		if c.Bool("all") {
+			rsp, err = fetchAllTemplatePages(c, baseURL, requestID)
+		} else {
+			requestURL := baseURL + "?" + templateListQuery(c)
+			rsp = &templateListResponse{}
+			err = doHttpReq(c, requestURL, http.MethodGet, requestID, nil, rsp)
+		}
+		if err != nil {
 			log.Printf("template list request err. %s. RequestId: %s\n", err.Error(), requestID)
 			return err
 		}
@@ -1250,8 +1270,14 @@ var TemplateListCommand = cli.Command{
 			commands.PrintAsJSON(rsp)
 			return nil
 		}
-		if paged {
-			log.Printf("total: %d\n", rsp.Total)
+		log.Printf("total: %d\n", rsp.Total)
+		if !c.Bool("all") && (rsp.HasMore || (rsp.Offset+len(rsp.Data) < rsp.Total)) {
+			nextOffset := rsp.Offset + len(rsp.Data)
+			if rsp.Limit == 0 {
+				nextOffset = c.Int("offset") + len(rsp.Data)
+			}
+			log.Printf("showing %d of %d (offset %d); next page: --offset %d, or --all\n",
+				len(rsp.Data), rsp.Total, c.Int("offset"), nextOffset)
 		}
 		wideOutput := strings.EqualFold(strings.TrimSpace(c.String("output")), "wide")
 		w := tabwriter.NewWriter(os.Stdout, 4, 8, 4, ' ', 0)
@@ -1284,24 +1310,43 @@ var TemplateListCommand = cli.Command{
 	},
 }
 
-// templateListQuery builds the paging query string for tpl ls; empty when no
-// paging flag is set, keeping the request identical to the historical one.
+// templateListQuery always emits a finite page. Full traversal is explicit via
+// --all and fetchAllTemplatePages.
 func templateListQuery(c *cli.Context) string {
 	query := url.Values{}
-	if c.IsSet("limit") {
-		if limit := c.Int("limit"); limit > 0 {
-			query.Set("limit", strconv.Itoa(limit))
-		}
-	}
-	if c.IsSet("offset") {
-		if offset := c.Int("offset"); offset > 0 {
-			query.Set("offset", strconv.Itoa(offset))
-		}
-	}
-	if len(query) == 0 {
-		return ""
+	query.Set("limit", strconv.Itoa(c.Int("limit")))
+	if offset := c.Int("offset"); offset > 0 {
+		query.Set("offset", strconv.Itoa(offset))
 	}
 	return query.Encode()
+}
+
+func fetchAllTemplatePages(c *cli.Context, baseURL, requestID string) (*templateListResponse, error) {
+	const pageSize = 200
+	result := &templateListResponse{}
+	for offset := 0; ; offset += pageSize {
+		query := url.Values{}
+		query.Set("limit", strconv.Itoa(pageSize))
+		query.Set("offset", strconv.Itoa(offset))
+		page := &templateListResponse{}
+		if err := doHttpReq(c, baseURL+"?"+query.Encode(), http.MethodGet, requestID, nil, page); err != nil {
+			return nil, err
+		}
+		if page.Ret == nil {
+			return nil, errors.New("empty response")
+		}
+		if page.Ret.RetCode != 200 {
+			return nil, errors.New(page.Ret.RetMsg)
+		}
+		if result.Ret == nil {
+			result.Ret = page.Ret
+		}
+		result.Total = page.Total
+		result.Data = append(result.Data, page.Data...)
+		if len(page.Data) == 0 || len(result.Data) >= page.Total {
+			return result, nil
+		}
+	}
 }
 
 func printTemplateSummary(rsp *templateResponse) {

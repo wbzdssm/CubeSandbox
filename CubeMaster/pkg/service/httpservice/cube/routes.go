@@ -184,4 +184,5 @@ func RegisterTemplateRoutes(g *gin.RouterGroup) {
 // NOT part of the public /cube API surface.
 func RegisterInternalTemplateRoutes(g *gin.RouterGroup) {
 	g.POST("/internal/template/jobs/:job_id/status", handleTemplateJobStatusCallback)
+	g.GET("/internal/template/artifacts/:artifact_id/download-ticket", handleArtifactDownloadTicket)
 }
