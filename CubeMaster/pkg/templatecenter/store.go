@@ -1098,23 +1098,99 @@ func createDefinition(ctx context.Context, templateID string, storedReq *sandbox
 	})
 }
 
-// ensureTemplateDefinitionWithOptions checks whether a definition already exists
-// and creates one if missing, threading alias metadata (DisplayName) via opts.
+// ensureTemplateDefinitionWithOptions creates a missing definition or synchronizes
+// a rebuilt artifact before replicas can publish READY. The bool reports creation.
 func ensureTemplateDefinitionWithOptions(ctx context.Context, templateID string, storedReq *sandboxtypes.CreateCubeSandboxReq, instanceType, version string, opts definitionCreateOptions) (bool, error) {
-	if _, err := GetDefinition(ctx, templateID); err == nil {
-		return false, nil
-	} else if !errors.Is(err, ErrTemplateNotFound) {
-		return false, err
+	if !isReady() {
+		return false, ErrTemplateStoreNotInitialized
 	}
-	if err := createDefinitionWithOptions(ctx, templateID, storedReq, instanceType, version, opts); err != nil {
-		return false, err
-	}
-	if cacheErr := setTemplateRequestCache(templateID, storedReq); cacheErr != nil {
-		log.G(ctx).Warnf("set template request cache fail, template=%s err=%v", templateID, cacheErr)
-	}
-	// A new definition changes the aggregate list and the per-template info.
-	invalidateTemplateCaches(templateID)
-	return true, nil
+	created := false
+	err := withTemplateWriteLock(templateID, func() error {
+		cacheReq := storedReq
+		changed := false
+		err := store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			def, err := lockTemplateDefinitionTx(tx, templateID)
+			if errors.Is(err, ErrTemplateNotFound) {
+				if err := createDefinitionTx(ctx, tx, templateID, storedReq, instanceType, version, opts); err != nil {
+					return err
+				}
+				created, changed = true, true
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if def.Status == StatusDeleting {
+				return ErrTemplateNotFound
+			}
+			currentReq := &sandboxtypes.CreateCubeSandboxReq{}
+			if err := json.Unmarshal([]byte(def.RequestJSON), currentReq); err != nil {
+				return err
+			}
+			artifactID := rootfsArtifactIDFromCreateRequest(storedReq)
+			if def.RootfsArtifactID == artifactID && rootfsArtifactIDFromCreateRequest(currentReq) == artifactID {
+				if err := applyStoredCreateBackend(currentReq, def.StorageBackend); err != nil {
+					return err
+				}
+				cacheReq = currentReq
+				return nil
+			}
+			if artifactID == "" || def.Kind == TemplateKindSnapshot {
+				return errors.New("cannot replace template definition without a rootfs artifact or for a snapshot")
+			}
+			var ready int64
+			if err := tx.Model(&models.TemplateReplica{}).
+				Where("template_id = ? AND status = ? AND (artifact_id <> ? OR artifact_id IS NULL)", templateID, ReplicaStatusReady, artifactID).
+				Count(&ready).Error; err != nil {
+				return err
+			}
+			if ready > 0 {
+				return fmt.Errorf("cannot replace artifact for template %s: %d ready replicas still reference another artifact", templateID, ready)
+			}
+			payload, err := json.Marshal(storedReq)
+			if err != nil {
+				return err
+			}
+			alias := def.DisplayName
+			if alias == "" {
+				alias = aliasFromRequestJSON(def.RequestJSON)
+			}
+			requestJSON, _, err := applyAliasToRequestJSON(string(payload), alias)
+			if err != nil {
+				return err
+			}
+			backend := opts.StorageBackend
+			if normalized, ok, err := constants.OptionalSnapshotBackend(backend); err != nil {
+				return err
+			} else if ok {
+				backend = normalized
+			}
+			if err := tx.Model(def).Updates(map[string]any{
+				"request_json":       requestJSON,
+				"rootfs_artifact_id": artifactID,
+				"instance_type":      instanceType,
+				"version":            version,
+				"storage_backend":    backend,
+				"status":             StatusPending,
+				"last_error":         "",
+			}).Error; err != nil {
+				return err
+			}
+			changed = true
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if changed {
+			invalidateTemplateCaches(templateID)
+		}
+		if cacheErr := setTemplateRequestCache(templateID, cacheReq); cacheErr != nil {
+			log.G(ctx).Warnf("set template request cache fail, template=%s err=%v", templateID, cacheErr)
+		}
+		return nil
+	})
+	return created && err == nil, err
 }
 
 // finalizeTemplateReplicas publishes the aggregate template status computed from
@@ -1473,6 +1549,9 @@ func publishTemplateStatusWithAlias(ctx context.Context, templateID, jobID, stat
 						return err
 					}
 					if err == nil {
+						if (status == StatusReady || status == StatusPartiallyReady) && job.ArtifactID != "" && target.RootfsArtifactID != job.ArtifactID {
+							return fmt.Errorf("cannot publish template %s as %s: definition artifact %q does not match job artifact %q", templateID, status, target.RootfsArtifactID, job.ArtifactID)
+						}
 						claimantJobRowID = job.ID
 						alias = strings.TrimSpace(aliasFromRequestJSON(job.RequestJSON))
 						if strings.TrimSpace(target.DisplayName) != "" {
@@ -1961,9 +2040,37 @@ func GetTemplateRequest(ctx context.Context, templateID string) (*sandboxtypes.C
 	if req, hit, err := getCachedTemplateRequest(templateID); err != nil {
 		return nil, err
 	} else if hit {
-		reportTemplateCacheMetric(ctx, constants.ActionTemplateCacheHit, time.Since(cacheStart))
-		ensureRuntimeTemplateRequest(req)
-		return req, nil
+		current := true
+		if strings.HasPrefix(templateID, "tpl-") && rootfsArtifactIDFromCreateRequest(req) != "" {
+			if !isReady() {
+				return nil, ErrTemplateStoreNotInitialized
+			}
+			// A redo may finish on another Master; its local invalidation cannot
+			// evict this process's cached artifact or digest.
+			def := &models.TemplateDefinition{}
+			err := store.db.WithContext(ctx).Select("rootfs_artifact_id", "storage_backend", "status").
+				Where("template_id = ?", templateID).First(def).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) || def.Status == StatusDeleting {
+				templateDefinitionCache.Delete(templateID)
+				return nil, ErrTemplateNotFound
+			}
+			if err != nil {
+				return nil, err
+			}
+			current = def.RootfsArtifactID == rootfsArtifactIDFromCreateRequest(req)
+			if current {
+				if err := applyStoredCreateBackend(req, def.StorageBackend); err != nil {
+					return nil, err
+				}
+			} else {
+				templateDefinitionCache.Delete(templateID)
+			}
+		}
+		if current {
+			reportTemplateCacheMetric(ctx, constants.ActionTemplateCacheHit, time.Since(cacheStart))
+			ensureRuntimeTemplateRequest(req)
+			return req, nil
+		}
 	}
 	reportTemplateCacheMetric(ctx, constants.ActionTemplateCacheMiss, time.Since(cacheStart))
 
@@ -2257,22 +2364,40 @@ func UpsertReplica(ctx context.Context, templateID, instanceType string, replica
 	if !isReady() {
 		return ErrTemplateStoreNotInitialized
 	}
-	record := &models.TemplateReplica{}
-	// Do not reuse the *gorm.DB chain after First on PostgreSQL: GORM may emit
-	// UPDATE ... FROM t_cube_template_replica (SQLSTATE 42712).
-	err := store.db.WithContext(ctx).Table(constants.TemplateReplicaTableName).
-		Where("template_id = ? AND node_id = ?", templateID, replica.NodeID).
-		First(record).Error
-	if err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
+	upsert := func(tx *gorm.DB) error {
+		record := &models.TemplateReplica{}
+		// Do not reuse the *gorm.DB chain after First on PostgreSQL: GORM may emit
+		// UPDATE ... FROM t_cube_template_replica (SQLSTATE 42712).
+		err := tx.Table(constants.TemplateReplicaTableName).
+			Where("template_id = ? AND node_id = ?", templateID, replica.NodeID).
+			First(record).Error
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			return tx.Table(constants.TemplateReplicaTableName).
+				Create(replicaStatusToModel(templateID, instanceType, replica)).Error
+		}
+		return tx.Table(constants.TemplateReplicaTableName).
+			Where("template_id = ? AND node_id = ?", templateID, replica.NodeID).
+			Updates(replicaStatusUpdateFields(instanceType, replica)).Error
+	}
+	if replica.Status != ReplicaStatusReady || replica.ArtifactID == "" {
+		return upsert(store.db.WithContext(ctx))
+	}
+	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		def, err := lockTemplateDefinitionTx(tx, templateID)
+		if err != nil {
 			return err
 		}
-		return store.db.WithContext(ctx).Table(constants.TemplateReplicaTableName).
-			Create(replicaStatusToModel(templateID, instanceType, replica)).Error
-	}
-	return store.db.WithContext(ctx).Table(constants.TemplateReplicaTableName).
-		Where("template_id = ? AND node_id = ?", templateID, replica.NodeID).
-		Updates(replicaStatusUpdateFields(instanceType, replica)).Error
+		if def.Status == StatusDeleting {
+			return ErrTemplateNotFound
+		}
+		if def.RootfsArtifactID != replica.ArtifactID {
+			return fmt.Errorf("template %s artifact %q does not match ready replica artifact %q", templateID, def.RootfsArtifactID, replica.ArtifactID)
+		}
+		return upsert(tx)
+	})
 }
 
 func EnsureReadyReplica(ctx context.Context, templateID string) error {

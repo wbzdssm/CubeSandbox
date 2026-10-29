@@ -23,6 +23,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
 	cubeboxv1 "github.com/tencentcloud/CubeSandbox/pkgs/proto/services/cubebox/v1"
 	imagev1 "github.com/tencentcloud/CubeSandbox/pkgs/proto/services/images/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func buildReplicaForDistribution(target *node.Node, req *types.CreateCubeSandboxReq, artifactID, jobID string) ReplicaStatus {
@@ -261,15 +262,14 @@ func distributeRootfsArtifactToNodes(ctx context.Context, req *types.CreateTempl
 				lock.Unlock()
 				return
 			}
-			nodeSpec := *spec
-			nodeSpec.Annotations = make(map[string]string, len(spec.Annotations)+1)
-			for key, value := range spec.Annotations {
-				nodeSpec.Annotations[key] = value
+			nodeSpec := proto.Clone(spec).(*imagev1.ImageSpec)
+			if nodeSpec.Annotations == nil {
+				nodeSpec.Annotations = make(map[string]string)
 			}
 			nodeSpec.Annotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = refreshToken
 			rsp, err := cubelet.CreateImage(ctx, cubelet.GetCubeletAddr(target.HostIP()), &imagev1.CreateImageRequest{
 				RequestID: uuid.New().String(),
-				Spec:      &nodeSpec,
+				Spec:      nodeSpec,
 			})
 			lock.Lock()
 			defer lock.Unlock()

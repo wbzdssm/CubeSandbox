@@ -6,6 +6,7 @@ package templatecenter
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	sandboxtypes "github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/service/sandbox/types"
+	"gorm.io/gorm"
 )
 
 func TestCountArtifactReferencesRejectsLikeWildcards(t *testing.T) {
@@ -171,6 +173,280 @@ func TestRootfsArtifactIDFromCreateRequest(t *testing.T) {
 	if got := rootfsArtifactIDFromCreateRequest(nil); got != "" {
 		t.Fatalf("nil request should have empty artifact id, got %q", got)
 	}
+}
+
+func definitionArtifactRequest(artifactID, digest string) *sandboxtypes.CreateCubeSandboxReq {
+	return &sandboxtypes.CreateCubeSandboxReq{
+		InstanceType: "cubebox",
+		Backend:      "s3",
+		Annotations: map[string]string{
+			constants.CubeAnnotationRootfsArtifactID: artifactID,
+		},
+		Containers: []*sandboxtypes.Container{{
+			Image: &sandboxtypes.ImageSpec{
+				Annotations: map[string]string{
+					constants.CubeAnnotationRootfsArtifactID:     artifactID,
+					constants.CubeAnnotationRootfsArtifactSHA256: digest,
+				},
+			},
+		}},
+	}
+}
+
+func TestEnsureTemplateDefinitionReplacesRebuiltArtifact(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateReplica{}, &models.SnapshotRecord{}))
+	ctx := context.Background()
+	const templateID = "tpl-rebuilt-definition"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	oldReq := definitionArtifactRequest("rfs-old-build", "old-digest")
+	created, err := ensureTemplateDefinitionWithOptions(ctx, templateID, oldReq, "cubebox", "v1", definitionCreateOptions{
+		StorageBackend: "s3",
+		DisplayName:    "stable-alias",
+	})
+	require.NoError(t, err)
+	require.True(t, created)
+	before, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	payload, _, err := applyAliasToRequestJSON(before.RequestJSON, "stable-alias")
+	require.NoError(t, err)
+	require.NoError(t, updateDefinitionFields(ctx, templateID, map[string]any{
+		"request_json": payload,
+		"status":       StatusFailed,
+		"last_error":   "first build failed to boot",
+	}))
+
+	newReq := definitionArtifactRequest("rfs-redo-build", "new-digest")
+	created, err = ensureTemplateDefinitionWithOptions(ctx, templateID, newReq, "cubebox", "v2", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	require.False(t, created)
+	def, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	require.Equal(t, "rfs-redo-build", def.RootfsArtifactID)
+	require.Contains(t, def.RequestJSON, "new-digest")
+	require.NotContains(t, def.RequestJSON, "old-digest")
+	require.Equal(t, "stable-alias", def.DisplayName)
+	require.Equal(t, "stable-alias", aliasFromRequestJSON(def.RequestJSON))
+	require.Equal(t, before.CreatedAt, def.CreatedAt)
+	require.Equal(t, "s3", def.StorageBackend)
+	require.Equal(t, "v2", def.Version)
+	require.Equal(t, StatusPending, def.Status)
+	require.Empty(t, def.LastError)
+
+	for _, cold := range []bool{false, true} {
+		if cold {
+			templateDefinitionCache.Delete(templateID)
+		}
+		req, err := GetTemplateRequest(ctx, templateID)
+		require.NoError(t, err)
+		require.Equal(t, "rfs-redo-build", rootfsArtifactIDFromCreateRequest(req))
+		require.Equal(t, "new-digest", req.Containers[0].Image.Annotations[constants.CubeAnnotationRootfsArtifactSHA256])
+	}
+}
+
+func TestEnsureTemplateDefinitionSameArtifactPreservesConvergedRequest(t *testing.T) {
+	newMigrateSharedStoreTestDB(t)
+	ctx := context.Background()
+	const templateID = "tpl-reused-definition"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	req := definitionArtifactRequest("rfs-reused-build", "digest")
+	req.Annotations[constants.CubeAnnotationComponentEnvdVersion] = "0.6.0"
+	created, err := ensureTemplateDefinitionWithOptions(ctx, templateID, req, "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	require.True(t, created)
+	require.NoError(t, UpdateDefinitionStatus(ctx, templateID, StatusReady, ""))
+	before, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	created, err = ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-reused-build", "digest"), "cubebox", "v2", definitionCreateOptions{StorageBackend: "xfs"})
+	require.NoError(t, err)
+	require.False(t, created)
+	after, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	require.Equal(t, before.RequestJSON, after.RequestJSON)
+	require.Equal(t, StatusReady, after.Status)
+	require.Equal(t, "v1", after.Version)
+	require.Equal(t, "s3", after.StorageBackend)
+	cached, hit, err := getCachedTemplateRequest(templateID)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Equal(t, "0.6.0", cached.Annotations[constants.CubeAnnotationComponentEnvdVersion])
+}
+
+func TestEnsureTemplateDefinitionFailedReplacementKeepsCache(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateReplica{}))
+	ctx := context.Background()
+	const templateID = "tpl-failed-definition-update"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-old", "old-digest"), "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	const callback = "test:reject_definition_update"
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+		tx.AddError(errors.New("definition update rejected"))
+	}))
+	t.Cleanup(func() { db.Callback().Update().Remove(callback) })
+	_, err = ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-new", "new-digest"), "cubebox", "v2", definitionCreateOptions{StorageBackend: "s3"})
+	require.ErrorContains(t, err, "definition update rejected")
+	def, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	require.Equal(t, "rfs-old", def.RootfsArtifactID)
+	cached, hit, err := getCachedTemplateRequest(templateID)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Equal(t, "rfs-old", rootfsArtifactIDFromCreateRequest(cached))
+}
+
+func TestEnsureTemplateDefinitionRejectsUnsafeArtifactReplacement(t *testing.T) {
+	for _, scenario := range []string{"ready-replica", "snapshot", "missing-artifact", "deleting"} {
+		t.Run(scenario, func(t *testing.T) {
+			db := newMigrateSharedStoreTestDB(t)
+			require.NoError(t, db.AutoMigrate(&models.TemplateReplica{}))
+			ctx := context.Background()
+			templateID := "tpl-unsafe-" + scenario
+			t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+			opts := definitionCreateOptions{StorageBackend: "s3"}
+			if scenario == "snapshot" {
+				opts.Kind = TemplateKindSnapshot
+			}
+			_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-old", "old-digest"), "cubebox", "v1", opts)
+			require.NoError(t, err)
+			if scenario == "ready-replica" {
+				require.NoError(t, db.Create(&models.TemplateReplica{
+					TemplateID: templateID,
+					NodeID:     "node-ready",
+					ArtifactID: "rfs-old",
+					Status:     ReplicaStatusReady,
+				}).Error)
+			}
+			if scenario == "deleting" {
+				require.NoError(t, UpdateDefinitionStatus(ctx, templateID, StatusDeleting, ""))
+			}
+			newReq := definitionArtifactRequest("rfs-new", "new-digest")
+			if scenario == "missing-artifact" {
+				newReq = &sandboxtypes.CreateCubeSandboxReq{}
+			}
+			_, err = ensureTemplateDefinitionWithOptions(ctx, templateID, newReq, "cubebox", "v2", opts)
+			require.Error(t, err)
+			def, err := GetDefinition(ctx, templateID)
+			require.NoError(t, err)
+			require.Equal(t, "rfs-old", def.RootfsArtifactID)
+			cached, hit, err := getCachedTemplateRequest(templateID)
+			require.NoError(t, err)
+			require.True(t, hit)
+			require.Equal(t, "rfs-old", rootfsArtifactIDFromCreateRequest(cached))
+		})
+	}
+}
+
+func TestEnsureTemplateDefinitionSerializesRebuiltArtifact(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateReplica{}))
+	ctx := context.Background()
+	const templateID = "tpl-concurrent-rebuild"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-old", "old-digest"), "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	results := make(chan error, 8)
+	for i := 0; i < cap(results); i++ {
+		go func() {
+			_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-new", "new-digest"), "cubebox", "v2", definitionCreateOptions{StorageBackend: "s3"})
+			results <- err
+		}()
+	}
+	for i := 0; i < cap(results); i++ {
+		require.NoError(t, <-results)
+	}
+	def, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	require.Equal(t, "rfs-new", def.RootfsArtifactID)
+	cached, hit, err := getCachedTemplateRequest(templateID)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Equal(t, "rfs-new", rootfsArtifactIDFromCreateRequest(cached))
+}
+
+func TestTemplateArtifactRequestCacheDetectsRemoteRebuild(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.SnapshotRecord{}))
+	ctx := context.Background()
+	const templateID = "tpl-remote-rebuild"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	oldReq := definitionArtifactRequest("rfs-old", "old-digest")
+	_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, oldReq, "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	payload, err := json.Marshal(definitionArtifactRequest("rfs-new", "new-digest"))
+	require.NoError(t, err)
+	require.NoError(t, db.Model(&models.TemplateDefinition{}).Where("template_id = ?", templateID).
+		Updates(map[string]any{"rootfs_artifact_id": "rfs-new", "request_json": string(payload), "storage_backend": "s3"}).Error)
+	cached, hit, err := getCachedTemplateRequest(templateID)
+	require.NoError(t, err)
+	require.True(t, hit)
+	require.Equal(t, "rfs-old", rootfsArtifactIDFromCreateRequest(cached))
+	req, err := GetTemplateRequest(ctx, templateID)
+	require.NoError(t, err)
+	require.Equal(t, "rfs-new", rootfsArtifactIDFromCreateRequest(req))
+	require.Equal(t, "new-digest", req.Containers[0].Image.Annotations[constants.CubeAnnotationRootfsArtifactSHA256])
+}
+
+func TestTemplateArtifactRequestCacheUsesStoredBackend(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.SnapshotRecord{}))
+	ctx := context.Background()
+	const templateID = "tpl-backend-authority"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	req := definitionArtifactRequest("rfs-same", "digest")
+	_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, req, "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	require.NoError(t, updateDefinitionFields(ctx, templateID, map[string]any{"storage_backend": "xfs"}))
+	_, err = ensureTemplateDefinitionWithOptions(ctx, templateID, req, "cubebox", "v2", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	for _, cold := range []bool{false, true} {
+		if cold {
+			templateDefinitionCache.Delete(templateID)
+		}
+		got, err := GetTemplateRequest(ctx, templateID)
+		require.NoError(t, err)
+		require.Equal(t, "xfs", got.Backend)
+	}
+}
+
+func TestTemplateArtifactReadyReplicaRejectsStaleArtifact(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateReplica{}))
+	ctx := context.Background()
+	const templateID = "tpl-ready-artifact-guard"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-new", "new-digest"), "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	replica := ReplicaStatus{NodeID: "node-a", Status: ReplicaStatusReady, ArtifactID: "rfs-old"}
+	require.ErrorContains(t, UpsertReplica(ctx, templateID, "cubebox", replica), "does not match")
+	replica.ArtifactID = "rfs-new"
+	require.NoError(t, UpsertReplica(ctx, templateID, "cubebox", replica))
+	require.NoError(t, UpdateDefinitionStatus(ctx, templateID, StatusDeleting, ""))
+	require.ErrorIs(t, UpsertReplica(ctx, templateID, "cubebox", replica), ErrTemplateNotFound)
+}
+
+func TestTemplateArtifactStatusPublishRejectsStaleJob(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateImageJob{}))
+	ctx := context.Background()
+	const templateID = "tpl-ready-job-guard"
+	t.Cleanup(func() { templateDefinitionCache.Delete(templateID) })
+	_, err := ensureTemplateDefinitionWithOptions(ctx, templateID, definitionArtifactRequest("rfs-new", "new-digest"), "cubebox", "v1", definitionCreateOptions{StorageBackend: "s3"})
+	require.NoError(t, err)
+	require.NoError(t, db.Create(&models.TemplateImageJob{
+		JobID:       "job-old-artifact",
+		TemplateID:  templateID,
+		Operation:   JobOperationRedo,
+		ArtifactID:  "rfs-old",
+		Status:      JobStatusRunning,
+		RequestJSON: "{}",
+	}).Error)
+	_, _, err = publishTemplateStatusWithAlias(ctx, templateID, "job-old-artifact", StatusReady, "")
+	require.ErrorContains(t, err, "does not match job artifact")
+	def, err := GetDefinition(ctx, templateID)
+	require.NoError(t, err)
+	require.Equal(t, StatusPending, def.Status)
 }
 
 func TestPlacementToNodePrefersCurrentRegistryAddress(t *testing.T) {
