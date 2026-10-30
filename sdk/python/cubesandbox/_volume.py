@@ -6,12 +6,13 @@ from __future__ import annotations
 import re
 import threading
 from dataclasses import dataclass
-from typing import Dict, Union
+from typing import IO, Dict, Iterator, Literal, Union, overload
 
 import requests
 
 from ._config import Config
-from ._exceptions import ApiError, AuthenticationError, VolumeNotFoundError
+from ._exceptions import ApiError, AuthenticationError, VolumeNotFoundError, VolumePathNotFoundError
+from ._volume_content import DualMethod, VolumeContent, VolumeEntryStat
 
 # Mirrors CubeAPI's `MAX_VOLUME_NAME_LEN` and the `^[a-zA-Z0-9_-]+$` rule
 # enforced in `CubeAPI/src/models/mod.rs` / `handlers/volumes.rs`. Validating
@@ -220,15 +221,17 @@ def _serialize_volume_mounts(mounts: VolumeMountsArg) -> list[dict[str, object]]
 
 
 class Volume:
-    """Class-level helper for CubeSandbox persistent-volume management.
+    """Persistent-volume management and E2B-style direct file operations.
 
-    e2b-compatible: methods mirror the e2b SDK. Following e2b, ``create`` and
-    ``connect`` return a live :class:`Volume` **instance** (carrying
-    ``volume_id`` / ``name`` / ``token``), while ``list`` / ``get_info`` return
-    plain :class:`VolumeInfo` data and ``destroy`` returns ``bool``. Volumes are
-    e2b-compatible persistent stores backed by a volume plugin (COS, NFS, ...);
-    create one here, then mount it into a sandbox via
-    ``Sandbox.create(volume_mounts={...})``.
+    ``create`` and ``connect`` return a live Volume handle. Class-level ``list``
+    and ``get_info`` return VolumeInfo; ``destroy`` returns bool. Instance
+    ``list(path)`` and ``get_info(path)`` operate on volume entries instead.
+    Volumes can still be mounted with ``Sandbox.create(volume_mounts={...})``.
+
+    Direct file operations require an explicitly deployed content gateway via
+    Config.volume_api_url and a gateway-issued volume-scoped token. Existing
+    CubeAPI volume CRUD alone does not provide this server capability. No
+    helper sandbox is created as a fallback.
 
     Example::
 
@@ -504,3 +507,96 @@ class Volume:
             return False
         _check_response(resp)
         return True
+
+    def _content(self) -> VolumeContent:
+        _validate_volume_id(self.volume_id)
+        return VolumeContent(self.volume_id, self.token, self._config)
+
+    def _list_files(
+        self, path: str | None = None, depth: int | None = None, *,
+        request_timeout: float | None = None, config: Config | None = None,
+    ) -> list[VolumeEntryStat] | list[VolumeInfo]:
+        if path is None:
+            return type(self).list(config=config or self._config)
+        if config is not None:
+            raise ValueError("bind file-operation config via Volume.connect(config=...)")
+        return self._content().list(path, depth, request_timeout=request_timeout)
+
+    def _get_path_info(
+        self, path: str | None = None, *, volume_id: str | None = None,
+        request_timeout: float | None = None, config: Config | None = None,
+    ) -> VolumeEntryStat | VolumeInfo:
+        if volume_id is not None:
+            if path is not None:
+                raise ValueError("specify path or volume_id, not both")
+            return type(self).get_info(volume_id, config=config or self._config)
+        if isinstance(path, str) and not path.startswith("/"):
+            return type(self).get_info(path, config=config or self._config)
+        if path is None:
+            raise ValueError("path or volume_id is required")
+        if config is not None:
+            raise ValueError("bind file-operation config via Volume.connect(config=...)")
+        return self._content().get_info(path, request_timeout=request_timeout)
+
+    list = DualMethod(list, _list_files)
+    get_info = DualMethod(get_info, _get_path_info)
+
+    @overload
+    def read_file(self, path: str, format: Literal["text"] = "text", *, request_timeout: float | None = None) -> str: ...
+
+    @overload
+    def read_file(self, path: str, format: Literal["bytes"], *, request_timeout: float | None = None) -> bytes: ...
+
+    @overload
+    def read_file(self, path: str, format: Literal["stream"], *, request_timeout: float | None = None) -> Iterator[bytes]: ...
+
+    def read_file(
+        self, path: str, format: Literal["text", "bytes", "stream"] = "text", *,
+        request_timeout: float | None = None,
+    ) -> str | bytes | Iterator[bytes]:
+        """Read directly through the volume gateway, without creating a sandbox.
+
+        Streaming is lazy; close the iterator when stopping early to release
+        its response and connection. A deployed content gateway and its volume
+        token are required. The legacy CubeAPI management routes are not enough.
+        """
+        return self._content().read_file(path, format, request_timeout=request_timeout)
+
+    def write_file(
+        self, path: str, data: str | bytes | IO, uid: int | None = None,
+        gid: int | None = None, mode: int | None = None, force: bool | None = None, *,
+        request_timeout: float | None = None,
+    ) -> VolumeEntryStat:
+        """Upload text, bytes or file-like data directly; no shell or sandbox."""
+        return self._content().write_file(
+            path, data, uid=uid, gid=gid, mode=mode, force=force,
+            request_timeout=request_timeout,
+        )
+
+    def make_dir(
+        self, path: str, uid: int | None = None, gid: int | None = None,
+        mode: int | None = None, force: bool | None = None, *,
+        request_timeout: float | None = None,
+    ) -> VolumeEntryStat:
+        return self._content().make_dir(
+            path, uid=uid, gid=gid, mode=mode, force=force,
+            request_timeout=request_timeout,
+        )
+
+    def exists(self, path: str, *, request_timeout: float | None = None) -> bool:
+        try:
+            self._content().get_info(path, request_timeout=request_timeout)
+            return True
+        except VolumePathNotFoundError:
+            return False
+
+    def update_metadata(
+        self, path: str, uid: int | None = None, gid: int | None = None,
+        mode: int | None = None, *, request_timeout: float | None = None,
+    ) -> VolumeEntryStat:
+        return self._content().update_metadata(
+            path, uid=uid, gid=gid, mode=mode, request_timeout=request_timeout,
+        )
+
+    def remove(self, path: str, *, request_timeout: float | None = None) -> None:
+        self._content().remove(path, request_timeout=request_timeout)

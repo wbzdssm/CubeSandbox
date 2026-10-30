@@ -44,6 +44,9 @@ class Config:
     #: ``max(request_timeout, BUDGET)`` so lowering it fail-fasts only the 16
     #: fast routes (long routes stay at their CubeAPI budgets 160 s/280 s).
     request_timeout: float = 30.0
+    volume_api_url: str | None = field(
+        default_factory=lambda: os.environ.get("CUBE_VOLUME_API_URL")
+    )
 
     def __post_init__(self) -> None:
         self.api_url = self.api_url.rstrip("/")

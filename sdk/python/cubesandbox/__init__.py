@@ -9,6 +9,8 @@ from ._commands import CommandResult
 from ._pty import Pty, PtyHandle, PtyOutput, PtySize
 from ._template import Template, TemplateInfo, TemplateBuild
 from ._volume import Volume, VolumeInfo, VolumeMount
+from ._volume_content import VolumeEntryStat, VolumeFileType
+from ._exceptions import VolumePathNotFoundError, VolumeContentUnavailableError
 from ._policy import Rule, Match, Action, Inject
 
 __all__ = [
@@ -41,6 +43,10 @@ __all__ = [
     "Volume",
     "VolumeInfo",
     "VolumeMount",
+    "VolumeEntryStat",
+    "VolumeFileType",
+    "VolumePathNotFoundError",
+    "VolumeContentUnavailableError",
     "Rule",
     "Match",
     "Action",

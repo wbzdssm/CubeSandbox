@@ -17,6 +17,7 @@ import {
   VolumeNotFoundError,
 } from "./exceptions.js";
 import { controlFetch } from "./transport.js";
+import { VolumeContent, type VolumeContentOptions, type VolumeMetadataOptions, type VolumeReadOptions, type VolumeWriteData } from "./volume-content.js";
 
 /**
  * Mirrors CubeAPI's `MAX_VOLUME_NAME_LEN` and the `^[a-zA-Z0-9_-]+$` rule
@@ -241,8 +242,58 @@ async function checkVolumeResponse(resp: {
  * plain {@link VolumeInfo} descriptors.
  */
 export class Volume extends VolumeInfo {
-  private constructor(info: VolumeInfo) {
+  private readonly config: Config;
+
+  constructor(info: VolumeInfo, config?: Config | ConfigOptions) {
     super(info.volumeId, info.name, info.token);
+    this.config = resolveConfig(config);
+  }
+
+  private content(): VolumeContent {
+    validateVolumeId(this.volumeId);
+    return new VolumeContent(this.volumeId, this.token, this.config);
+  }
+
+  readFile(path: string, options: VolumeReadOptions & { format: "stream" }): Promise<import("node:stream/web").ReadableStream<Uint8Array>>;
+  readFile(path: string, options: VolumeReadOptions & { format: "bytes" }): Promise<Uint8Array>;
+  readFile(path: string, options: VolumeReadOptions & { format: "blob" }): Promise<import("node:buffer").Blob>;
+  readFile(path: string, options?: VolumeReadOptions & { format?: "text" }): Promise<string>;
+  readFile(path: string, options: VolumeReadOptions = {}) {
+    const content = this.content();
+    switch (options.format) {
+      case "bytes": return content.readFile(path, { ...options, format: "bytes" });
+      case "blob": return content.readFile(path, { ...options, format: "blob" });
+      case "stream": return content.readFile(path, { ...options, format: "stream" });
+      default: return content.readFile(path, options as VolumeReadOptions & { format?: "text" });
+    }
+  }
+
+  writeFile(path: string, data: VolumeWriteData, options: VolumeMetadataOptions = {}) {
+    return this.content().writeFile(path, data, options);
+  }
+
+  list(path: string, options: VolumeContentOptions & { depth?: number } = {}) {
+    return this.content().list(path, options);
+  }
+
+  getInfo(path: string, options: VolumeContentOptions = {}) {
+    return this.content().getInfo(path, options);
+  }
+
+  makeDir(path: string, options: VolumeMetadataOptions = {}) {
+    return this.content().makeDir(path, options);
+  }
+
+  updateMetadata(path: string, values: Pick<VolumeMetadataOptions, "uid" | "gid" | "mode">, options: VolumeContentOptions = {}) {
+    return this.content().updateMetadata(path, values, options);
+  }
+
+  exists(path: string, options: VolumeContentOptions = {}) {
+    return this.content().exists(path, options);
+  }
+
+  remove(path: string, options: VolumeContentOptions = {}) {
+    return this.content().remove(path, options);
   }
 
   /** Masks the token, same as {@link VolumeInfo.toString}. */
@@ -283,7 +334,7 @@ export class Volume extends VolumeInfo {
       body: JSON.stringify(payload),
     });
     await checkVolumeResponse(resp);
-    return new Volume(VolumeInfo.fromDict((await resp.json()) as Record<string, any>));
+    return new Volume(VolumeInfo.fromDict((await resp.json()) as Record<string, any>), cfg);
   }
 
   /**
@@ -320,7 +371,7 @@ export class Volume extends VolumeInfo {
     volumeId: string,
     options: { config?: Config | ConfigOptions } = {},
   ): Promise<Volume> {
-    return new Volume(await Volume.getInfo(volumeId, options));
+    return new Volume(await Volume.getInfo(volumeId, options), options.config);
   }
 
   /**

@@ -39,6 +39,8 @@ export {
   PartialWriteError,
   VolumeNotFoundError,
   VolumeInUseError,
+  VolumePathNotFoundError,
+  VolumeContentUnavailableError,
 } from "./exceptions.js";
 
 export {
@@ -48,6 +50,15 @@ export {
   MAX_VOLUME_NAME_LEN,
   type VolumeMountsArg,
 } from "./volume.js";
+
+export {
+  VolumeFileType,
+  type VolumeEntryStat,
+  type VolumeContentOptions,
+  type VolumeMetadataOptions,
+  type VolumeReadOptions,
+  type VolumeWriteData,
+} from "./volume-content.js";
 
 export {
   Commands,

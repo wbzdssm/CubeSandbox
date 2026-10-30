@@ -38,6 +38,8 @@ export interface ConfigOptions {
   timeout?: number;
   /** Per-request connect timeout in milliseconds (default 30000). */
   requestTimeoutMs?: number;
+  /** Explicitly deployed volume-content gateway. Env: CUBE_VOLUME_API_URL. */
+  volumeApiUrl?: string;
 }
 
 /**
@@ -87,6 +89,7 @@ export class Config {
   sandboxDomain: string;
   timeout: number;
   requestTimeoutMs: number;
+  volumeApiUrl?: string;
 
   constructor(options: ConfigOptions = {}) {
     const env = process.env;
@@ -107,6 +110,7 @@ export class Config {
     this.sandboxDomain = options.sandboxDomain ?? env.CUBE_SANDBOX_DOMAIN ?? "cube.app";
     this.timeout = options.timeout ?? DEFAULT_SANDBOX_TIMEOUT_S;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 30000;
+    this.volumeApiUrl = options.volumeApiUrl ?? env.CUBE_VOLUME_API_URL;
   }
 }
 

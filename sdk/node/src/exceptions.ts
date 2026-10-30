@@ -30,6 +30,9 @@ export class ApiError extends CubeSandboxError {}
 /** Raised when a volume is not found (HTTP 404). */
 export class VolumeNotFoundError extends CubeSandboxError {}
 
+export class VolumePathNotFoundError extends CubeSandboxError {}
+export class VolumeContentUnavailableError extends CubeSandboxError {}
+
 /** Raised when deleting a volume that is still mounted by one or more sandboxes (HTTP 409). */
 export class VolumeInUseError extends CubeSandboxError {}
 

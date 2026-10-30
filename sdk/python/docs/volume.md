@@ -10,10 +10,19 @@ survives sandbox restarts and can be shared across sandboxes.
 from cubesandbox import Sandbox, Volume, VolumeMount
 ```
 
-All `Volume` methods are **class methods** — no instance needed. Mirroring
-e2b, `create` and `connect` return a live `Volume` **instance** (carrying
-`volume_id` / `name` / `token`), while `list` / `get_info` return plain
-`VolumeInfo` data and `destroy` returns a `bool`.
+Management calls remain class methods: `create` and `connect` return a live
+`Volume` instance; `Volume.list()` and `Volume.get_info(id)` return `VolumeInfo`
+data; `destroy` returns a `bool`. Instance file operations now follow the E2B
+Volume API: `vol.read_file`, `vol.write_file`, `vol.list(path)`,
+`vol.get_info(path)`, `vol.make_dir`, `vol.exists`, `vol.update_metadata`,
+and `vol.remove`.
+
+**Implementation status:** the Python direct-content client is implemented, but
+this checkout's CubeAPI/CubeMaster only provide volume CRUD and sandbox mounts.
+They do **not** implement `/volumecontent` or issue content-access capabilities.
+Direct methods require a separately deployed compatible content gateway and
+its valid volume-scoped token. Configuring a URL alone cannot add that server
+capability. There is no hidden helper sandbox or shell fallback.
 
 ---
 
@@ -25,11 +34,18 @@ Reading/writing files *inside* a mounted volume goes through the data plane, so
 
 | Environment Variable | Required | Default | Used by |
 |---|:---:|---|---|
-| `CUBE_API_URL` | ✅ | `http://127.0.0.1:3000` | all `Volume.*` calls |
-| `CUBE_PROXY_NODE_IP` | remote | — | `sb.files.*` on the mounted volume |
-| `CUBE_TEMPLATE_ID` | for mount | — | `Sandbox.create(...)` |
+| `CUBE_API_URL` | management | `http://127.0.0.1:3000` | volume CRUD |
+| `CUBE_VOLUME_API_URL` | direct content | none | deployed volume-content gateway base URL |
+| `CUBE_PROXY_NODE_IP` | remote mount access | none | `sb.files.*` on the mounted volume |
+| `CUBE_TEMPLATE_ID` | for mount | none | `Sandbox.create(...)` |
 
-You can also pass an explicit `Config` to every method via `config=`.
+Bind `Config(api_url=..., volume_api_url=...)` via `Volume.create/connect(config=...)`.
+Direct operations inherit that configuration and accept `request_timeout=` per
+call. They send only `Authorization: Bearer <volume token>` to the gateway,
+never the management `X-API-Key` or sandbox access token. Empty plugin tokens
+are not authorization: a compatible gateway must issue and verify a scoped
+content token. HTTPS is required outside loopback, TLS verification is enabled,
+and authenticated redirects are not followed.
 
 ---
 
@@ -166,9 +182,132 @@ Volume.destroy(vol.volume_id)
 
 ---
 
+## Direct content API and E2B comparison
+
+Reference: [E2B volume read/write](https://e2b.dev/docs/volumes/read-write) and
+[Python Volume implementation](https://github.com/e2b-dev/E2B/blob/main/packages/python-sdk/e2b/volume/volume_sync.py),
+checked 2026-10-30. This aligns the core sync API and HTTP layout, not every
+E2B option or its service availability guarantees. AsyncVolume, watches,
+recursive removal and arbitrary request headers are not implemented here.
+
+| Instance operation | Direct HTTP protocol | Return |
+|---|---|---|
+| `vol.read_file(path, format="text")` | `GET /volumecontent/{id}/file?path=...` | `str` |
+| `vol.read_file(path, format="bytes")` | same | `bytes`, without text decoding |
+| `vol.read_file(path, format="stream")` | same, streaming response | lazy `Iterator[bytes]` |
+| `vol.write_file(path, data, uid=None, gid=None, mode=None, force=None)` | `PUT .../file`, raw octet-stream; options in query | `VolumeEntryStat` |
+| `vol.list(path, depth=None)` | `GET .../dir`, depth in query | `list[VolumeEntryStat]` |
+| `vol.make_dir(path, uid=None, gid=None, mode=None, force=None)` | `POST .../dir`, options in query | `VolumeEntryStat` |
+| `vol.get_info(path)` | `GET .../path` | `VolumeEntryStat` |
+| `vol.exists(path)` | stat; only typed missing-path errors become false | `bool` |
+| `vol.update_metadata(path, uid=None, gid=None, mode=None)` | `PATCH .../path`, JSON options | `VolumeEntryStat` |
+| `vol.remove(path)` | `DELETE .../path` | `None` |
+
+`Volume.list()` / `Volume.get_info(volume_id)` keep their management meaning.
+For compatibility, `vol.list()` without a path still lists volumes, and
+`vol.get_info(non_absolute_volume_id)` and `vol.get_info(volume_id=...)` retain
+the previous management call. Supplying both `path` and `volume_id` is rejected.
+File paths must be absolute **within the volume**, not host filesystem paths;
+NUL, backslashes and dot traversal segments are rejected. Root removal is
+rejected. The gateway must additionally enforce symlink-safe confinement.
+
+File writes accept text, bytes and readable file-like objects. File-like uploads
+are read in 64 KiB chunks without materializing the entire file; the SDK does not
+close caller-owned files. Read streams are lazy and bound memory usage; explicitly
+close the iterator on early exit. Each operation owns and closes its HTTP client,
+so this first implementation does not promise cross-call connection pooling.
+Default request timeout inherits `Config.request_timeout`; stream reads use a
+60-second idle timeout unless a per-call timeout is supplied. These are transport
+timeouts, not an overall wall-clock transfer deadline. Unlike E2B, timeout `0`
+is rejected instead of disabling timeouts. Writes are never automatically retried
+or re-uploaded as multipart on an authentication or server error.
+
+**Example for a deployed compatible gateway only:** the current server cannot
+issue `CUBE_VOLUME_CONTENT_TOKEN`. The operator must provide a gateway-issued
+scoped capability; do not substitute the management API key or an arbitrary
+non-empty plugin token.
+
+```python
+import os
+from contextlib import closing
+from cubesandbox import Config, Volume
+
+config = Config(volume_api_url=os.environ["CUBE_VOLUME_API_URL"])
+vol = Volume(
+    os.environ["CUBE_VOLUME_ID"], "example",
+    token=os.environ["CUBE_VOLUME_CONTENT_TOKEN"], config=config,
+)
+vol.make_dir("/data", force=True)
+vol.write_file("/data/hello.txt", "hello", force=True)
+assert vol.read_file("/data/hello.txt") == "hello"
+with closing(vol.read_file("/data/hello.txt", format="stream")) as chunks:
+    assert b"".join(chunks) == b"hello"
+print(vol.list("/data"))
+vol.remove("/data/hello.txt")
+```
+
+### Existing chain and server-side implementation plan
+
+Current chain:
+
+```text
+Volume CRUD -> CubeAPI /volumes -> CubeMaster /cube/volume
+            -> plugin Create/Destroy -> t_cube_volume
+Sandbox volumeMounts -> Master resolves driver/private_data
+                     -> Cubelet plugin Attach/Detach -> hostPath/bind/virtiofs
+sb.files -> CubeProxy -> sandbox envd -> mounted files
+```
+
+There is no volume content address in the management response and no file RPC in
+the plugin interface: controllers only Create/Destroy, nodes only Attach/Detach.
+A Volume token is not currently a general file-access authorization mechanism.
+Making file calls to `/volumes/{id}` or replacing sandbox ID with volume ID
+cannot provide direct access.
+
+Recommended next server phase (not implemented by this SDK change):
+
+1. Add a volume-content gateway with the routes above; keep byte transfers away
+   from Master/CubeAPI management handlers. Support mounted filesystem drivers
+   through Cubelet's plugin attachment layer instead of exposing private_data or
+   backend AK/SK to the SDK. Do not launch a helper sandbox or shell commands.
+2. Add session/attachment leases to the existing volume reference accounting.
+   Destroy must not race an active transfer; acquire/release and crash cleanup
+   must be idempotent. Shared writes use normal filesystem semantics, not an
+   implicit atomic/multi-writer transaction guarantee.
+3. Issue and validate tenant/owner/volume-scoped read/write capabilities with
+   expiry; enforce read-only access **server-side**. Current volume records lack
+   owner/tenant scope, so this needs a real AuthZ design, not simply accepting
+   any plugin token. Refresh/rotation and logout/revocation remain server work.
+4. Enforce root-dir/dirfd confinement, safe symlinks, rename boundaries, limits
+   and observable transfer failures; authenticate before filesystem access.
+   Never let SDK paths become arbitrary host paths.
+5. Publish/configure the gateway endpoint and standardized entry/error types.
+   Entry JSON includes name, type (`file/directory/symlink/unknown`), absolute
+   volume path, integer size/mode/uid/gid, ISO timestamps atime/mtime/ctime,
+   and optional symlink target. `ctime` retains filesystem metadata semantics,
+   not a promise of original creation time.
+6. Add integration tests: pre-upload -> create sandbox with the same volume ->
+   read/modify -> kill sandbox -> SDK direct read. Add token expiry, tenant
+   isolation, read-only, traversal/symlink, partial upload and destroy/transfer
+   races before enabling the feature in production.
+
+For future HTTP interoperability, a missing **path** must be a structured 404
+with `code` in `path_not_found`, `volume_path_not_found`, `not_found` and a
+`message`. A bare router 404, missing gateway or missing volume is not interpreted
+as `exists=False`; it raises `VolumeContentUnavailableError`. This explicit
+error-code requirement is a Cube extension; do not assume any E2B deployment's
+arbitrary 404 response is sufficient. Other malformed success responses raise
+`ApiError` rather than silently returning an empty directory.
+
 ## Errors & status codes
 
-Every `Volume` method routes non-2xx responses through the same mapping:
+Volume management uses the existing mapping below. Direct methods additionally
+raise `VolumePathNotFoundError` for typed missing paths and
+`VolumeContentUnavailableError` for missing configuration, unrecognized 404 or
+HTTP 405/501/503. Authentication 401/403 stays `AuthenticationError`; redirects
+are errors, not credential-forwarding fallbacks. `exists()` does not suppress
+authorization, gateway, transport or server errors.
+
 
 | HTTP status | Exception raised | Meaning |
 |---|---|---|
