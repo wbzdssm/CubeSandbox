@@ -155,10 +155,8 @@ describe("Volume CRUD", () => {
     }));
     const volumes = await Volume.list({ config: makeConfig() });
     expect(volumes).toHaveLength(2);
-    expect(volumes[0]).toBeInstanceOf(VolumeInfo);
-    expect(volumes[0].volumeId).toBe("vol-a");
-    expect(volumes[1].volumeId).toBe("vol-b");
-    expect(volumes[0].token).toBe("");
+    expect(volumes).toEqual([{ volumeId: "vol-a", name: "vol-a" }, { volumeId: "vol-b", name: "vol-b" }]);
+    expect(Object.keys(volumes[0])).toEqual(["volumeId", "name"]);
     expect(requests[0].method).toBe("GET");
     expect(requests[0].pathname).toBe("/volumes");
   });
@@ -239,6 +237,37 @@ describe("Volume error mapping", () => {
   });
 });
 
+describe("E2B volume management contract", () => {
+  it("accepts create(name, opts) and sends only the E2B management credential", async () => {
+    setHandler(() => ({ status: 201, json: { volumeID: "v1", name: "one", token: "volume-secret", domain: "byoc.test" } }));
+    const volume = await Volume.create("one", { apiUrl: makeConfig().apiUrl, apiKey: "management-secret", headers: { "X-Correlation-ID": "test" }, httpVersion: "1.1" });
+    expect(volume).toBeInstanceOf(Volume);
+    expect(volume.domain).toBe("byoc.test");
+    expect(JSON.parse(requests[0].body.toString())).toEqual({ name: "one" });
+    expect(requests[0].headers["x-api-key"]).toBe("management-secret");
+    expect(requests[0].headers["x-access-token"]).toBeUndefined();
+    expect(requests[0].headers.authorization).toBeUndefined();
+    expect(requests[0].headers["x-correlation-id"]).toBe("test");
+  });
+
+  it("returns exact list and detail shapes and preserves response domain on connect", async () => {
+    const options = { apiUrl: makeConfig().apiUrl };
+    setHandler(() => ({ status: 200, json: [{ volumeID: "v1", name: "one", token: "must-not-return", domain: "must-not-return" }] }));
+    expect(await Volume.list(options)).toEqual([{ volumeId: "v1", name: "one" }]);
+    setHandler(() => ({ status: 200, json: { volumeID: "v1", name: "one", token: "secret", domain: "byoc.test" } }));
+    expect(await Volume.getInfo("v1", options)).toEqual({ volumeId: "v1", name: "one", token: "secret", domain: "byoc.test" });
+    expect((await Volume.connect("v1", options)).domain).toBe("byoc.test");
+  });
+
+  it("supports the E2B positional constructor", () => {
+    const volume = new Volume("v1", "one", "secret", "byoc.test", true);
+    expect(volume.volumeId).toBe("v1");
+    expect(volume.token).toBe("secret");
+    expect(volume.domain).toBe("byoc.test");
+    expect(volume.debug).toBe(true);
+  });
+});
+
 describe("token masking", () => {
   it("toString and util.inspect mask the token", () => {
     const info = new VolumeInfo("my-data", "my-data", "tok-secret-123");
@@ -279,6 +308,22 @@ describe("Sandbox.create volumeMounts", () => {
       { name: "my-data", path: "/workspace" },
       { name: "shared-cache", path: "/cache" },
       { name: "my-data", path: "/dataset", readOnly: true },
+    ]);
+  });
+
+  it("mounts the ordinary objects returned by E2B-compatible list and getInfo", async () => {
+    const config = makeConfig();
+    setHandler(() => ({ status: 200, json: [{ volumeID: "v1", name: "one" }] }));
+    const [listed] = await Volume.list({ config });
+    setHandler(() => ({ status: 200, json: { volumeID: "v1", name: "one", token: "secret" } }));
+    const info = await Volume.getInfo("v1", { config });
+    setHandler(() => ({ status: 201, json: SANDBOX_JSON }));
+    await Sandbox.create({ config, volumeMounts: { "/data": listed, "/info": info, "/readonly": new VolumeMount(listed, { readOnly: true }) } });
+    const payload = JSON.parse(requests.at(-1)!.body.toString());
+    expect(payload.volumeMounts).toEqual([
+      { name: "v1", path: "/data" },
+      { name: "v1", path: "/info" },
+      { name: "v1", path: "/readonly", readOnly: true },
     ]);
   });
 

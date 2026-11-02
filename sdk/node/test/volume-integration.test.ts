@@ -54,7 +54,7 @@ describe.skipIf(!RUN_INTEGRATION)("volume integration (live CubeAPI)", () => {
         const volumes = await Volume.list({ config });
         const entry = volumes.find((v) => v.volumeId === volume.volumeId);
         expect(entry).toBeDefined();
-        expect(entry?.token).toBe(""); // tokens are only surfaced on create/get-single
+        expect(entry).not.toHaveProperty("token");
 
         await expect(
           Volume.getInfo("node-sdk-e2e-does-not-exist", { config }),
