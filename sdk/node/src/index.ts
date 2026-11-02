@@ -37,8 +37,11 @@ export {
   ApiError,
   FilesystemNotFoundError,
   PartialWriteError,
+  VolumeError,
   VolumeNotFoundError,
   VolumeInUseError,
+  VolumePathNotFoundError,
+  VolumeContentUnavailableError,
 } from "./exceptions.js";
 
 export {
@@ -47,7 +50,22 @@ export {
   VolumeMount,
   MAX_VOLUME_NAME_LEN,
   type VolumeMountsArg,
+  type VolumeAndToken,
+  type VolumeConnectionOpts,
 } from "./volume.js";
+
+export {
+  VolumeFileType,
+  type VolumeEntryStat,
+  type VolumeContentOptions,
+  type VolumeMetadataOptions,
+  type VolumeReadOptions,
+  type VolumeWriteData,
+  type VolumeApiOpts,
+  type VolumeReadOpts,
+  type VolumeWriteOpts,
+  type VolumeMetadataOpts,
+} from "./volume-content.js";
 
 export {
   Commands,
