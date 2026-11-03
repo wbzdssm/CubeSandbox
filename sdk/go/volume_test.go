@@ -137,6 +137,53 @@ func TestGetVolumeReturnsToken(t *testing.T) {
 	}
 }
 
+func TestVolumeManagementRejectsInvalidSuccess(t *testing.T) {
+	for _, body := range []string{`null`, `{}`, `{"volumeID":"../other","name":"one"}`, `{"volumeID":"","name":"one"}`} {
+		t.Run(body, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/volumes" {
+					fmt.Fprint(w, "["+body+"]")
+				} else {
+					fmt.Fprint(w, body)
+				}
+			}))
+			defer server.Close()
+			client := NewClient(Config{APIURL: server.URL})
+			defer client.Close()
+			ctx := context.Background()
+			if _, err := client.CreateVolume(ctx, CreateVolumeOptions{Name: "v1"}); err == nil {
+				t.Error("CreateVolume accepted invalid response")
+			}
+			if _, err := client.GetVolume(ctx, "v1"); err == nil {
+				t.Error("GetVolume accepted invalid response")
+			}
+			if _, err := client.ListVolumes(ctx); err == nil {
+				t.Error("ListVolumes accepted invalid entry")
+			}
+		})
+	}
+}
+
+func TestVolumeManagementDistinguishesEmptyListAndNull(t *testing.T) {
+	for _, body := range []string{`[]`, `null`} {
+		t.Run(body, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprint(w, body)
+			}))
+			defer server.Close()
+			client := NewClient(Config{APIURL: server.URL})
+			defer client.Close()
+			volumes, err := client.ListVolumes(context.Background())
+			if body == "[]" && (err != nil || len(volumes) != 0) {
+				t.Errorf("empty array must be valid: %v, %v", volumes, err)
+			}
+			if body == "null" && err == nil {
+				t.Error("null must not be treated as an empty array")
+			}
+		})
+	}
+}
+
 func TestDeleteVolume(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete || r.URL.Path != "/volumes/my-data" {
