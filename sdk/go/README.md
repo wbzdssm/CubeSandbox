@@ -384,3 +384,173 @@ export CUBE_PROXY_SCHEME=http
 export CUBE_SANDBOX_DOMAIN=cube.app
 go test -tags=integration -run Integration -count=1 ./...
 ```
+
+## Direct Volume Verification (no sandbox)
+
+The separate `sdk/go/e2e` module tests the local SDK through `replace => ..`.
+It pins official COS/MinIO test dependencies without adding them to the SDK's
+`go.mod`; Go 1.22 or newer is required. Run from the repository checkout:
+
+```bash
+cd sdk/go
+go vet ./...
+go test -race -count=1 ./...
+cd e2e
+go mod download
+go vet ./...
+go test -race -count=1 -v ./...
+```
+
+Default E2E execution uses only loopback fixtures: it verifies backend adapters,
+SDK routing, stream checksums and cleanup. Five live cases skip unless explicitly
+enabled. Do not use the existing `integration` build tag for these tests: those
+older tests create sandboxes and volumes. These new cases require neither a
+template nor management credentials and restrict SDK HTTP requests to read-only
+content routes for the selected volume. They do not prove server-side behavior.
+
+### Real dataflow: Go SDK -> deployed gateway -> COS/MinIO (no shim)
+
+**Use these cases for real dataflow acceptance on machine 34.** They create no
+test server, token, object or metadata. Two independent reads are compared:
+
+1. Official COS/MinIO SDK streams the existing object directly to SHA-256.
+2. CubeSandbox Go SDK requests the deployed content gateway and checks both
+   buffered and streaming reads against that real source digest and size.
+
+The source object is streamed again after validation to detect concurrent changes.
+Real gateway metadata, parent listing, exists/404, invalid token rejection and
+stream early-close behavior are also checked. All SDK requests are read-only
+volume routes; storage calls are Get only. These cases need only read credentials,
+and perform no cleanup because they do not create or modify anything.
+
+The backend environment variables are listed in the table below. Add the following
+**per-backend** variables (replace `MINIO` with `COS` for COS):
+
+| Variable | Value |
+|---|---|
+| `CUBE_VOLUME_MINIO_API_URL` | Actual deployed content gateway origin/base URL, NOT MinIO port 9000 |
+| `CUBE_VOLUME_MINIO_CONTENT_TOKEN` | Valid gateway-issued capability for the selected volume, NOT AK/SK or a management key |
+| `CUBE_VOLUME_MINIO_TEST_PATH` | Absolute volume path of an existing stable, non-empty file, at most 64 MiB |
+| `CUBE_VOLUME_MINIO_TEST_SHA256` | Optional expected 64-character SHA-256; if omitted, the direct backend read is the baseline |
+
+Use secure environment injection or the Bash helper below for credentials, then
+run from `sdk/go/e2e`:
+
+```bash
+CUBE_VOLUME_DATAFLOW_E2E=1 go test -count=1 -v -run '^TestVolumeDataflowMinIO$' .
+CUBE_VOLUME_DATAFLOW_E2E=1 go test -count=1 -v -run '^TestVolumeDataflowCOS$' .
+```
+
+For interactive configuration after defining `read_volume_env` below:
+
+```bash
+for name in VOLUME_ID ENDPOINT BUCKET REGION ACCESS_KEY_ID SECRET_ACCESS_KEY API_URL CONTENT_TOKEN TEST_PATH; do
+    read_volume_env "CUBE_VOLUME_MINIO_$name"
+done
+CUBE_VOLUME_DATAFLOW_E2E=1 go test -count=1 -v -run '^TestVolumeDataflowMinIO$' .
+
+for name in VOLUME_ID BUCKET REGION SECRET_ID SECRET_KEY API_URL CONTENT_TOKEN TEST_PATH; do
+    read_volume_env "CUBE_VOLUME_COS_$name"
+done
+CUBE_VOLUME_DATAFLOW_E2E=1 go test -count=1 -v -run '^TestVolumeDataflowCOS$' .
+```
+
+Use `-count=1` and select one backend when only that backend is configured. No
+`CUBE_VOLUME_BACKEND_E2E` or `CUBE_VOLUME_GATEWAY_E2E` switch is needed. Missing
+settings fail an enabled case; there is **no fallback to a shim or sandbox**.
+The actual object key must be `volumes/<volumeID><TEST_PATH>`, as used by the
+COS/S3 FUSE plugins. This mapping does not apply to JuiceFS chunk storage or to a
+gateway configured with another prefix. Make sure the file is flushed to storage
+and stable before running the tests. Non-loopback gateway credentials require
+HTTPS; do not disable TLS verification. A genuine local service may use loopback.
+
+**Current repository limitation:** CubeAPI/CubeMaster provide volume CRUD and
+mounting, but no `/volumecontent` service; the COS/S3 plugins return empty tokens.
+These tests require an independently deployed real gateway and its scoped token.
+If machine 34 only runs the current management API and MinIO, the full dataflow
+cannot pass yet. A 404 or empty token is a missing prerequisite, not permission
+to fake that layer. Digest equality proves read content agreement; server-side
+logs are still needed to prove the gateway used the intended backend, issued no
+sandbox/VM/container, and handled authorization/leases correctly.
+
+### Supplemental storage probe via a loopback shim (not real dataflow acceptance)
+
+Run the following in `sdk/go/e2e` on the storage test host (for example, machine
+34). Supply an **existing** volume ID; the tests do not create or destroy volumes.
+No endpoint, bucket or credential is hardcoded.
+
+| Backend | Required environment variables |
+|---|---|
+| MinIO | `CUBE_VOLUME_MINIO_VOLUME_ID`, `CUBE_VOLUME_MINIO_ENDPOINT`, `CUBE_VOLUME_MINIO_BUCKET`, `CUBE_VOLUME_MINIO_REGION`, `CUBE_VOLUME_MINIO_ACCESS_KEY_ID`, `CUBE_VOLUME_MINIO_SECRET_ACCESS_KEY` |
+| COS | `CUBE_VOLUME_COS_VOLUME_ID`, `CUBE_VOLUME_COS_BUCKET` (`BucketName-APPID`), `CUBE_VOLUME_COS_REGION`, `CUBE_VOLUME_COS_SECRET_ID`, `CUBE_VOLUME_COS_SECRET_KEY` |
+
+Optional temporary-credential tokens are `CUBE_VOLUME_MINIO_SESSION_TOKEN` and
+`CUBE_VOLUME_COS_SESSION_TOKEN`. Use a secure environment injection mechanism or
+this interactive **Bash** helper; secrets are not placed in shell history:
+
+```bash
+read_volume_env() {
+    case "$1" in
+        *SECRET*|*TOKEN*|*ACCESS_KEY_ID)
+            read -r -s -p "$1: " "$1"; printf '\n' ;;
+        *) read -r -p "$1: " "$1" ;;
+    esac
+    export "$1"
+}
+
+for name in VOLUME_ID ENDPOINT BUCKET REGION ACCESS_KEY_ID SECRET_ACCESS_KEY; do
+    read_volume_env "CUBE_VOLUME_MINIO_$name"
+done
+CUBE_VOLUME_BACKEND_E2E=1 go test -count=1 -v -run '^TestVolumeStorageMinIO$' .
+
+for name in VOLUME_ID BUCKET REGION SECRET_ID SECRET_KEY; do
+    read_volume_env "CUBE_VOLUME_COS_$name"
+done
+CUBE_VOLUME_BACKEND_E2E=1 go test -count=1 -v -run '^TestVolumeStorageCOS$' .
+```
+
+The MinIO endpoint must be an HTTP(S) origin without credentials, path, query or
+fragment. If MinIO runs locally on machine 34, enter `http://127.0.0.1:9000`.
+For a non-loopback endpoint use HTTPS. Only for an explicitly trusted test
+network, set `CUBE_VOLUME_MINIO_ALLOW_HTTP=1` to allow remote HTTP; it does not
+provide transport confidentiality. COS always uses HTTPS with certificate
+verification. The tests do not auto-load proxy or management credentials.
+
+Both cases write one random object under
+`volumes/<volumeID>/sdk-direct-probe/go-<random>.bin`, verify bytes/stream
+SHA-256, metadata/list/exists, missing paths, invalid tokens and early stream
+closure, then delete and HEAD-check only that object. Upload failures also
+trigger a cleanup attempt with a fresh timeout. Existing directory markers,
+`.keep`, volumes and buckets are never deleted. Credentials need object Put,
+Get/Head and Delete permissions. Versioned buckets may retain object versions;
+process termination may leave the probe key, which must be cleaned up manually.
+Logs report SHA-256 and cleanup keys, never credentials.
+
+**Boundary:** only file bytes come from the real storage backend. Metadata,
+directory listings and tokens are generated by the local shim. Passing these
+cases is not production gateway, metadata, capability, isolation or lease
+validation. Missing configuration fails an enabled case rather than skipping it.
+Use `-count=1` to prevent cached Go test results.
+
+### Deployed content gateway: strictly read-only
+
+This independent test requires an already deployed compatible content gateway
+and its valid volume-scoped token. MinIO port 9000 is **not** that gateway. A
+management CubeAPI without `/volumecontent` cannot pass it; do not substitute an
+AK/SK, management API key or empty plugin token.
+
+```bash
+for name in API_URL ID CONTENT_TOKEN TEST_PATH; do
+    read_volume_env "CUBE_VOLUME_$name"
+done
+# Optional: expected 64-character SHA-256 in CUBE_VOLUME_TEST_SHA256.
+CUBE_VOLUME_GATEWAY_E2E=1 go test -count=1 -v -run '^TestVolumeGatewayReadOnly$' .
+```
+
+`CUBE_VOLUME_TEST_PATH` must be an absolute path to a stable existing small file
+inside the volume. The baseline read is buffered, so choose a file that fits the
+runner's memory. Non-loopback gateways require HTTPS. This test checks reads,
+metadata, parent listing, exists/404, early closure and invalid-token rejection;
+it writes no objects and creates/deletes no volumes or sandboxes. Server-side
+no-sandbox evidence, cross-tenant/volume isolation, expired capabilities and
+lease/delete coordination still require separate server observations and tests.
