@@ -284,6 +284,16 @@ func fetchArtifactDownloadTicket(ctx context.Context, ticketURL, artifactID, nod
 	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
 		return nil, fmt.Errorf("artifact download ticket contains an invalid URL")
 	}
+	if ticket.Source == artifactticket.SourceMaster {
+		ticket.URL, err = artifactticket.MasterDownloadURL(ticketURL, ticket.URL, artifactID)
+		if err != nil {
+			return nil, err
+		}
+		expectedOrigin, err = artifactticket.URLOrigin(ticketURL)
+		if err != nil {
+			return nil, err
+		}
+	}
 	origin, err := artifactticket.URLOrigin(ticket.URL)
 	if err != nil || origin != expectedOrigin {
 		return nil, fmt.Errorf("artifact download ticket origin does not match the authorized origin")

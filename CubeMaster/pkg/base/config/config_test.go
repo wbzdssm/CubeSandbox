@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
@@ -18,6 +19,37 @@ import (
 	"gopkg.in/yaml.v3"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+func TestArtifactDownloadConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name, ttl, mode string
+		want            time.Duration
+		invalid         bool
+	}{
+		{"defaults", "", "", time.Hour, false},
+		{"direct", "2h", "direct", 2 * time.Hour, false},
+		{"min", "1m", "proxy", time.Minute, false},
+		{"max", "24h", "direct", 24 * time.Hour, false},
+		{"malformed", "bad", "direct", 0, true},
+		{"too_short", "30s", "", 0, true},
+		{"too_long", "25h", "", 0, true},
+		{"bad_mode", "1h", "anonymous", 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := &Config{Common: &CommonConf{ArtifactDownloadTTL: tc.ttl, ArtifactDownloadMode: tc.mode}}
+			err := preComHandleConf(conf)
+			if (err != nil) != tc.invalid {
+				t.Fatalf("validation error = %v", err)
+			}
+			if !tc.invalid {
+				got, err := conf.Common.ArtifactDownloadDuration()
+				if err != nil || got != tc.want {
+					t.Fatalf("ttl = %s, %v", got, err)
+				}
+			}
+		})
+	}
+}
 
 func TestInit(t *testing.T) {
 	mydir, err := os.Getwd()

@@ -2,8 +2,9 @@
 
 > 本文可直接交给另一个 AI 执行。
 >
-> 更新日期：2026-11-04。
-> 代码基线提交：`318ee9865255844158894f8d4ec250694d1652d1`。
+> 更新日期：2026-11-05。
+> 验收代码：包含本文及 `tests/e2e/template_center/verify-reliability.sh` 的本轮交付提交；短 SHA 由交付消息提供，执行前设置 `CODE_BASE`，不能继续使用旧基线。
+> 本轮父基线：`12405579`。
 > 测试分支：`test/template-reliability-318ee986`。
 > 完整场景定义与判定标准见 [`template-reliability-test-guide.md`](template-reliability-test-guide.md)。
 > 本文只规定远程拓扑、发布顺序、操作门禁和 E2E 执行流程，不代表这些场景已经通过。
@@ -27,7 +28,8 @@ SSH 端口与认证方式使用已有可用配置，**不能假定 34 与 216 �
 
 结果状态只能使用：
 
-- `PASS`：目标测试确实运行，退出码和业务证据均符合预期。
+- `PASS`：目标测试确实运行，退出码和业务证据均符合预期；包通过不代表包内所有用例均执行，须单独记录 `SKIP`。
+- `COMPILE_PASS`：仅交叉编译成功，不是测试运行通过，不能作为发布或 E2E 门禁。
 - `FAIL`：测试、发布、业务断言或安全约束不符合预期。
 - `SKIP`：有明确前置条件缺失或测试主动跳过。
 - `NOT_RUN`：尚未执行或故障条件没有触发。
@@ -48,21 +50,16 @@ SSH 端口与认证方式使用已有可用配置，**不能假定 34 与 216 �
 
 ## 2. 发布测试分支
 
-如果远端测试分支尚未存在，在持有本地提交的开发机执行：
+本轮由开发机提交并以非 force 方式推送到 `test/template-reliability-318ee986`；验证 AI 不再提交或推送。交付消息中的提交 SHA 是唯一验收目标，不得自动验收之后发生漂移的分支 HEAD。
+
+在验证环境设置并核对：
 
 ```bash
-set -euo pipefail
-
-cd /Users/silencegao/Workspace/Github/wbzdsssm/CubeSandbox
-
-CODE_BASE=318ee9865255844158894f8d4ec250694d1652d1
-git merge-base --is-ancestor "$CODE_BASE" HEAD
-
-git push origin \
-  HEAD:refs/heads/test/template-reliability-318ee986
+export CODE_BASE='<交付消息提供的提交SHA>'
+export BRANCH=test/template-reliability-318ee986
 ```
 
-禁止 force push。执行 AI 必须核对拉到的分支包含 `CODE_BASE`；分支 HEAD 可以在该代码提交之上仅增加本文档。
+第 4 节会 fetch、检查祖先关系并将 worktree 固定到 `CODE_BASE`。若交付未推送、SHA 无法解析或脚本缺失，停止并报告 `BLOCKED`。
 
 ## 3. 两台机器只读预检
 
@@ -137,10 +134,10 @@ ssh -p "$COMPUTE_SSH_PORT" "root@$COMPUTE_HOST" '
 set -euo pipefail
 
 REPO=/root/CubeSandbox
-WORKTREE=/tmp/CubeSandbox-template-318ee986
 BRANCH=test/template-reliability-318ee986
-CODE_BASE=318ee9865255844158894f8d4ec250694d1652d1
+: "${CODE_BASE:?请先设置交付消息提供的提交SHA}"
 RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
+WORKTREE="/tmp/CubeSandbox-template-reliability-$RUN_ID"
 EVIDENCE="/root/template-reliability-evidence-$RUN_ID"
 
 install -d -m 0700 "$EVIDENCE"
@@ -148,14 +145,11 @@ install -d -m 0700 "$EVIDENCE"
 git -C "$REPO" fetch origin \
   "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
 
-SOURCE_HEAD="$(git -C "$REPO" rev-parse "refs/remotes/origin/$BRANCH")"
-git -C "$REPO" merge-base --is-ancestor "$CODE_BASE" "$SOURCE_HEAD"
+git -C "$REPO" merge-base --is-ancestor "$CODE_BASE" "refs/remotes/origin/$BRANCH"
+SOURCE_HEAD="$(git -C "$REPO" rev-parse "$CODE_BASE^{commit}")"
+test ! -e "$WORKTREE"
 
-git -C "$REPO" worktree remove --force "$WORKTREE" 2>/dev/null || true
-rm -rf "$WORKTREE"
-
-git -C "$REPO" worktree add --detach \
-  "$WORKTREE" "refs/remotes/origin/$BRANCH"
+git -C "$REPO" worktree add --detach "$WORKTREE" "$SOURCE_HEAD"
 
 test -z "$(git -C "$WORKTREE" status --short)"
 test -f "$WORKTREE/docs/dev/template-reliability-test-guide.md"
@@ -173,7 +167,16 @@ uname -a > "$EVIDENCE/platform.txt"
 
 ## 5. 34 组件门禁
 
-使用仓库 builder，避免误用 34 上旧 Go：
+可复用专项脚本（不 SSH、不发布、不创建 sandbox、不操作真实 DB/bucket）：
+
+```bash
+cd "$WORKTREE"
+bash tests/e2e/template_center/verify-reliability.sh
+```
+
+证据写入 `$WORKTREE/.codebuddy/verification/template-reliability.XXXXXX/`，包含 `revision.txt`、各步骤日志及 `summary.tsv`。默认运行 CLI/config、Master template/HTTP、ticket 协议和存储 `-race` 回归；Linux 实际运行 TC 上传/下载/构建复用和 Cubelet 下载用例；非 Linux 只交叉编译这两组，记录 `COMPILE_PASS`、`linux-native-runtime=NOT_RUN`。可在准备好原生 SDK 依赖的 Linux builder 内追加 `--full`，非 Linux 的 `--full` 固定 `BLOCKED` 并退出非零。脚本显式保留 `remote-e2e=NOT_RUN`，不能据此宣称完成 E2E。
+
+发布门禁仍需使用仓库 builder，避免误用 34 上旧 Go：
 
 ```bash
 set -euo pipefail
@@ -630,20 +633,29 @@ pytest --run-e2e \
 
 `cos/minio` 参数解析通过不能代替真实 COS/MinIO endpoint 验收。若没有对应隔离配置，真实存储场景报告 `SKIP` 或 `BLOCKED`。
 
-## 17. artifact 直下载与授权
+## 17. proxy/direct 下载链路与授权
 
-对本轮新 artifact 验证：
+默认模式为 `proxy`；仅在隔离环境中按实际配置启用 `direct` 并分别验收。`direct` 不等于 FS 字节绕过 Master：
 
-1. 216 先向 34 Master 获取短期 ticket。
-2. 随后从对象存储或 34 TC 下载 ext4。
-3. Master 不承担 ext4 大字节流。
-4. size/SHA256 匹配后才发布可用模板。
-5. 内部 TC header 不得发送到对象存储。
-6. 沙箱必须真实可执行，不能只检查 READY。
+| 模式/产物 | 正确链路 | 鉴权边界 |
+|---|---|---|
+| 默认 proxy | 216 → Master 旧模板下载路由 → TC 或对象存储 | 保持旧兼容路径 |
+| direct + FS | 216 向 Master 领票 → 同一可达 Master 的 artifact `/ext4` → owner TC | Master 校验节点 capability；转发 TC 时剥离节点票据，仅带既有组件认证 |
+| direct + S3 | 216 向 Master 领票 → 对象存储签名 URL | URL 不改写；不能携带内部组件、节点或 refresh 认证 header |
 
-只采网络连接元数据，不抓取认证 payload 或带签名 URL。
+专项验证：
 
-无凭证负例在 34 执行：
+1. refresh 每次重查 artifact/节点/replica 归属；伪造、过期、错误节点和撤销 placement 均不得绕过。
+2. capability 签名密钥由 Master 既有组件秘密派生；历史下发的下载 token 不能作为签名秘密。
+3. 即使票据宣告不可达 Master A，216 从可达 Master B 领票后也从 B 的固定兄弟 `/ext4` 路由下载；仅允许合法 artifact 路由，拒绝任意路径、错误 ID、query、fragment、userinfo、RawPath。S3 签名 URL 不参与此改写。
+4. Range/Content-Range、过期重取和续传、401 停止、size/SHA256 均应有实际字节证据。
+5. 大文件慢流超过普通 API WriteTimeout 仍应下载完整；只对文件 GET/HEAD 清除 write deadline，不对普通写 API 全局解除。
+6. 控制面探活使用组件认证 HEAD 或 S3 Stat，不要求节点副本、不签发虚拟节点票据；404 与 401/503/网络错误分别判定 Missing/Unknown。
+7. 下载完成后沙箱必须真实可执行，不能只检查 READY。
+
+只采网络连接元数据，不抓取认证 payload 或带签名 URL。FS 链路经过 Master 是正确实现，不能按旧版“216 直接从 TC、Master 不传大流”的标准判失败。
+
+无凭证负例在 34 执行（artifact ID 和节点 ID 必须是本轮合法测试夹具）：
 
 ```bash
 export ARTIFACT_ID='<本轮artifact ID>'
@@ -655,11 +667,15 @@ curl -sS -o "$EVIDENCE/ticket-denied.json" \
 
 curl -sS -o /dev/null \
   -w '%{http_code}\n' \
-  "http://127.0.0.1:8090/internal/artifacts/$ARTIFACT_ID/ext4" \
+  "http://127.0.0.1:8089/internal/template/artifacts/$ARTIFACT_ID/ext4" \
   -H "X-Cube-Node-ID: $NODE_216"
+
+curl -sS -o /dev/null \
+  -w '%{http_code}\n' \
+  "http://127.0.0.1:8090/internal/artifacts/$ARTIFACT_ID/ext4"
 ```
 
-预期分别为 403 和 401。
+前两项应为 403，TC 无组件凭证应为 401。TC 接口不校验节点 capability；不能用节点票据代替组件认证。
 
 ## 18. 分页 E2E
 
@@ -688,7 +704,7 @@ cm tpl list --all \
 - `--all` 表格逐页输出；
 - Ctrl+C 和统一 timeout 可停止遍历。
 
-OFFSET 不是并发写入下的一致性快照。MySQL/PG 的 1万/10万数据、深 offset、EXPLAIN 和并发写入只能在独立测试 DB 执行；否则报告 `BLOCKED`。
+`--all` 已对跨页重复 ID 和空 ID 返回错误，遇到漂移应重试而非静默去重；用 `[A,B]` 后 `[B]` 验证失败退出。OFFSET 仍不是并发写入下的一致性快照，这只能检测部分漂移，不能承诺并发零遗漏。MySQL/PG 的 1万/10万数据、深 offset、EXPLAIN 和并发写入只能在独立测试 DB 执行；否则报告 `BLOCKED`。
 
 ## 19. COMMIT
 
@@ -730,6 +746,33 @@ cm tpl build-status \
 
 不得把 34 控制面当作第二个计算节点，也不得启用 34 的 Cubelet 来填补拓扑。
 
+### 20.1 遗留问题与验证优先级
+
+以下是交接时未闭环项，不应因为专项回归通过就标记已解决：
+
+| 优先级/场景 | 交接状态 | 另一 AI 需要验证的断言 |
+|---|---|---|
+| P1 snapshot-only redo 领票授权 | `NOT_RUN`，授权闭环待确认 | 只有 snapshot 引用、无普通 replica 的恢复是否有合法下载授权；不得绕过 artifact/node 归属检查 |
+| P1 普通 restore 丢失 rootfs 缓存 | `NOT_RUN`，refresh 凭据补发待确认 | 仅对专用测试缓存制造冷恢复，检查是否能补发凭据、下载并运行；不能用其他 build 重建代替 restore |
+| P1 普通暖 COMMIT 跨节点 | `BLOCKED`，能力尚未完整接通 | 保持明确阻断；不能用镜像冷启动冒充内存/文件暖恢复 |
+| P1 多节点冷分发与永久退役对照 | 当前拓扑 `BLOCKED` | 需第二个获批专用计算节点，34 Cubelet 保持 mask |
+| P1 真实存储迁移/复用/GC | 远程 `NOT_RUN`；无隔离资源则 `BLOCKED` | FS→S3、跨 TC owner、旧 READY 确认 Missing/Unknown、迁移 CAS 失败保留源、共享引用拒绝误删 |
+| P2 双 Master/TC 与 MySQL/PG | 当前拓扑 `BLOCKED` | READY ABA、generation 并发改变、fingerprint 竞争、双 TC 私盘回收、真实数据库分页性能 |
+| P2 OFFSET 并发写入 | 已知一致性限制 | 重复/空 ID 必须失败，但没有 snapshot/cursor 协议，仍可能漏项；报告限制而非宣称完整一致 |
+| P2 COS/MinIO/S3 分别运行 | 无对应隔离配置则 `BLOCKED` | 参数别名解析与实际 endpoint/bucket 验收分开；不动态切换生产凭证 |
+| Linux TC/Cubelet 原生运行与完整包回归 | 非 Linux 交付机只能 `COMPILE_PASS` | 在 Linux builder 实际运行，报告测试数量、skip、失败和依赖；不能使用 `-exec=true` 冒充执行 |
+| 远程部署、慢流故障注入、真实 sandbox/SDK E2E | 本轮 `NOT_RUN` | 依本文门禁执行，保存字节/SHA、业务输出和回滚证据 |
+
+### 20.2 本轮修复需重点复核
+
+- CLI backend 贯穿请求；`cos/minio` 仍是现有 s3 backend 别名。
+- artifact ID 保留完整 UUID、短 fingerprint 输入不 panic；已发布 ext4 不被构建覆盖，TC 同内容上传幂等、异内容返回 409。
+- TC 复用先校验 backend/locator/key 归属；旧 READY 仅在确认 Missing 后 CAS 转 FAILED，Unknown 保持原数据并返回可重试错误；同 artifact 的 BUILT 重放保留既有下载 token。
+- 迁移采用独立对象 key 和原 generation/status/locator/owner/摘要 CAS；跨 TC 更新实际目标 owner 和稳定 `file://` locator；CAS 失败不删除源文件。
+- 下载模式、票据秘密分离、可信领票端点、组件鉴权 HEAD、Range 续传和慢流标准以第 17 节为准。
+
+本轮没有执行 SSH、远程部署、真实 DB/bucket 操作或 sandbox 创建。下一 AI 若发现问题，记录最小复现、脱敏请求元数据、实际版本和失败日志；停止对应场景，不自行修改代码后继续宣称原提交通过。
+
 ## 21. 清理
 
 1. 先保存脱敏证据和失败资源清单。
@@ -754,8 +797,10 @@ cm tpl delete --template-id "$TEMPLATE_XFS"
 ```text
 构建机兼控制面：9.135.79.34
 计算节点：9.135.10.216
-代码基线：318ee9865255844158894f8d4ec250694d1652d1
-实际构建 HEAD：<填写>
+交付提交 CODE_BASE：<交付消息中的SHA>
+实际构建 HEAD：<填写，必须等于 CODE_BASE 解析出的提交>
+专项脚本证据目录：<填写>
+Linux 原生运行/交叉编译：<逐项区分 PASS、COMPILE_PASS、SKIP、NOT_RUN>
 ```
 
 | 场景 | 状态 | 版本/配置 | 证据 | 说明 |

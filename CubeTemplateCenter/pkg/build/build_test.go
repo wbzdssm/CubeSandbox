@@ -33,12 +33,18 @@ func TestReusableArtifactDataUsesStoredVersionedKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	artifact := &models.RootfsArtifact{
-		ArtifactID: "rfs-versioned", StorageBackend: "fs",
+		ArtifactID: "rfs-versioned", StorageBackend: "fs", StorageRef: client.StorageRef(),
 		ObjectKey: key, Ext4Path: filepath.Join(t.TempDir(), "missing.ext4"),
 	}
 	if _, ok := reusableArtifactData(t.Context(), artifact, true, client); !ok {
 		t.Fatal("published versioned object was incorrectly treated as missing")
 	}
+	originalRef := artifact.StorageRef
+	artifact.StorageRef = "file:///another-store"
+	if _, ok := reusableArtifactData(t.Context(), artifact, true, client); ok {
+		t.Fatal("artifact from another store was incorrectly reused")
+	}
+	artifact.StorageRef = originalRef
 	artifact.ObjectKey = "templates/missing.ext4"
 	if _, ok := reusableArtifactData(t.Context(), artifact, true, client); ok {
 		t.Fatal("missing published object was incorrectly reused")

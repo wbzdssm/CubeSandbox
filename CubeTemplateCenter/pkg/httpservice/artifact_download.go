@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -17,10 +18,8 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
-	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/tcconfig"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore/configenv"
-	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 	"gorm.io/gorm"
 )
 
@@ -42,19 +41,8 @@ var loadDirectDownloadArtifact = func(c *gin.Context, artifactID string) (*model
 
 func artifactDownloadHandler(c *gin.Context) {
 	artifactID := strings.TrimSpace(c.Param("artifact_id"))
-	nodeID := strings.TrimSpace(c.GetHeader(constants.ArtifactDownloadNodeIDHeader))
-	if !directArtifactIDPattern.MatchString(artifactID) || !directArtifactIDPattern.MatchString(nodeID) {
+	if !directArtifactIDPattern.MatchString(artifactID) {
 		c.Status(http.StatusBadRequest)
-		return
-	}
-	claims, err := artifactticket.Verify(
-		[]byte(tcconfig.ArtifactDownloadSigningKey()),
-		c.GetHeader("X-Cube-Artifact-Token"),
-		time.Now(),
-	)
-	if err != nil || claims.Purpose != artifactticket.PurposeDownload ||
-		claims.ArtifactID != artifactID || claims.NodeID != nodeID {
-		c.Status(http.StatusUnauthorized)
 		return
 	}
 
@@ -71,11 +59,7 @@ func artifactDownloadHandler(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 		return
 	}
-	generation := artifact.Generation
-	if generation <= 0 {
-		generation = 1
-	}
-	if artifact.Status != templatecenter.ArtifactStatusReady || claims.Generation != generation {
+	if artifact.Status != templatecenter.ArtifactStatusReady {
 		c.Status(http.StatusGone)
 		return
 	}
@@ -106,6 +90,9 @@ func artifactDownloadHandler(c *gin.Context) {
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("X-Cube-Artifact-Id", artifact.ArtifactID)
 	c.Header("X-Cube-Artifact-SHA256", artifact.Ext4SHA256)
+	if checksum := strings.TrimSpace(artifact.Ext4SHA256); checksum != "" {
+		c.Header("ETag", strconv.Quote(checksum))
+	}
 	http.ServeContent(c.Writer, c.Request, filepath.Base(path), info.ModTime(), f)
 }
 

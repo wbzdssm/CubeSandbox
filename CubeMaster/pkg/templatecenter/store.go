@@ -1002,33 +1002,38 @@ func injectArtifactRefreshToken(ctx context.Context, req *sandboxtypes.CreateCub
 	if err != nil {
 		return fmt.Errorf("load artifact refresh authorization: %w", err)
 	}
-	if err := ensureArtifactStableLocator(ctx, artifact); err != nil {
-		return err
+	direct := artifactDirectDownloadEnabled()
+	if direct {
+		if err := ensureArtifactStableLocator(ctx, artifact); err != nil {
+			return err
+		}
 	}
-	token, err := buildArtifactDownloadRefreshToken(artifact, nodeID, time.Now())
+	downloadAnnotations, err := artifactDownloadAnnotationsForMode(ctx, artifact, "", direct)
 	if err != nil {
 		return err
 	}
-	ticketURL, err := artifactDownloadTicketURL(effectiveArtifactDownloadBaseURL("", artifact), artifact.ArtifactID)
-	if err != nil {
-		return err
-	}
-	downloadOrigin, err := artifactDirectDownloadOrigin(ctx, artifact)
-	if err != nil {
-		return err
+	if direct {
+		token, err := buildArtifactDownloadRefreshToken(ctx, artifact, nodeID, time.Now())
+		if err != nil {
+			return err
+		}
+		downloadAnnotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = token
 	}
 	for _, container := range req.Containers {
-		if container == nil || container.Image == nil || container.Image.Annotations == nil {
+		if container == nil || container.Image == nil {
 			continue
 		}
 		annotations := container.Image.Annotations
-		if strings.TrimSpace(annotations[constants.CubeAnnotationRootfsArtifactTicketURL]) == "" ||
-			strings.TrimSpace(annotations[constants.CubeAnnotationRootfsArtifactID]) != artifactID {
+		if strings.TrimSpace(annotations[constants.CubeAnnotationRootfsArtifactID]) != artifactID {
 			continue
 		}
-		annotations[constants.CubeAnnotationRootfsArtifactTicketURL] = ticketURL
-		annotations[constants.CubeAnnotationRootfsArtifactDownloadOrigin] = downloadOrigin
-		annotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = token
+		for _, key := range []string{constants.CubeAnnotationRootfsArtifactURL, constants.CubeAnnotationRootfsArtifactToken,
+			constants.CubeAnnotationRootfsArtifactTicketURL, constants.CubeAnnotationRootfsArtifactDownloadOrigin, constants.CubeAnnotationRootfsArtifactRefreshToken} {
+			delete(annotations, key)
+		}
+		for key, value := range downloadAnnotations {
+			annotations[key] = value
+		}
 	}
 	return nil
 }

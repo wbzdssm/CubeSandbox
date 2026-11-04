@@ -125,8 +125,9 @@ func (s *internalHttp) registerRoutes() {
 	// GinRequestMiddleware provided.
 	internal := s.engine.Group("", gin.Recovery())
 	api.RegisterInternalRoutes(internal)
-	internal.GET("/internal/artifacts/:artifact_id/ext4", artifactDownloadHandler)
-	internal.HEAD("/internal/artifacts/:artifact_id/ext4", artifactDownloadHandler)
+	artifactAPI := api.InternalAPIGroup(internal)
+	artifactAPI.GET("/artifacts/:artifact_id/ext4", artifactDownloadHandler)
+	artifactAPI.HEAD("/artifacts/:artifact_id/ext4", artifactDownloadHandler)
 
 	root := s.engine.Group("")
 	root.Use(middleware.GinRequestMiddleware())

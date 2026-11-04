@@ -21,6 +21,7 @@ import (
 const (
 	SourceS3             = "s3"
 	SourceTemplateCenter = "template_center"
+	SourceMaster         = "master"
 	PurposeDownload      = "download"
 	PurposeRefresh       = "refresh"
 	DownloadTokenHeader  = "X-Cube-Artifact-Token"
@@ -82,7 +83,7 @@ func (t Ticket) DownloadRequest(nodeID string) (string, http.Header, error) {
 		if t.Token != "" || len(t.Headers) != 0 {
 			return "", nil, errors.New("S3 ticket must not contain internal credentials or headers")
 		}
-	case SourceTemplateCenter:
+	case SourceMaster, SourceTemplateCenter:
 		for name, value := range t.Headers {
 			key := http.CanonicalHeaderKey(name)
 			if key != http.CanonicalHeaderKey(DownloadTokenHeader) && key != http.CanonicalHeaderKey(DownloadNodeIDHeader) {
@@ -131,6 +132,46 @@ func validHeaderCredential(value string) bool {
 		}
 	}
 	return true
+}
+
+// MasterDownloadURL pins file downloads to the trusted endpoint used to obtain
+// the ticket. Object-store URLs must never pass through this rewrite.
+func MasterDownloadURL(ticketEndpoint, advertisedURL, artifactID string) (string, error) {
+	if artifactID == "" || strings.ContainsAny(artifactID, "/\\\\?#%") || artifactID == "." || artifactID == ".." {
+		return "", errors.New("invalid artifact ID in Master ticket")
+	}
+	endpoint, err := url.Parse(ticketEndpoint)
+	if err != nil {
+		return "", errors.New("invalid Master ticket endpoint")
+	}
+	if _, err := URLOrigin(ticketEndpoint); err != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.RawPath != "" {
+		return "", errors.New("invalid Master ticket endpoint")
+	}
+	suffix := "/internal/template/artifacts/" + artifactID + "/download-ticket"
+	if !strings.HasSuffix(endpoint.Path, suffix) {
+		return "", errors.New("Master ticket path does not match artifact")
+	}
+	advertised, err := url.Parse(advertisedURL)
+	if err != nil {
+		return "", errors.New("invalid Master download URL")
+	}
+	if _, err := URLOrigin(advertisedURL); err != nil || advertised.RawQuery != "" || advertised.Fragment != "" || advertised.RawPath != "" ||
+		!strings.HasSuffix(advertised.Path, "/internal/template/artifacts/"+artifactID+"/ext4") {
+		return "", errors.New("Master download path does not match artifact")
+	}
+	endpoint.Path = strings.TrimSuffix(endpoint.Path, "/download-ticket") + "/ext4"
+	return endpoint.String(), nil
+}
+
+// DeriveSigningKey separates capability signing from service authentication.
+// serviceSecret must never have been disclosed to capability holders.
+func DeriveSigningKey(serviceSecret []byte) ([]byte, error) {
+	if err := ValidateSigningKey(serviceSecret); err != nil {
+		return nil, err
+	}
+	mac := hmac.New(sha256.New, serviceSecret)
+	_, _ = mac.Write([]byte("cube/artifact-download/signing-key/v1"))
+	return mac.Sum(nil), nil
 }
 
 // Sign returns a self-contained HMAC token. The payload is readable but cannot

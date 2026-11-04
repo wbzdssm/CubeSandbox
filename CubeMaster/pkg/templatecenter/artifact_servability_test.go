@@ -9,13 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
-	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 )
 
 // stubRemoteTier pins the topology discriminator and the network seam for
@@ -23,20 +24,14 @@ import (
 func stubRemoteTier(t *testing.T, remote bool, probe func(ctx context.Context, url string, header http.Header) (int, http.Header, []byte, error)) {
 	t.Helper()
 	origTier := artifactServedByRemoteTier
-	origTicket := artifactServabilityTicketFn
 	artifactServedByRemoteTier = func() bool { return remote }
-	artifactServabilityTicketFn = func(_ context.Context, artifact *models.RootfsArtifact) (*artifactticket.Ticket, error) {
-		return &artifactticket.Ticket{
-			Source: artifactticket.SourceTemplateCenter,
-			URL:    buildDownloadURL(artifact.MasterNodeIP, artifact.ArtifactID, artifact.DownloadToken),
-		}, nil
-	}
+	t.Setenv(constants.TemplateCallbackTokenEnv, "existing-component-token")
+	t.Setenv(constants.TemplateCenterDownloadAddrEnv, "http://tc.example:8090")
 	servabilityProbeMu.Lock()
 	servabilityProbeCache = map[string]artifactServabilityProbe{}
 	servabilityProbeMu.Unlock()
 	t.Cleanup(func() {
 		artifactServedByRemoteTier = origTier
-		artifactServabilityTicketFn = origTicket
 	})
 	if probe != nil {
 		origGet := getArtifactDownloadRange
@@ -58,6 +53,42 @@ func envelopeProbe(code int, msg string) func(ctx context.Context, url string, h
 	return func(ctx context.Context, url string, header http.Header) (int, http.Header, []byte, error) {
 		body := fmt.Sprintf(`{"ret":{"ret_code":%d,"ret_msg":%q}}`, code, msg)
 		return http.StatusOK, http.Header{}, []byte(body), nil
+	}
+}
+
+func TestArtifactServabilityUsesComponentAuthWithoutNodeTicket(t *testing.T) {
+	stubRemoteTier(t, true, nil)
+	status := http.StatusOK
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != http.MethodHead || r.URL.Path != "/tc/api/v1/artifacts/probe-artifact/ext4" {
+			t.Error("incorrect probe route")
+		}
+		if r.Header.Get(constants.TemplateCallbackTokenHeader) != "existing-component-token" {
+			t.Error("component auth missing")
+		}
+		if r.Header.Get("X-Cube-Artifact-Token") != "" || r.Header.Get("X-Cube-Node-ID") != "" {
+			t.Error("probe used a node ticket")
+		}
+		w.Header().Set("X-Cube-Artifact-Id", "probe-artifact")
+		w.WriteHeader(status)
+	}))
+	defer server.Close()
+	artifact := &models.RootfsArtifact{ArtifactID: "probe-artifact", Generation: 1, StorageBackend: "fs", MasterNodeIP: "http://master.invalid", OwnerTCDownloadBase: server.URL}
+	for _, tc := range []struct {
+		status int
+		want   artifactServability
+	}{{200, artifactServabilityServable}, {404, artifactServabilityMissing}, {401, artifactServabilityUnknown}, {503, artifactServabilityUnknown}} {
+		status = tc.status
+		got, reason := probeArtifactServability(t.Context(), artifact)
+		if got != tc.want {
+			t.Fatalf("status=%d got=%v reason=%s", status, got, reason)
+		}
+	}
+	t.Setenv(constants.TemplateCallbackTokenEnv, "")
+	if got, _ := probeArtifactServability(t.Context(), artifact); got != artifactServabilityUnknown || calls != 4 {
+		t.Fatal("missing auth should not contact TC")
 	}
 }
 
@@ -193,9 +224,6 @@ func TestVerifyArtifactServabilityStatsS3WithoutHTTPProbe(t *testing.T) {
 		httpCalled = true
 		return 0, nil, nil, errors.New("S3 must not be probed over HTTP")
 	})
-	artifactServabilityTicketFn = func(context.Context, *models.RootfsArtifact) (*artifactticket.Ticket, error) {
-		return &artifactticket.Ticket{Source: artifactticket.SourceS3, URL: "https://objects.example/signed"}, nil
-	}
 	oldStat := artifactServabilityS3StatFn
 	statCalled := false
 	artifactServabilityS3StatFn = func(_ context.Context, artifact *models.RootfsArtifact) (bool, error) {
@@ -204,13 +232,13 @@ func TestVerifyArtifactServabilityStatsS3WithoutHTTPProbe(t *testing.T) {
 	}
 	t.Cleanup(func() { artifactServabilityS3StatFn = oldStat })
 	artifact := &models.RootfsArtifact{
-		ArtifactID:    "rfs-s3",
-		Generation:    1,
-		Status:        ArtifactStatusReady,
+		ArtifactID:     "rfs-s3",
+		Generation:     1,
+		Status:         ArtifactStatusReady,
 		StorageBackend: "s3",
-		ArtifactURL:   "http://minio:9000/bucket/rfs-s3.ext4?sig=...",
-		MasterNodeIP:  "http://master:8089",
-		DownloadToken: "tok-s3",
+		ArtifactURL:    "http://minio:9000/bucket/rfs-s3.ext4?sig=...",
+		MasterNodeIP:   "http://master:8089",
+		DownloadToken:  "tok-s3",
 	}
 	if err := verifyArtifactServability(context.Background(), artifact); err != nil {
 		t.Fatalf("S3-backed artifact should be probed through the unified download endpoint, got %v", err)

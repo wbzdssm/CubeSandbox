@@ -282,12 +282,6 @@ func CallbackToken() string {
 	return v
 }
 
-// ArtifactDownloadSigningKey returns the secret shared only by CubeMaster and
-// CubeTemplateCenter for short-lived fs download capabilities.
-func ArtifactDownloadSigningKey() string {
-	return strings.TrimSpace(os.Getenv(constants.ArtifactDownloadSigningKeyEnv))
-}
-
 // DownloadBaseURL returns the stable node-facing TemplateCenter origin.
 func DownloadBaseURL() string {
 	if v := strings.TrimSpace(os.Getenv(EnvDownloadBase)); v != "" {

@@ -19,6 +19,34 @@ import (
 	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 )
 
+func TestFetchMasterTicketUsesReachableMaster(t *testing.T) {
+	const base = "/base/internal/template/artifacts/artifact-1/"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == base+"download-ticket" {
+			_ = json.NewEncoder(w).Encode(artifactticket.Ticket{Source: artifactticket.SourceMaster,
+				URL: "https://unreachable.example/internal/template/artifacts/artifact-1/ext4", Token: "download-only",
+				ExpiresAt: time.Now().Add(time.Hour), ServerTime: time.Now(), ArtifactID: "artifact-1", Generation: 1, SizeBytes: 4})
+			return
+		}
+		if r.URL.Path != base+"ext4" || r.Header.Get("X-Cube-Artifact-Token") != "download-only" || r.Header.Get("X-Cube-Artifact-Refresh-Token") != "" {
+			t.Error("invalid data request")
+		}
+		_, _ = w.Write([]byte("data"))
+	}))
+	defer server.Close()
+	source, err := fetchArtifactDownloadTicket(t.Context(), server.URL+base+"download-ticket", "artifact-1", "node-1", "refresh", "https://old-master.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.URL != server.URL+base+"ext4" {
+		t.Fatalf("unreachable URL retained: %s", source.URL)
+	}
+	done, err := downloadArtifactAttempt(t.Context(), t.TempDir()+"/artifact.download", source, 4)
+	if err != nil || !done {
+		t.Fatalf("done=%v err=%v", done, err)
+	}
+}
+
 func TestFetchS3TicketDoesNotForwardInternalHeaders(t *testing.T) {
 	const body = "artifact-bytes"
 	objectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -594,6 +594,9 @@ func reuseExistingArtifact(ctx context.Context, db *gorm.DB, fingerprint string,
 func reusableArtifactData(ctx context.Context, artifact *models.RootfsArtifact, storeEnabled bool, client *s3store.Client) (string, bool) {
 	var statStored func() (bool, error)
 	if storeEnabled && client != nil {
+		if err := client.ValidateStored(artifact.StorageBackend, artifact.StorageRef, artifact.ObjectKey, artifact.ArtifactID); err != nil {
+			return "artifact storage ownership mismatch", false
+		}
 		statStored = func() (bool, error) {
 			return client.StatStored(ctx, artifact.ObjectKey, artifact.ArtifactID)
 		}

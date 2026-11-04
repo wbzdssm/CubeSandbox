@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -21,11 +22,9 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/log"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/errorcode"
-	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 )
 
-// This file decides whether the direct URL represented by a fresh download
-// ticket can actually serve an artifact before distribution starts.
+// This file checks the authoritative storage tier before distribution starts.
 //
 // WHY A NETWORK PROBE, NOT A DISK PROBE
 // -------------------------------------
@@ -34,9 +33,8 @@ import (
 // served by the object store. CubeMaster's own disk is therefore not evidence
 // that a freshly built artifact is missing.
 //
-// The meaningful check is end-to-end against the fresh ticket destination:
-// Master signs, then probes TC or S3 directly. Artifact bytes never traverse
-// CubeMaster.
+// Probes are control-plane requests: TC uses existing component authentication,
+// while S3 uses Stat. They must not require a node replica or mint node tickets.
 //
 // TC is probed with HEAD. S3 is checked through the blobstore Stat API because
 // an AWS SigV4 GET URL cannot be reused for HEAD and the control plane must not
@@ -79,7 +77,8 @@ type artifactServabilityEnvelope struct {
 }
 
 var artifactServabilityHTTPClient = &http.Client{
-	Timeout: 15 * time.Second,
+	Timeout:       15 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }
 
 // getArtifactDownloadRange is the single network seam, indirected so tests
@@ -158,10 +157,6 @@ type artifactServabilityProbe struct {
 	at      time.Time
 }
 
-var artifactServabilityTicketFn = func(ctx context.Context, artifact *models.RootfsArtifact) (*artifactticket.Ticket, error) {
-	return buildArtifactDownloadTicket(ctx, artifact, "cubemaster-probe", time.Now())
-}
-
 var artifactServabilityS3StatFn = statArtifactObjectInS3
 
 // probeServabilityOnce reuses a recent positive answer, then probes.
@@ -204,11 +199,7 @@ func probeArtifactServability(ctx context.Context, artifact *models.RootfsArtifa
 	if artifact == nil {
 		return artifactServabilityUnknown, "nil artifact"
 	}
-	ticket, err := artifactServabilityTicketFn(ctx, artifact)
-	if err != nil {
-		return artifactServabilityUnknown, fmt.Sprintf("create direct download probe: %v", err)
-	}
-	if ticket.Source == artifactticket.SourceS3 {
+	if artifactUsesS3(artifact) {
 		exists, statErr := artifactServabilityS3StatFn(ctx, artifact)
 		if statErr != nil {
 			return artifactServabilityUnknown, fmt.Sprintf("stat object store artifact: %v", statErr)
@@ -218,12 +209,17 @@ func probeArtifactServability(ctx context.Context, artifact *models.RootfsArtifa
 		}
 		return artifactServabilityServable, "object store stat succeeded"
 	}
-	requestHeader := make(http.Header)
-	if ticket.Source == artifactticket.SourceTemplateCenter {
-		requestHeader.Set("X-Cube-Artifact-Token", ticket.Token)
-		requestHeader.Set("X-Cube-Node-ID", "cubemaster-probe")
+	endpoint, err := TemplateCenterArtifactDownloadURL(artifact)
+	if err != nil {
+		return artifactServabilityUnknown, "invalid TC artifact endpoint"
 	}
-	status, header, body, err := getArtifactDownloadRange(ctx, ticket.URL, requestHeader)
+	callbackToken := strings.TrimSpace(os.Getenv(constants.TemplateCallbackTokenEnv))
+	if callbackToken == "" {
+		return artifactServabilityUnknown, "TC component authentication is not configured"
+	}
+	requestHeader := make(http.Header)
+	requestHeader.Set(constants.TemplateCallbackTokenHeader, callbackToken)
+	status, header, body, err := getArtifactDownloadRange(ctx, endpoint, requestHeader)
 	if err != nil {
 		return artifactServabilityUnknown, fmt.Sprintf("head direct artifact endpoint: %v", sanitizeArtifactProbeError(err))
 	}
@@ -252,10 +248,10 @@ var demoteUnservableRootfsArtifact = func(ctx context.Context, artifactID string
 	result := store.db.WithContext(ctx).Table(constants.RootfsArtifactTableName).
 		Where("artifact_id = ? AND status = ? AND generation = ?", artifactID, ArtifactStatusReady, generation).
 		Updates(map[string]any{
-		"status":     ArtifactStatusFailed,
-		"last_error": fmt.Sprintf("download endpoint reports the artifact missing (%s); artifact must be rebuilt", reason),
-		"updated_at": time.Now(),
-	})
+			"status":     ArtifactStatusFailed,
+			"last_error": fmt.Sprintf("download endpoint reports the artifact missing (%s); artifact must be rebuilt", reason),
+			"updated_at": time.Now(),
+		})
 	if result.Error != nil {
 		log.G(ctx).Warnf("rootfs artifact %s generation %d: demote to %s fail: %v",
 			artifactID, generation, ArtifactStatusFailed, result.Error)

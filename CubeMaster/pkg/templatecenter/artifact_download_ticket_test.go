@@ -13,60 +13,148 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/node"
 	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 	"gorm.io/gorm"
 )
 
-func TestArtifactDownloadTTL(t *testing.T) {
-	t.Setenv(constants.ArtifactDownloadTTLEnv, "")
-	if got, err := artifactDownloadTTL(); err != nil || got != time.Hour {
-		t.Fatalf("default ttl = %s, %v; want 1h", got, err)
+func TestArtifactDownloadRejectsDeletedReplicaAndForgedToken(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	t.Setenv(constants.ArtifactDownloadTTLEnv, "2h")
-	if got, err := artifactDownloadTTL(); err != nil || got != 2*time.Hour {
-		t.Fatalf("configured ttl = %s, %v; want 2h", got, err)
+	sqlDB, _ := db.DB()
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if err := db.AutoMigrate(&models.RootfsArtifact{}, &models.TemplateReplica{}); err != nil {
+		t.Fatal(err)
 	}
-
-	t.Setenv(constants.ArtifactDownloadTTLEnv, "")
-	t.Setenv(constants.ArtifactDownloadTokenTTLEnv, "90m")
-	if got, err := artifactDownloadTTL(); err != nil || got != 90*time.Minute {
-		t.Fatalf("alias ttl = %s, %v; want 90m", got, err)
+	oldDB := store.db
+	store.db = db
+	t.Cleanup(func() { store.db = oldDB })
+	const nodeID = "ticket-auth-regression-node"
+	oldLookup := lookupArtifactDownloadNode
+	lookupArtifactDownloadNode = func(id string) (*node.Node, bool) { return &node.Node{}, id == nodeID }
+	t.Cleanup(func() { lookupArtifactDownloadNode = oldLookup })
+	t.Setenv(constants.TemplateCallbackTokenEnv, strings.Repeat("private-control-token-", 3))
+	artifact := &models.RootfsArtifact{ArtifactID: "auth-artifact", Status: ArtifactStatusReady, Generation: 1,
+		DownloadToken: strings.Repeat("node-visible-download-token-", 2), MasterNodeIP: "http://master.example:8089",
+		StorageBackend: "fs", StorageRef: "file:///data/artifact.ext4", OwnerTCDownloadBase: "http://tc.example:8090"}
+	replica := &models.TemplateReplica{TemplateID: "template-auth", ArtifactID: artifact.ArtifactID, NodeID: nodeID, Phase: ReplicaPhaseDistributing}
+	if err := db.Create(artifact).Error; err != nil {
+		t.Fatal(err)
 	}
-
-	t.Setenv(constants.ArtifactDownloadTokenTTLEnv, "")
-	for _, value := range []string{"not-a-duration", "30s", "25h"} {
-		t.Run(value, func(t *testing.T) {
-			t.Setenv(constants.ArtifactDownloadTTLEnv, value)
-			if _, err := artifactDownloadTTL(); err == nil {
-				t.Fatalf("invalid ttl %q unexpectedly accepted", value)
-			}
-		})
+	if err := db.Create(replica).Error; err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	refresh, err := buildArtifactDownloadRefreshToken(ctx, artifact, nodeID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ticket, err := IssueArtifactDownloadTicket(ctx, artifact.ArtifactID, nodeID, refresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyArtifactDownloadToken(ctx, artifact.ArtifactID, nodeID, ticket.Token); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyArtifactDownloadToken(ctx, artifact.ArtifactID, nodeID, refresh); !errors.Is(err, ErrArtifactDownloadUnauthorized) {
+		t.Fatal("refresh accepted as download")
+	}
+	nodeKey, err := artifactticket.DeriveSigningKey([]byte(artifact.DownloadToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	forged, err := artifactticket.Sign(nodeKey, artifactticket.Claims{ArtifactID: artifact.ArtifactID, NodeID: nodeID,
+		Generation: 1, Purpose: artifactticket.PurposeRefresh, ExpiresAt: time.Now().Add(48 * time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := IssueArtifactDownloadTicket(ctx, artifact.ArtifactID, nodeID, forged); !errors.Is(err, ErrArtifactDownloadUnauthorized) {
+		t.Fatal("forged refresh accepted")
+	}
+	if err := db.Delete(replica).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := IssueArtifactDownloadTicket(ctx, artifact.ArtifactID, nodeID, refresh); !errors.Is(err, ErrArtifactDownloadUnauthorized) {
+		t.Fatalf("deleted replica refresh: %v", err)
+	}
+	if _, err := VerifyArtifactDownloadToken(ctx, artifact.ArtifactID, nodeID, ticket.Token); !errors.Is(err, ErrArtifactDownloadUnauthorized) {
+		t.Fatalf("deleted replica download: %v", err)
 	}
 }
 
-func TestValidateArtifactDownloadSigningKey(t *testing.T) {
-	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, "short")
-	if err := ValidateArtifactDownloadSigningKey(); err == nil || !strings.Contains(err.Error(), "at least 32 bytes") {
-		t.Fatalf("short signing key error = %v", err)
+func TestArtifactDownloadAnnotationsModeSnapshot(t *testing.T) {
+	artifact := &models.RootfsArtifact{ArtifactID: "artifact-1", MasterNodeIP: "http://master.example:8089", DownloadToken: "existing-token", StorageBackend: "fs"}
+	for _, direct := range []bool{false, true} {
+		annotations, err := artifactDownloadAnnotationsForMode(context.Background(), artifact, "", direct)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if direct {
+			if annotations[constants.CubeAnnotationRootfsArtifactTicketURL] == "" || annotations[constants.CubeAnnotationRootfsArtifactURL] != "" || annotations[constants.CubeAnnotationRootfsArtifactToken] != "" {
+				t.Fatal("direct mode mixed with legacy protocol")
+			}
+		} else if annotations[constants.CubeAnnotationRootfsArtifactURL] == "" || annotations[constants.CubeAnnotationRootfsArtifactToken] != artifact.DownloadToken || annotations[constants.CubeAnnotationRootfsArtifactTicketURL] != "" {
+			t.Fatal("proxy mode mixed with ticket protocol")
+		}
 	}
+}
 
-	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, strings.Repeat("k", 32))
-	if err := ValidateArtifactDownloadSigningKey(); err != nil {
-		t.Fatalf("valid signing key: %v", err)
+func setArtifactDownloadTTL(t *testing.T, ttl time.Duration) {
+	t.Helper()
+	old := artifactDownloadTTL
+	artifactDownloadTTL = func() (time.Duration, error) { return ttl, nil }
+	t.Cleanup(func() { artifactDownloadTTL = old })
+}
+
+func TestArtifactDownloadUsesExistingCredentialOnly(t *testing.T) {
+	artifact := &models.RootfsArtifact{ArtifactID: "artifact-1", DownloadToken: strings.Repeat("node-visible-token-", 3)}
+	t.Setenv(constants.TemplateCallbackTokenEnv, strings.Repeat("control-token-", 3))
+	key, err := artifactDownloadSigningKey(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nodeKey, err := artifactticket.DeriveSigningKey([]byte(artifact.DownloadToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	forged, err := artifactticket.Sign(nodeKey, artifactticket.Claims{ArtifactID: artifact.ArtifactID, NodeID: "other-node",
+		Generation: 1, Purpose: artifactticket.PurposeDownload, ExpiresAt: time.Now().Add(24 * time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := artifactticket.Verify(key, forged, time.Now()); err == nil {
+		t.Fatal("node-visible credential can forge tickets")
+	}
+	artifact.DownloadToken = ""
+	if _, err := artifactDownloadSigningKey(artifact); err != nil {
+		t.Fatal("ticket key must not depend on legacy token")
+	}
+	for _, token := range []string{"", "weak"} {
+		t.Setenv(constants.TemplateCallbackTokenEnv, token)
+		if _, err := artifactDownloadSigningKey(artifact); err == nil {
+			t.Fatal("missing/weak service secret accepted")
+		}
 	}
 }
 
 func TestBuildArtifactDownloadTicketForTemplateCenter(t *testing.T) {
-	secret := strings.Repeat("download-key-", 3)
-	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, secret)
-	t.Setenv(constants.ArtifactDownloadTTLEnv, "2h")
+	t.Setenv(constants.TemplateCallbackTokenEnv, strings.Repeat("download-key-", 3))
+	secret, err := artifactticket.DeriveSigningKey([]byte(strings.Repeat("download-key-", 3)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setArtifactDownloadTTL(t, 2*time.Hour)
 	now := time.Unix(1_800_000_000, 0)
 	artifact := &models.RootfsArtifact{
 		ArtifactID:          "artifact-1",
 		Generation:          4,
 		StorageBackend:      "fs",
 		OwnerTCDownloadBase: "http://tc.internal:8080/base?ignored=1",
+		MasterNodeIP:        "http://master.example:8089",
+		DownloadToken:       strings.Repeat("download-key-", 3),
 		Ext4SizeBytes:       1234,
 		Ext4SHA256:          "abc123",
 	}
@@ -78,14 +166,14 @@ func TestBuildArtifactDownloadTicketForTemplateCenter(t *testing.T) {
 	if ticket.Method != "GET" ||
 		ticket.Headers[artifactticket.DownloadTokenHeader] != ticket.Token ||
 		ticket.Headers[artifactticket.DownloadNodeIDHeader] != "node-1" ||
-		ticket.Source != artifactticket.SourceTemplateCenter ||
-		ticket.URL != "http://tc.internal:8080/base/internal/artifacts/artifact-1/ext4" ||
+		ticket.Source != artifactticket.SourceMaster ||
+		ticket.URL != "http://master.example:8089/internal/template/artifacts/artifact-1/ext4" ||
 		ticket.ExpiresAt.Sub(now) != 2*time.Hour ||
 		ticket.SizeBytes != artifact.Ext4SizeBytes ||
 		ticket.SHA256 != artifact.Ext4SHA256 {
 		t.Fatalf("ticket = %+v", ticket)
 	}
-	claims, err := artifactticket.Verify([]byte(secret), ticket.Token, now)
+	claims, err := artifactticket.Verify(secret, ticket.Token, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,17 +185,21 @@ func TestBuildArtifactDownloadTicketForTemplateCenter(t *testing.T) {
 }
 
 func TestBuildArtifactDownloadRefreshToken(t *testing.T) {
-	secret := strings.Repeat("refresh-key-", 3)
-	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, secret)
+	t.Setenv(constants.TemplateCallbackTokenEnv, strings.Repeat("refresh-key-", 3))
+	secret, err := artifactticket.DeriveSigningKey([]byte(strings.Repeat("refresh-key-", 3)))
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Unix(1_800_000_000, 0)
-	token, err := buildArtifactDownloadRefreshToken(&models.RootfsArtifact{
-		ArtifactID: "artifact-1",
-		Generation: 7,
+	token, err := buildArtifactDownloadRefreshToken(context.Background(), &models.RootfsArtifact{
+		ArtifactID:    "artifact-1",
+		Generation:    7,
+		DownloadToken: strings.Repeat("refresh-key-", 3),
 	}, "node-1", now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	claims, err := artifactticket.Verify([]byte(secret), token, now)
+	claims, err := artifactticket.Verify(secret, token, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +211,7 @@ func TestBuildArtifactDownloadRefreshToken(t *testing.T) {
 }
 
 func TestBuildArtifactDownloadTicketForS3UsesFreshBoundedURL(t *testing.T) {
-	t.Setenv(constants.ArtifactDownloadTTLEnv, "2h")
+	setArtifactDownloadTTL(t, 2*time.Hour)
 	oldPresign := presignArtifactGetURLWithTTL
 	t.Cleanup(func() { presignArtifactGetURLWithTTL = oldPresign })
 	var gotTTL time.Duration

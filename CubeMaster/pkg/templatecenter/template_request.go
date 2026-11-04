@@ -54,26 +54,12 @@ func generateTemplateCreateRequest(ctx context.Context, req *types.CreateTemplat
 			},
 		},
 	}
-	ticketURL, err := artifactDownloadTicketURL(
-		effectiveArtifactDownloadBaseURL(downloadBaseURL, artifact),
-		artifact.ArtifactID,
-	)
+	imageAnnotations, err := artifactDownloadAnnotations(ctx, artifact, downloadBaseURL)
 	if err != nil {
 		return nil, err
 	}
-	downloadOrigin, err := artifactDirectDownloadOrigin(ctx, artifact)
-	if err != nil {
-		return nil, err
-	}
-	imageAnnotations := map[string]string{
-		constants.CubeAnnotationRootfsArtifactID:             artifact.ArtifactID,
-		constants.CubeAnnotationRootfsArtifactTicketURL:      ticketURL,
-		constants.CubeAnnotationRootfsArtifactDownloadOrigin: downloadOrigin,
-		constants.CubeAnnotationRootfsArtifactSHA256:         artifact.Ext4SHA256,
-		constants.CubeAnnotationRootfsArtifactSizeBytes:      strconv.FormatInt(artifact.Ext4SizeBytes, 10),
-		constants.CubeAnnotationWritableLayerSize:            req.WritableLayerSize,
-		constants.CubeAnnotationTemplateSpecFingerprint:      artifact.TemplateSpecFingerprint,
-	}
+	imageAnnotations[constants.CubeAnnotationWritableLayerSize] = req.WritableLayerSize
+	imageAnnotations[constants.CubeAnnotationTemplateSpecFingerprint] = artifact.TemplateSpecFingerprint
 	command := imageCfg.Entrypoint
 	args := imageCfg.Cmd
 	if req.ContainerOverrides != nil {

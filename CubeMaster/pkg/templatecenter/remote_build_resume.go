@@ -577,6 +577,27 @@ func registerRemoteBuiltArtifactOnSession(ctx context.Context, sess *gorm.DB, re
 	fingerprint := result.TemplateSpecFingerprint
 	err = func() error {
 		existing, findErr := findRootfsArtifactByFingerprintForUpdate(sess, fingerprint)
+		if findErr == nil && existing.Status == ArtifactStatusReady && !existing.DeletedAt.Valid && existing.ArtifactID != result.ArtifactID {
+			if err := validateReadyArtifactForAdoption(ctx, existing); err != nil {
+				return err
+			}
+			verdict, reason := probeArtifactServability(ctx, existing)
+			switch verdict {
+			case artifactServabilityMissing:
+				changed := sess.WithContext(ctx).Model(&models.RootfsArtifact{}).
+					Where("artifact_id = ? AND status = ? AND COALESCE(generation, 0) = ? AND template_spec_fingerprint = ?", existing.ArtifactID, ArtifactStatusReady, existing.Generation, fingerprint).
+					Updates(map[string]any{"status": ArtifactStatusFailed, "last_error": "serving tier reports missing before adoption: " + reason})
+				if changed.Error != nil {
+					return changed.Error
+				}
+				if changed.RowsAffected == 0 {
+					return errArtifactRegisterRetryable
+				}
+				existing.Status = ArtifactStatusFailed
+			case artifactServabilityUnknown:
+				return fmt.Errorf("%w: cannot verify predecessor %s: %s", errArtifactRegisterRetryable, existing.ArtifactID, reason)
+			}
+		}
 		switch {
 		case findErr == nil && existing.Status == ArtifactStatusReady && !existing.DeletedAt.Valid:
 			// Adopt — INCLUDING our own artifact_id: a duplicate BUILT replay

@@ -26,11 +26,6 @@ const (
 	// node boots from.
 	TemplateCallbackInsecureNoTokenEnv = "CUBE_TEMPLATE_CALLBACK_INSECURE_NO_TOKEN"
 
-	ArtifactDownloadSigningKeyEnv = "CUBE_ARTIFACT_DOWNLOAD_SIGNING_KEY"
-	// ArtifactDownloadTTLEnv is the canonical short-lived download TTL.
-	ArtifactDownloadTTLEnv = "CUBE_ARTIFACT_DOWNLOAD_TTL"
-	// ArtifactDownloadTokenTTLEnv is the documented alias for the same TTL.
-	ArtifactDownloadTokenTTLEnv   = "CUBE_ARTIFACT_DOWNLOAD_TOKEN_TTL"
 	ArtifactDownloadNodeIDHeader  = "X-Cube-Node-ID"
 	ArtifactDownloadRefreshHeader = "X-Cube-Artifact-Refresh-Token"
 	TemplateCenterDownloadAddrEnv = "CUBE_TEMPLATE_CENTER_DOWNLOAD_ADDR"

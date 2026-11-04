@@ -10,6 +10,47 @@ import (
 	"time"
 )
 
+func TestMasterDownloadURLUsesReachableEndpoint(t *testing.T) {
+	endpoint := "http://reachable.example/base/internal/template/artifacts/artifact-1/download-ticket"
+	advertised := "https://unreachable.example/internal/template/artifacts/artifact-1/ext4"
+	got, err := MasterDownloadURL(endpoint, advertised, "artifact-1")
+	if err != nil || got != "http://reachable.example/base/internal/template/artifacts/artifact-1/ext4" {
+		t.Fatalf("url=%q err=%v", got, err)
+	}
+	for _, bad := range []string{"https://other.example/arbitrary", "https://other.example/internal/template/artifacts/other/ext4", advertised + "?secret=1", "https://user:pass@example/internal/template/artifacts/artifact-1/ext4"} {
+		if _, err := MasterDownloadURL(endpoint, bad, "artifact-1"); err == nil {
+			t.Fatalf("accepted %q", bad)
+		}
+	}
+	for _, bad := range []string{"http://example/arbitrary", endpoint + "?redirect=x", endpoint + "#fragment"} {
+		if _, err := MasterDownloadURL(bad, advertised, "artifact-1"); err == nil {
+			t.Fatalf("accepted endpoint %q", bad)
+		}
+	}
+}
+
+func TestDerivedArtifactKeyAndMasterDownload(t *testing.T) {
+	serviceSecret := []byte(strings.Repeat("control-plane-token-", 2))
+	key, err := DeriveSigningKey(serviceSecret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	token, err := Sign(key, Claims{ArtifactID: "artifact-1", NodeID: "node-1", Generation: 1,
+		Purpose: PurposeDownload, ExpiresAt: now.Add(time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Verify(serviceSecret, token, now); err == nil {
+		t.Fatal("service key was not domain-separated")
+	}
+	ticket := Ticket{Source: SourceMaster, URL: "https://master.example/artifact", Token: token}
+	_, headers, err := ticket.DownloadRequest("node-1")
+	if err != nil || headers.Get(DownloadNodeIDHeader) != "node-1" || headers.Get(DownloadTokenHeader) != token {
+		t.Fatalf("Master download headers: %v", err)
+	}
+}
+
 func TestSignVerifyRoundTrip(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	want := Claims{

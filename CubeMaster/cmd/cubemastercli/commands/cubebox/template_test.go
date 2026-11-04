@@ -160,6 +160,22 @@ func TestStreamTemplatePagesFlushesBeforeNextRequest(t *testing.T) {
 	}
 }
 
+func TestWalkTemplatePagesRejectsShiftedRows(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("offset") == "0" {
+			fmt.Fprint(w, `{"ret":{"ret_code":200},"total":3,"has_more":true,"data":[{"template_id":"a"},{"template_id":"b"}]}`)
+		} else {
+			fmt.Fprint(w, `{"ret":{"ret_code":200},"total":3,"has_more":false,"data":[{"template_id":"b"}]}`)
+		}
+	}))
+	defer server.Close()
+	rows := 0
+	err := walkTemplatePages(listClientContext(t, time.Second), server.URL, "test", true, func(page *templateListResponse) error { rows += len(page.Data); return nil })
+	if err == nil || !strings.Contains(err.Error(), "changed during traversal") || rows != 2 {
+		t.Fatalf("rows=%d err=%v", rows, err)
+	}
+}
+
 func TestWalkTemplatePagesStopsWithoutProgress(t *testing.T) {
 	for _, body := range []string{
 		`{"ret":{"ret_code":200},"total":-1,"has_more":true,"data":[]}`,

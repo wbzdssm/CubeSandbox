@@ -140,9 +140,6 @@ func coreInit(ctx context.Context, cfg *config.Config) error {
 		CubeLog.WithContext(ctx).Warnf("run in degraded mode: instance db config missing, skip localcache/instancecache/scheduler/sandbox init")
 		return nil
 	}
-	if err := templatecenter.ValidateArtifactDownloadSigningKey(); err != nil {
-		return fmt.Errorf("artifact download signing key: %w", err)
-	}
 	if err := templatecenter.InitArtifactStore(ctx); err != nil {
 		return fmt.Errorf("artifact store: %w", err)
 	}

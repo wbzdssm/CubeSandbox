@@ -174,9 +174,6 @@ func applyNodeIdentity(ctx context.Context, cfg *config.Config) {
 func coreInit(ctx context.Context, cfg *config.Config) error {
 	log.Init(config.GetLogConfig())
 
-	if err := templatecenter.ValidateArtifactDownloadSigningKey(); err != nil {
-		return fmt.Errorf("artifact download signing key: %w", err)
-	}
 	errorcode.InitCubeCodeRetryMap(cfg)
 
 	// Deliberately no worker (cubelet) grpc conn pool: every handler or

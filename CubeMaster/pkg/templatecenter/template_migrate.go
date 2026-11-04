@@ -8,6 +8,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
+
+	"github.com/google/uuid"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,9 +31,10 @@ type TemplateArtifactMigrationResult struct {
 }
 
 type templateCenterUploadResult struct {
-	Ext4Path   string
-	Ext4SHA256 string
-	SizeBytes  int64
+	Ext4Path            string
+	Ext4SHA256          string
+	SizeBytes           int64
+	OwnerTCDownloadBase string
 }
 
 // validateTCLocalArtifactPath ensures the path TC reports back for a migrated
@@ -91,9 +95,10 @@ var uploadArtifactFileToTC = func(ctx context.Context, artifactID, filePath stri
 		return nil, err
 	}
 	return &templateCenterUploadResult{
-		Ext4Path:   res.Ext4Path,
-		Ext4SHA256: res.Ext4SHA256,
-		SizeBytes:  res.Ext4SizeBytes,
+		Ext4Path:            res.Ext4Path,
+		Ext4SHA256:          res.Ext4SHA256,
+		SizeBytes:           res.Ext4SizeBytes,
+		OwnerTCDownloadBase: strings.TrimRight(endpoint, "/"),
 	}, nil
 }
 
@@ -121,6 +126,7 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 		ext4Path       string
 	}
 	snapshot := artifactSnapshot{}
+	var original models.RootfsArtifact
 	if err := withTemplateWriteLock(templateID, func() error {
 		def, err := GetDefinition(ctx, templateID)
 		if err != nil {
@@ -140,6 +146,7 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 		if err != nil {
 			return err
 		}
+		original = *artifact
 		snapshot = artifactSnapshot{
 			artifactID:     artifactID,
 			objectKey:      strings.TrimSpace(artifact.ObjectKey),
@@ -188,7 +195,7 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 				return nil, fmt.Errorf("repair migrated artifact %s storage metadata: incomplete s3 locator", snapshot.artifactID)
 			}
 			if snapshot.storageRef == "" || snapshot.storageBackend == "" || snapshot.objectKey == "" {
-				updated, updateErr := updateRootfsArtifactIfStatus(ctx, snapshot.artifactID, snapshot.status, map[string]any{
+				updated, updateErr := updateMigratedArtifactIfUnchanged(ctx, &original, map[string]any{
 					"storage_backend": backend,
 					"object_key":      objectKey,
 					"storage_ref":     storageRef,
@@ -256,7 +263,8 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 	updates := map[string]any{}
 	uploadedToS3 := false
 	targetExt4Path := ext4Path
-	backend, objectKey, storageRef, metadataErr := migrationArtifactStoreMetadata(snapshot.artifactID)
+	uploadID := snapshot.artifactID + "-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	backend, objectKey, storageRef, metadataErr := migrationArtifactStoreMetadata(uploadID)
 	if metadataErr != nil && !errors.Is(metadataErr, errS3PresignNotConfigured) {
 		return nil, fmt.Errorf("build migrated artifact %s storage metadata: %w", snapshot.artifactID, metadataErr)
 	}
@@ -264,7 +272,7 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 		if objectKey == "" || storageRef == "" {
 			return nil, fmt.Errorf("build migrated artifact %s storage metadata: incomplete s3 locator", snapshot.artifactID)
 		}
-		if err := uploadArtifactFileToS3(ctx, snapshot.artifactID, ext4Path); err != nil {
+		if err := uploadArtifactFileToS3(ctx, uploadID, ext4Path); err != nil {
 			return nil, err
 		}
 		presignedURL, presignErr := presignArtifactGetURL(ctx, &models.RootfsArtifact{
@@ -293,15 +301,19 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 		if err := validateTCLocalArtifactPath(snapshot.artifactID, uploadRes.Ext4Path); err != nil {
 			return nil, fmt.Errorf("invalid template center upload path for artifact %s: %w", snapshot.artifactID, err)
 		}
+		if _, err := templateCenterArtifactURL(uploadRes.OwnerTCDownloadBase, snapshot.artifactID); err != nil {
+			return nil, fmt.Errorf("invalid migrated artifact owner: %w", err)
+		}
 		targetExt4Path = uploadRes.Ext4Path
 		updates = map[string]any{
-			"artifact_url":    "",
-			"ext4_path":       uploadRes.Ext4Path,
-			"storage_backend": "",
-			"object_key":      "",
-			"storage_ref":     "",
-			"status":          ArtifactStatusReady,
-			"last_error":      "",
+			"artifact_url":           "",
+			"ext4_path":              uploadRes.Ext4Path,
+			"storage_backend":        "",
+			"object_key":             "",
+			"storage_ref":            (&url.URL{Scheme: "file", Path: uploadRes.Ext4Path}).String(),
+			"owner_tc_download_base": uploadRes.OwnerTCDownloadBase,
+			"status":                 ArtifactStatusReady,
+			"last_error":             "",
 		}
 		if strings.TrimSpace(uploadRes.Ext4SHA256) != "" {
 			updates["ext4_sha256"] = uploadRes.Ext4SHA256
@@ -328,7 +340,7 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 		}
 		// Same cross-replica CAS reasoning as before: if a peer claimed this row
 		// for deletion during the upload, do not resurrect it.
-		ok, updErr := updateRootfsArtifactIfStatus(ctx, snapshot.artifactID, snapshot.status, updates)
+		ok, updErr := updateMigratedArtifactIfUnchanged(ctx, &original, updates)
 		if updErr != nil {
 			if uploadedToS3 {
 				return fmt.Errorf("update rootfs artifact %s after s3 migration: %w", snapshot.artifactID, updErr)
@@ -377,6 +389,20 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 	result.Cleaned = cleaned
 	invalidateTemplateCaches(templateID)
 	return result, nil
+}
+
+func updateMigratedArtifactIfUnchanged(ctx context.Context, original *models.RootfsArtifact, updates map[string]any) (bool, error) {
+	query := store.db.WithContext(ctx).Model(&models.RootfsArtifact{}).
+		Where("artifact_id = ? AND status = ? AND COALESCE(generation, 0) = ?", original.ArtifactID, original.Status, original.Generation)
+	for column, value := range map[string]string{
+		"storage_backend": original.StorageBackend, "storage_ref": original.StorageRef, "object_key": original.ObjectKey,
+		"owner_tc_download_base": original.OwnerTCDownloadBase, "ext4_path": original.Ext4Path,
+		"artifact_url": original.ArtifactURL, "ext4_sha256": original.Ext4SHA256,
+	} {
+		query = query.Where("COALESCE("+column+", '') = ?", value)
+	}
+	result := query.Updates(updates)
+	return result.RowsAffected > 0, result.Error
 }
 
 func shouldSkipLocalCleanup(sourcePath, targetPath string) bool {

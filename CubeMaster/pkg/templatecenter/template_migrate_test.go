@@ -40,7 +40,13 @@ func stubMigrateS3Unavailable(t *testing.T) {
 func stubMigrateTCUpload(t *testing.T, fn func(ctx context.Context, artifactID, filePath string) (*templateCenterUploadResult, error)) {
 	t.Helper()
 	oldUpload := uploadArtifactFileToTC
-	uploadArtifactFileToTC = fn
+	uploadArtifactFileToTC = func(ctx context.Context, artifactID, filePath string) (*templateCenterUploadResult, error) {
+		res, err := fn(ctx, artifactID, filePath)
+		if res != nil && res.OwnerTCDownloadBase == "" {
+			res.OwnerTCDownloadBase = "http://target-tc.example:8090"
+		}
+		return res, err
+	}
 	t.Cleanup(func() { uploadArtifactFileToTC = oldUpload })
 }
 
@@ -70,6 +76,29 @@ func seedMigratingTemplate(t *testing.T, db *gorm.DB, templateID, artifactID, ex
 		Status:     ArtifactStatusReady,
 		Ext4Path:   ext4Path,
 	}).Error)
+}
+
+func TestMigrateTemplateRejectsConcurrentGeneration(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	path := filepath.Join(t.TempDir(), "source.ext4")
+	require.NoError(t, os.WriteFile(path, []byte("old-generation"), 0o600))
+	seedMigratingTemplate(t, db, "tpl-race", "rfs-race", path)
+	oldUpload := uploadArtifactFileToS3
+	t.Cleanup(func() { uploadArtifactFileToS3 = oldUpload })
+	uploadArtifactFileToS3 = func(_ context.Context, uploadID, _ string) error {
+		require.True(t, strings.HasPrefix(uploadID, "rfs-race-"))
+		require.NotEqual(t, "rfs-race", uploadID)
+		return db.Model(&models.RootfsArtifact{}).Where("artifact_id = ?", "rfs-race").Updates(map[string]any{"generation": 2, "object_key": "new-generation.ext4", "storage_ref": "new-store"}).Error
+	}
+	stubMigrateS3Metadata(t, func(id string) (string, string, string, error) { return "s3", id + ".ext4", "s3://bucket/prefix", nil })
+	stubMigratePresign(t, func(context.Context, *models.RootfsArtifact) (string, error) { return "https://signed.example", nil })
+	_, err := MigrateTemplateArtifactToTC(t.Context(), "tpl-race")
+	require.Error(t, err)
+	var current models.RootfsArtifact
+	require.NoError(t, db.Where("artifact_id = ?", "rfs-race").First(&current).Error)
+	require.EqualValues(t, 2, current.Generation)
+	require.Equal(t, "new-generation.ext4", current.ObjectKey)
+	require.FileExists(t, path)
 }
 
 func TestMigrateTemplateArtifactToS3PersistsStableLocator(t *testing.T) {
@@ -203,7 +232,8 @@ func TestMigrateTemplateArtifactToTCSamePathKeepsLocalFile(t *testing.T) {
 	require.NoError(t, db.Where("artifact_id = ?", artifactID).First(&artifact).Error)
 	require.Empty(t, artifact.StorageBackend)
 	require.Empty(t, artifact.ObjectKey)
-	require.Empty(t, artifact.StorageRef)
+	require.Equal(t, "file://"+ext4Path, artifact.StorageRef)
+	require.Equal(t, "http://target-tc.example:8090", artifact.OwnerTCDownloadBase)
 }
 
 // Even in the shared-store model the source path can differ from the target
@@ -260,6 +290,7 @@ func TestMigrateTemplateArtifactToTCDifferentPathCleansUp(t *testing.T) {
 
 	templateID := "tpl-split-store"
 	seedMigratingTemplate(t, db, templateID, artifactID, srcPath)
+	require.NoError(t, db.Model(&models.RootfsArtifact{}).Where("artifact_id = ?", artifactID).Update("owner_tc_download_base", "http://old-tc.example").Error)
 	stubMigrateS3Unavailable(t)
 	stubMigrateTCUpload(t, func(ctx context.Context, id, filePath string) (*templateCenterUploadResult, error) {
 		data, err := os.ReadFile(filePath)
@@ -276,6 +307,10 @@ func TestMigrateTemplateArtifactToTCDifferentPathCleansUp(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.Migrated)
 	require.True(t, result.Cleaned, "different-path migration should remove the local source")
+	var migrated models.RootfsArtifact
+	require.NoError(t, db.Where("artifact_id = ?", artifactID).First(&migrated).Error)
+	require.Equal(t, "http://target-tc.example:8090", migrated.OwnerTCDownloadBase)
+	require.Equal(t, "file://"+dstPath, migrated.StorageRef)
 	if _, statErr := os.Stat(srcPath); !os.IsNotExist(statErr) {
 		t.Fatalf("expected local source removed, stat err=%v", statErr)
 	}

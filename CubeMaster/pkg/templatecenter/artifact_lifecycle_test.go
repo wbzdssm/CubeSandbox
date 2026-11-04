@@ -88,11 +88,14 @@ func TestRemoteBuildDeferredDiagnosisPreservesResult(t *testing.T) {
 }
 
 func TestRegisterRemoteBuiltArtifactAfterTerminalPredecessor(t *testing.T) {
-	for _, status := range []string{ArtifactStatusCleanupPending, ArtifactStatusDeleting, ArtifactStatusFailed, ArtifactStatusOrphaned, ArtifactStatusBuilding} {
+	for _, status := range []string{ArtifactStatusCleanupPending, ArtifactStatusDeleting, ArtifactStatusFailed, ArtifactStatusOrphaned, ArtifactStatusBuilding, ArtifactStatusReady} {
 		t.Run(status, func(t *testing.T) {
 			db := newMigrateSharedStoreTestDB(t)
 			require.NoError(t, db.Exec("CREATE UNIQUE INDEX test_artifact_fingerprint ON "+constants.RootfsArtifactTableName+" (template_spec_fingerprint)").Error)
 			require.NoError(t, db.Create(&models.RootfsArtifact{ArtifactID: "rfs-predecessor", TemplateSpecFingerprint: "same-spec", Status: status, ObjectKey: "old.ext4"}).Error)
+			if status == ArtifactStatusReady {
+				stubRemoteTier(t, true, servableProbe(404, "rfs-predecessor"))
+			}
 			req := &sandboxtypes.CreateTemplateFromImageReq{Request: &sandboxtypes.Request{RequestID: "req-register-test"}, TemplateID: "tpl-retry", SourceImageRef: "example/image:test", WritableLayerSize: "1Gi", InstanceType: "cubebox", NetworkType: "tap", Backend: "xfs"}
 			result := &RemoteBuildResult{ArtifactID: "rfs-next", TemplateSpecFingerprint: "same-spec", Ext4Path: "/managed/next.ext4", Ext4SHA256: strings.Repeat("a", 64), Ext4SizeBytes: 1024,
 				MasterNodeIP: "http://master.example.com", OwnerTCDownloadBase: "http://tc.example.com", ImageConfigJSON: `{"Cmd":["sleep","infinity"]}`}
@@ -109,7 +112,11 @@ func TestRegisterRemoteBuiltArtifactAfterTerminalPredecessor(t *testing.T) {
 			require.NotNil(t, generated)
 			var kept models.RootfsArtifact
 			require.NoError(t, db.Where("artifact_id = ?", "rfs-predecessor").First(&kept).Error)
-			require.Equal(t, status, kept.Status)
+			if status == ArtifactStatusReady {
+				require.Equal(t, ArtifactStatusFailed, kept.Status)
+			} else {
+				require.Equal(t, status, kept.Status)
+			}
 			require.Equal(t, "old.ext4", kept.ObjectKey)
 			replay, _, reused, err := registerRemoteBuiltArtifactOnSession(t.Context(), db, req, result, DockerImageConfig{})
 			require.NoError(t, err)

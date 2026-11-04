@@ -254,6 +254,7 @@ var artifactProxyHTTPClient = &http.Client{
 }
 
 func downloadTemplateArtifactGinHandler(c *gin.Context) {
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 
 	// S3-backed artifacts are proxied through this endpoint rather than 302
@@ -274,6 +275,7 @@ func downloadTemplateArtifactGinHandler(c *gin.Context) {
 }
 
 func headTemplateArtifactGinHandler(c *gin.Context) {
+	_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
 	rt := CubeLog.GetTraceInfo(c.Request.Context())
 
 	// HEAD follows the same S3 proxy-vs-local split as GET so servability probes
@@ -453,7 +455,7 @@ func contentRangeTotal(cr string) (int64, bool) {
 }
 
 func copyArtifactProxyHeaders(dst, src http.Header) {
-	for _, key := range []string{"Accept-Ranges", "Cache-Control", "Content-Disposition", "Content-Encoding", "Content-Length", "Content-Range", "Content-Type", "Last-Modified"} {
+	for _, key := range []string{"Accept-Ranges", "Cache-Control", "Content-Disposition", "Content-Encoding", "Content-Length", "Content-Range", "Content-Type", "ETag", "Last-Modified"} {
 		values := src.Values(key)
 		if len(values) == 0 {
 			continue

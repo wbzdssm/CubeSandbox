@@ -1365,6 +1365,7 @@ func walkTemplatePages(c *cli.Context, baseURL, requestID string, skipTotal bool
 		defer cancel()
 	}
 	lastPage := ""
+	seen := make(map[string]struct{})
 	for offset := 0; ; {
 		query := url.Values{"limit": {"200"}, "offset": {strconv.Itoa(offset)}}
 		if skipTotal {
@@ -1389,6 +1390,15 @@ func walkTemplatePages(c *cli.Context, baseURL, requestID string, skipTotal bool
 				return errors.New("template server repeated a page; traversal stopped")
 			}
 			lastPage = identity
+			for _, item := range page.Data {
+				if item.TemplateID == "" {
+					return errors.New("template server returned an empty template ID")
+				}
+				if _, exists := seen[item.TemplateID]; exists {
+					return fmt.Errorf("template list changed during traversal (duplicate %s); retry --all", item.TemplateID)
+				}
+				seen[item.TemplateID] = struct{}{}
+			}
 		} else if page.HasMore {
 			return errors.New("template server returned an empty page with has_more=true")
 		}

@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
@@ -23,6 +24,9 @@ import (
 // URL the client called. CUBE_TEMPLATE_CENTER_ADDR must be set; when it is
 // empty the proxy returns 503 with a clear message instead of panicking.
 func proxyToTemplateCenter(c *gin.Context) {
+	if c.Request.URL.Path == "/cube"+TemplateArtifactDownloadAction && (c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead) {
+		_ = http.NewResponseController(c.Writer).SetWriteDeadline(time.Time{})
+	}
 	endpoint := strings.TrimRight(strings.TrimSpace(config.GetConfig().TemplateCenterAddr()), "/")
 	if endpoint == "" {
 		log.G(c.Request.Context()).Errorf("template proxy: %s is empty", config.EnvTemplateCenterAddr)

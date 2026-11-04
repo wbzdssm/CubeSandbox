@@ -34,11 +34,18 @@ var (
 	ErrArtifactDownloadUnconfigured = errors.New("artifact direct download is not configured")
 )
 
-// ValidateArtifactDownloadSigningKey fails fast when direct-download tickets
-// cannot be signed or verified consistently across Master and TC.
-func ValidateArtifactDownloadSigningKey() error {
-	secret := []byte(strings.TrimSpace(os.Getenv(constants.ArtifactDownloadSigningKeyEnv)))
-	return artifactticket.ValidateSigningKey(secret)
+func artifactDownloadSigningKey(artifact *models.RootfsArtifact) ([]byte, error) {
+	if artifact == nil {
+		return nil, ErrArtifactDownloadUnconfigured
+	}
+	// Legacy download tokens were sent to nodes and cannot be signing secrets.
+	// Only Master derives this capability key; TC uses the existing token solely
+	// for service authentication and never receives or verifies node tickets.
+	key, err := artifactticket.DeriveSigningKey([]byte(strings.TrimSpace(os.Getenv(constants.TemplateCallbackTokenEnv))))
+	if err != nil {
+		return nil, fmt.Errorf("%w: a strong existing control-plane token is required", ErrArtifactDownloadUnconfigured)
+	}
+	return key, nil
 }
 
 // IssueArtifactDownloadTicket verifies current node placement and returns a
@@ -53,30 +60,19 @@ func IssueArtifactDownloadTicket(ctx context.Context, artifactID, nodeID, refres
 		return nil, ErrTemplateStoreNotInitialized
 	}
 	now := time.Now()
-	claims, err := artifactticket.Verify(
-		[]byte(strings.TrimSpace(os.Getenv(constants.ArtifactDownloadSigningKeyEnv))),
-		refreshToken,
-		now,
-	)
-	if err != nil || claims.Purpose != artifactticket.PurposeRefresh ||
-		claims.ArtifactID != artifactID || claims.NodeID != nodeID {
-		return nil, ErrArtifactDownloadUnauthorized
-	}
-	if _, ok := localcache.GetNode(nodeID); !ok {
-		return nil, ErrArtifactDownloadUnauthorized
-	}
-	var count int64
-	if err := store.db.WithContext(ctx).Table(constants.TemplateReplicaTableName).
-		Where("artifact_id = ? AND node_id = ? AND phase IN ?", artifactID, nodeID,
-			[]string{ReplicaPhaseDistributing, ReplicaPhaseDistributed, ReplicaPhaseSnapshotting}).
-		Count(&count).Error; err != nil {
-		return nil, fmt.Errorf("check artifact replica authorization: %w", err)
-	}
-	if count == 0 {
-		return nil, ErrArtifactDownloadUnauthorized
-	}
 	artifact, err := getRootfsArtifactByID(ctx, artifactID)
 	if err != nil {
+		return nil, err
+	}
+	secret, err := artifactDownloadSigningKey(artifact)
+	if err != nil {
+		return nil, err
+	}
+	claims, err := artifactticket.Verify(secret, refreshToken, now)
+	if err != nil || claims.Purpose != artifactticket.PurposeRefresh || claims.ArtifactID != artifactID || claims.NodeID != nodeID {
+		return nil, ErrArtifactDownloadUnauthorized
+	}
+	if err := authorizeArtifactReplica(ctx, artifactID, nodeID); err != nil {
 		return nil, err
 	}
 	if artifact.Status != ArtifactStatusReady {
@@ -127,15 +123,14 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 		return ticket, nil
 	}
 
-	baseURL := strings.TrimSpace(artifact.OwnerTCDownloadBase)
-	if baseURL == "" {
-		baseURL = configuredTemplateCenterDownloadBase()
-	}
-	downloadURL, err := templateCenterArtifactURL(baseURL, artifact.ArtifactID)
+	downloadURL, err := masterArtifactDownloadURL(artifact)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
 	}
-	secret := []byte(strings.TrimSpace(os.Getenv(constants.ArtifactDownloadSigningKeyEnv)))
+	secret, err := artifactDownloadSigningKey(artifact)
+	if err != nil {
+		return nil, err
+	}
 	token, err := artifactticket.Sign(secret, artifactticket.Claims{
 		ArtifactID: artifact.ArtifactID,
 		NodeID:     strings.TrimSpace(nodeID),
@@ -146,7 +141,7 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
 	}
-	ticket.Source = artifactticket.SourceTemplateCenter
+	ticket.Source = artifactticket.SourceMaster
 	ticket.URL = downloadURL
 	ticket.Token = token
 	ticket.Headers = map[string]string{
@@ -156,7 +151,7 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 	return ticket, nil
 }
 
-func buildArtifactDownloadRefreshToken(artifact *models.RootfsArtifact, nodeID string, now time.Time) (string, error) {
+func buildArtifactDownloadRefreshToken(ctx context.Context, artifact *models.RootfsArtifact, nodeID string, now time.Time) (string, error) {
 	if artifact == nil || strings.TrimSpace(artifact.ArtifactID) == "" ||
 		strings.TrimSpace(nodeID) == "" {
 		return "", ErrArtifactDownloadUnauthorized
@@ -165,20 +160,17 @@ func buildArtifactDownloadRefreshToken(artifact *models.RootfsArtifact, nodeID s
 	if generation <= 0 {
 		generation = 1
 	}
-	token, err := artifactticket.Sign(
-		[]byte(strings.TrimSpace(os.Getenv(constants.ArtifactDownloadSigningKeyEnv))),
-		artifactticket.Claims{
-			ArtifactID: artifact.ArtifactID,
-			NodeID:     strings.TrimSpace(nodeID),
-			ExpiresAt:  now.Add(artifactRefreshTokenTTL).Unix(),
-			Generation: generation,
-			Purpose:    artifactticket.PurposeRefresh,
-		},
-	)
+	secret, err := artifactDownloadSigningKey(artifact)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
+		return "", err
 	}
-	return token, nil
+	return artifactticket.Sign(secret, artifactticket.Claims{
+		ArtifactID: artifact.ArtifactID,
+		NodeID:     strings.TrimSpace(nodeID),
+		ExpiresAt:  now.Add(artifactRefreshTokenTTL).Unix(),
+		Generation: generation,
+		Purpose:    artifactticket.PurposeRefresh,
+	})
 }
 
 func artifactDirectDownloadOrigin(ctx context.Context, artifact *models.RootfsArtifact) (string, error) {
@@ -196,12 +188,8 @@ func artifactDirectDownloadOrigin(ctx context.Context, artifact *models.RootfsAr
 			return "", err
 		}
 	} else {
-		baseURL := strings.TrimSpace(artifact.OwnerTCDownloadBase)
-		if baseURL == "" {
-			baseURL = configuredTemplateCenterDownloadBase()
-		}
 		var err error
-		rawURL, err = templateCenterArtifactURL(baseURL, artifact.ArtifactID)
+		rawURL, err = masterArtifactDownloadURL(artifact)
 		if err != nil {
 			return "", fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
 		}
@@ -318,24 +306,16 @@ func inferredArtifactStorageRef(artifact *models.RootfsArtifact) string {
 	}
 }
 
-func artifactDownloadTTL() (time.Duration, error) {
-	envName := constants.ArtifactDownloadTokenTTLEnv
-	raw := strings.TrimSpace(os.Getenv(envName))
-	if raw == "" {
-		envName = constants.ArtifactDownloadTTLEnv
-		raw = strings.TrimSpace(os.Getenv(envName))
+var artifactDownloadTTL = func() (time.Duration, error) {
+	if cfg := config.GetConfig(); cfg != nil {
+		return cfg.Common.ArtifactDownloadDuration()
 	}
-	if raw == "" {
-		return defaultArtifactDownloadTTL, nil
-	}
-	ttl, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, fmt.Errorf("parse %s=%q: %w", envName, raw, err)
-	}
-	if ttl < minArtifactDownloadTTL || ttl > maxArtifactDownloadTTL {
-		return 0, fmt.Errorf("%s must be between %s and %s", envName, minArtifactDownloadTTL, maxArtifactDownloadTTL)
-	}
-	return ttl, nil
+	return (*config.CommonConf)(nil).ArtifactDownloadDuration()
+}
+
+var artifactDirectDownloadEnabled = func() bool {
+	cfg := config.GetConfig()
+	return cfg != nil && cfg.Common != nil && strings.TrimSpace(cfg.Common.ArtifactDownloadMode) == "direct"
 }
 
 func artifactUsesS3(artifact *models.RootfsArtifact) bool {
@@ -382,4 +362,108 @@ func artifactDownloadTicketURL(baseURL, artifactID string) (string, error) {
 	u.RawQuery = ""
 	u.Fragment = ""
 	return url.JoinPath(u.String(), "internal", "template", "artifacts", artifactID, "download-ticket")
+}
+
+func masterArtifactDownloadURL(artifact *models.RootfsArtifact) (string, error) {
+	base := effectiveArtifactDownloadBaseURL("", artifact)
+	ticketURL, err := artifactDownloadTicketURL(base, artifact.ArtifactID)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(ticketURL, "download-ticket") + "ext4", nil
+}
+
+// VerifyArtifactDownloadToken is only called by CubeMaster, never TemplateCenter.
+func VerifyArtifactDownloadToken(ctx context.Context, artifactID, nodeID, token string) (*models.RootfsArtifact, error) {
+	if store == nil || store.db == nil {
+		return nil, ErrTemplateStoreNotInitialized
+	}
+	artifact, err := getRootfsArtifactByID(ctx, artifactID)
+	if err != nil {
+		return nil, err
+	}
+	secret, err := artifactDownloadSigningKey(artifact)
+	if err != nil {
+		return nil, err
+	}
+	claims, err := artifactticket.Verify(secret, token, time.Now())
+	generation := artifact.Generation
+	if generation <= 0 {
+		generation = 1
+	}
+	if err != nil || claims.Purpose != artifactticket.PurposeDownload || claims.ArtifactID != artifactID || claims.NodeID != nodeID ||
+		claims.Generation != generation || artifact.Status != ArtifactStatusReady {
+		return nil, ErrArtifactDownloadUnauthorized
+	}
+	if err := authorizeArtifactReplica(ctx, artifactID, nodeID); err != nil {
+		return nil, err
+	}
+	return artifact, nil
+}
+
+var lookupArtifactDownloadNode = localcache.GetNode
+
+func authorizeArtifactReplica(ctx context.Context, artifactID, nodeID string) error {
+	if store == nil || store.db == nil {
+		return ErrTemplateStoreNotInitialized
+	}
+	if _, ok := lookupArtifactDownloadNode(nodeID); !ok {
+		return ErrArtifactDownloadUnauthorized
+	}
+	var count int64
+	if err := store.db.WithContext(ctx).Model(&models.TemplateReplica{}).
+		Where("artifact_id = ? AND node_id = ? AND phase IN ?", artifactID, nodeID,
+			[]string{ReplicaPhaseDistributing, ReplicaPhaseDistributed, ReplicaPhaseSnapshotting}).Count(&count).Error; err != nil {
+		return fmt.Errorf("check artifact replica authorization: %w", err)
+	}
+	if count == 0 {
+		return ErrArtifactDownloadUnauthorized
+	}
+	return nil
+}
+
+func TemplateCenterArtifactDownloadURL(artifact *models.RootfsArtifact) (string, error) {
+	base := strings.TrimSpace(artifact.OwnerTCDownloadBase)
+	if base == "" {
+		base = configuredTemplateCenterDownloadBase()
+	}
+	downloadURL, err := templateCenterArtifactURL(base, artifact.ArtifactID)
+	if err != nil {
+		return "", err
+	}
+	u, _ := url.Parse(downloadURL)
+	u.Path = strings.TrimSuffix(u.Path, "/internal/artifacts/"+artifact.ArtifactID+"/ext4") + "/tc/api/v1/artifacts/" + artifact.ArtifactID + "/ext4"
+	return u.String(), nil
+}
+
+func artifactDownloadAnnotations(ctx context.Context, artifact *models.RootfsArtifact, baseURL string) (map[string]string, error) {
+	return artifactDownloadAnnotationsForMode(ctx, artifact, baseURL, artifactDirectDownloadEnabled())
+}
+
+func artifactDownloadAnnotationsForMode(ctx context.Context, artifact *models.RootfsArtifact, baseURL string, direct bool) (map[string]string, error) {
+	annotations := map[string]string{
+		constants.CubeAnnotationRootfsArtifactID:        artifact.ArtifactID,
+		constants.CubeAnnotationRootfsArtifactSHA256:    artifact.Ext4SHA256,
+		constants.CubeAnnotationRootfsArtifactSizeBytes: fmt.Sprint(artifact.Ext4SizeBytes),
+	}
+	baseURL = effectiveArtifactDownloadBaseURL(baseURL, artifact)
+	if !direct {
+		annotations[constants.CubeAnnotationRootfsArtifactURL] = buildDownloadURL(baseURL, artifact.ArtifactID, artifact.DownloadToken)
+		annotations[constants.CubeAnnotationRootfsArtifactToken] = artifact.DownloadToken
+		return annotations, nil
+	}
+	ticketURL, err := artifactDownloadTicketURL(baseURL, artifact.ArtifactID)
+	if err != nil {
+		return nil, err
+	}
+	origin, err := artifactticket.URLOrigin(ticketURL)
+	if artifactUsesS3(artifact) {
+		origin, err = artifactDirectDownloadOrigin(ctx, artifact)
+	}
+	if err != nil {
+		return nil, err
+	}
+	annotations[constants.CubeAnnotationRootfsArtifactTicketURL] = ticketURL
+	annotations[constants.CubeAnnotationRootfsArtifactDownloadOrigin] = origin
+	return annotations, nil
 }

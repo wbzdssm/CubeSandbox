@@ -10,17 +10,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
+	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/api"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore/configenv"
-	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 )
 
-func TestArtifactDownloadHandlerValidatesTokenIdentityAndGeneration(t *testing.T) {
+func TestArtifactDownloadHandlerOnlyUsesComponentAuthentication(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	body := []byte("rootfs-bytes")
 	path := filepath.Join(t.TempDir(), "artifact.ext4")
@@ -43,50 +42,52 @@ func TestArtifactDownloadHandlerValidatesTokenIdentityAndGeneration(t *testing.T
 		return &copy, nil
 	}
 	t.Cleanup(func() { loadDirectDownloadArtifact = oldLoader })
-	secret := strings.Repeat("tc-download-key-", 3)
-	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, secret)
+	secret := strings.Repeat("tc-control-key-", 3)
+	t.Setenv(constants.TemplateCallbackTokenEnv, secret)
 	router := gin.New()
-	router.GET("/internal/artifacts/:artifact_id/ext4", artifactDownloadHandler)
-
-	makeToken := func(generation int64, nodeID string) string {
-		token, err := artifactticket.Sign([]byte(secret), artifactticket.Claims{
-			ArtifactID: "artifact-1",
-			NodeID:     nodeID,
-			ExpiresAt:  time.Now().Add(time.Hour).Unix(),
-			Generation: generation,
-			Purpose:    artifactticket.PurposeDownload,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return token
-	}
-	request := func(token, nodeID string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(http.MethodGet, "/internal/artifacts/artifact-1/ext4", nil)
-		req.Header.Set(constants.ArtifactDownloadNodeIDHeader, nodeID)
-		req.Header.Set("X-Cube-Artifact-Token", token)
+	api.InternalAPIGroup(router.Group("")).GET("/artifacts/:artifact_id/ext4", artifactDownloadHandler)
+	request := func(componentToken string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/tc/api/v1/artifacts/artifact-1/ext4", nil)
+		req.Header.Set(constants.TemplateCallbackTokenHeader, componentToken)
+		req.Header.Set("X-Cube-Artifact-Token", "not-a-ticket")
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 		return rec
 	}
-
-	ok := request(makeToken(2, "node-1"), "node-1")
+	ok := request(secret)
 	if ok.Code != http.StatusOK || ok.Body.String() != string(body) {
-		t.Fatalf("valid download = status %d body %q", ok.Code, ok.Body.String())
+		t.Fatalf("component download = status %d body %q", ok.Code, ok.Body.String())
 	}
-	if got := ok.Header().Get("X-Cube-Artifact-Id"); got != "artifact-1" {
-		t.Fatalf("artifact header = %q", got)
+	if got := request("").Code; got != http.StatusUnauthorized {
+		t.Fatalf("node ticket alone status = %d, want 401", got)
 	}
-
-	if got := request(makeToken(1, "node-1"), "node-1").Code; got != http.StatusGone {
-		t.Fatalf("stale generation status = %d, want 410", got)
+	if got := request("wrong-component-secret").Code; got != http.StatusUnauthorized {
+		t.Fatalf("wrong component credential status = %d, want 401", got)
 	}
-	if got := request(makeToken(2, "node-2"), "node-1").Code; got != http.StatusUnauthorized {
-		t.Fatalf("wrong node status = %d, want 401", got)
+	if got := ok.Header().Get("ETag"); got != `"abc123"` {
+		t.Fatalf("ETag = %q", got)
 	}
-	token := makeToken(2, "node-1")
-	if got := request(token+"x", "node-1").Code; got != http.StatusUnauthorized {
-		t.Fatalf("tampered token status = %d, want 401", got)
+	for _, tc := range []struct {
+		match  string
+		status int
+		body   string
+	}{
+		{`"abc123"`, http.StatusPartialContent, string(body[2:])},
+		{`"old-generation"`, http.StatusOK, string(body)},
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/tc/api/v1/artifacts/artifact-1/ext4", nil)
+		req.Header.Set(constants.TemplateCallbackTokenHeader, secret)
+		req.Header.Set("Range", "bytes=2-")
+		req.Header.Set("If-Range", tc.match)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != tc.status || rec.Body.String() != tc.body {
+			t.Fatalf("If-Range %s: %d %q", tc.match, rec.Code, rec.Body.String())
+		}
+	}
+	artifact.Status = templatecenter.ArtifactStatusFailed
+	if got := request(secret).Code; got != http.StatusGone {
+		t.Fatalf("non-ready artifact status = %d, want 410", got)
 	}
 }
 

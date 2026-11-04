@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -188,27 +187,17 @@ func ensureArtifactDistributable(ctx context.Context, artifact *models.RootfsArt
 // exactly the nodes that lack a READY replica instead of re-resolving the
 // full healthy-node set. Callers must run ensureArtifactDistributable first.
 func distributeRootfsArtifactToNodes(ctx context.Context, req *types.CreateTemplateFromImageReq, generatedReq *types.CreateCubeSandboxReq, artifact *models.RootfsArtifact, templateID, jobID string, targets []*node.Node) ([]*node.Node, int32, int32, int32, error) {
-	ticketURL, err := artifactDownloadTicketURL(effectiveArtifactDownloadBaseURL("", artifact), artifact.ArtifactID)
+	annotations, err := artifactDownloadAnnotations(ctx, artifact, "")
 	if err != nil {
 		return nil, int32(len(targets)), 0, int32(len(targets)), err
 	}
-	downloadOrigin, err := artifactDirectDownloadOrigin(ctx, artifact)
-	if err != nil {
-		return nil, int32(len(targets)), 0, int32(len(targets)), err
-	}
+	annotations[constants.CubeAnnotationWritableLayerSize] = req.WritableLayerSize
+	annotations[constants.CubeAnnotationTemplateSpecFingerprint] = artifact.TemplateSpecFingerprint
+	annotations[constants.CubeAnnotationsInsType] = req.InstanceType
 	spec := &imagev1.ImageSpec{
 		Image:        artifact.ArtifactID,
 		StorageMedia: imagev1.ImageStorageMediaType_ext4.String(),
-		Annotations: map[string]string{
-			constants.CubeAnnotationRootfsArtifactID:             artifact.ArtifactID,
-			constants.CubeAnnotationRootfsArtifactTicketURL:      ticketURL,
-			constants.CubeAnnotationRootfsArtifactDownloadOrigin: downloadOrigin,
-			constants.CubeAnnotationRootfsArtifactSHA256:         artifact.Ext4SHA256,
-			constants.CubeAnnotationRootfsArtifactSizeBytes:      strconv.FormatInt(artifact.Ext4SizeBytes, 10),
-			constants.CubeAnnotationWritableLayerSize:            req.WritableLayerSize,
-			constants.CubeAnnotationTemplateSpecFingerprint:      artifact.TemplateSpecFingerprint,
-			constants.CubeAnnotationsInsType:                     req.InstanceType,
-		},
+		Annotations:  annotations,
 	}
 	expected := int32(len(targets))
 	ready := int32(0)
@@ -249,7 +238,11 @@ func distributeRootfsArtifactToNodes(ctx context.Context, req *types.CreateTempl
 				lock.Unlock()
 				return
 			}
-			refreshToken, err := buildArtifactDownloadRefreshToken(artifact, target.ID(), time.Now())
+			var err error
+			refreshToken := ""
+			if spec.Annotations[constants.CubeAnnotationRootfsArtifactTicketURL] != "" {
+				refreshToken, err = buildArtifactDownloadRefreshToken(ctx, artifact, target.ID(), time.Now())
+			}
 			if err != nil {
 				lock.Lock()
 				failed++
@@ -266,7 +259,9 @@ func distributeRootfsArtifactToNodes(ctx context.Context, req *types.CreateTempl
 			if nodeSpec.Annotations == nil {
 				nodeSpec.Annotations = make(map[string]string)
 			}
-			nodeSpec.Annotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = refreshToken
+			if refreshToken != "" {
+				nodeSpec.Annotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = refreshToken
+			}
 			rsp, err := cubelet.CreateImage(ctx, cubelet.GetCubeletAddr(target.HostIP()), &imagev1.CreateImageRequest{
 				RequestID: uuid.New().String(),
 				Spec:      nodeSpec,
