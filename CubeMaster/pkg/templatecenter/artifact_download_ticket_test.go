@@ -75,7 +75,10 @@ func TestBuildArtifactDownloadTicketForTemplateCenter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ticket.Source != artifactticket.SourceTemplateCenter ||
+	if ticket.Method != "GET" ||
+		ticket.Headers[artifactticket.DownloadTokenHeader] != ticket.Token ||
+		ticket.Headers[artifactticket.DownloadNodeIDHeader] != "node-1" ||
+		ticket.Source != artifactticket.SourceTemplateCenter ||
 		ticket.URL != "http://tc.internal:8080/base/internal/artifacts/artifact-1/ext4" ||
 		ticket.ExpiresAt.Sub(now) != 2*time.Hour ||
 		ticket.SizeBytes != artifact.Ext4SizeBytes ||
@@ -139,7 +142,8 @@ func TestBuildArtifactDownloadTicketForS3UsesFreshBoundedURL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotTTL != 2*time.Hour || ticket.Source != artifactticket.SourceS3 ||
+	if gotTTL != 2*time.Hour || ticket.Method != "GET" || len(ticket.Headers) != 0 ||
+		ticket.Source != artifactticket.SourceS3 ||
 		ticket.URL != "https://objects.example/new-signature" || ticket.Token != "" {
 		t.Fatalf("ticket = %+v, presign ttl = %s", ticket, gotTTL)
 	}

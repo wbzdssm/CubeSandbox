@@ -44,9 +44,9 @@ type ArtifactDeleter struct {
 	s3Client *s3store.Client // nil when S3 is not configured
 }
 
-// NewArtifactDeleter builds a deleter. s3Client may be nil (S3 disabled); in
-// that case only local files are removed and S3 URLs on the row are ignored
-// (they will simply age out via the bucket lifecycle, if any).
+// NewArtifactDeleter builds a deleter. A nil client permits local-only cleanup;
+// object-store artifacts are kept CLEANUP_PENDING until their owner store is
+// configured and their persisted locator has been validated.
 func NewArtifactDeleter(db *gorm.DB, s3Client *s3store.Client) *ArtifactDeleter {
 	return &ArtifactDeleter{db: db, s3Client: s3Client}
 }
@@ -130,20 +130,25 @@ func (d *ArtifactDeleter) Delete(ctx context.Context, artifactID string) error {
 		return nil
 	}
 
-	// Delete the S3 object when the artifact was uploaded.
+	// Validate the recorded store before removing any object or local data.
 	var dataErrs []error
-	if d.s3Client != nil && templatecenter.ArtifactUsesObjectStore(&artifact) {
-		if err := d.s3Client.DeleteStored(ctx, artifact.ObjectKey, artifact.ArtifactID); err != nil {
-			logger.Warnf("delete s3 object fail: %v", err)
-			dataErrs = append(dataErrs, fmt.Errorf("delete s3 object: %w", err))
+	storeValidated := true
+	if templatecenter.ArtifactUsesObjectStore(&artifact) {
+		if err := d.s3Client.ValidateStored(artifact.StorageBackend, artifact.StorageRef, artifact.ObjectKey, artifact.ArtifactID); err != nil {
+			storeValidated = false
+			logger.Warnf("validate artifact store fail: %v", err)
+			dataErrs = append(dataErrs, fmt.Errorf("validate artifact store: %w", err))
+		} else if err := d.s3Client.DeleteStored(ctx, artifact.ObjectKey, artifact.ArtifactID); err != nil {
+			logger.Warnf("delete artifact object fail: %v", err)
+			dataErrs = append(dataErrs, fmt.Errorf("delete artifact object: %w", err))
 		} else {
-			logger.Infof("deleted s3 object for artifact")
+			logger.Infof("deleted object for artifact")
 		}
 	}
 
-	// Delete the local/shared ext4 file. Only when it sits inside a managed
-	// artifact root (path-traversal guard).
-	if artifact.Ext4Path != "" {
+	// Delete the local/shared ext4 file only after store ownership validation.
+	// The path must also sit inside a managed artifact root.
+	if storeValidated && artifact.Ext4Path != "" {
 		if err := deleteLocalExt4(artifact.Ext4Path); err != nil {
 			logger.Warnf("delete local ext4 fail: %v", err)
 			dataErrs = append(dataErrs, fmt.Errorf("delete local ext4: %w", err))

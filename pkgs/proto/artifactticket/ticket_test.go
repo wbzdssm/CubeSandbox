@@ -80,6 +80,49 @@ func TestSignRejectsWeakSecretAndIncompleteClaims(t *testing.T) {
 	}
 }
 
+func TestDownloadRequestEnvelope(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		ticket  Ticket
+		wantErr bool
+	}{
+		{"legacy TC", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: "token"}, false},
+		{"header TC", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Method: "GET", Headers: map[string]string{DownloadTokenHeader: "token", DownloadNodeIDHeader: "node"}}, false},
+		{"S3", Ticket{Source: SourceS3, URL: "https://objects.example/file?signature=demo", Method: "GET"}, false},
+		{"invalid method", Ticket{Source: SourceS3, URL: "https://objects.example/file", Method: "POST"}, true},
+		{"S3 token leak", Ticket{Source: SourceS3, URL: "https://objects.example/file", Token: "internal"}, true},
+		{"S3 header leak", Ticket{Source: SourceS3, URL: "https://objects.example/file", Headers: map[string]string{DownloadTokenHeader: "internal"}}, true},
+		{"conflicting token", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: "old", Headers: map[string]string{DownloadTokenHeader: "new"}}, true},
+		{"wrong node", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: "token", Headers: map[string]string{DownloadNodeIDHeader: "other"}}, true},
+		{"duplicate case", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Headers: map[string]string{DownloadTokenHeader: "token", "x-cube-artifact-token": "token"}}, true},
+		{"control character", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: "token\r\ninjected"}, true},
+		{"oversized token", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: strings.Repeat("t", maxTokenBytes+1)}, true},
+		{"range injection", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: "token", Headers: map[string]string{"Range": "bytes=99-"}}, true},
+		{"auth injection", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file", Token: "token", Headers: map[string]string{"Authorization": "secret"}}, true},
+		{"missing token", Ticket{Source: SourceTemplateCenter, URL: "https://tc.example/file"}, true},
+		{"URL userinfo", Ticket{Source: SourceTemplateCenter, URL: "https://user@tc.example/file", Token: "token"}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			method, header, err := tc.ticket.DownloadRequest("node")
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("DownloadRequest error = %v; want error=%v", err, tc.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if method != "GET" {
+				t.Fatalf("method = %s", method)
+			}
+			if tc.ticket.Source == SourceS3 && len(header) != 0 {
+				t.Fatal("S3 received internal headers")
+			}
+			if tc.ticket.Source == SourceTemplateCenter && (header.Get(DownloadTokenHeader) != "token" || header.Get(DownloadNodeIDHeader) != "node") {
+				t.Fatal("TC credentials are incomplete")
+			}
+		})
+	}
+}
+
 func TestURLOrigin(t *testing.T) {
 	got, err := URLOrigin("HTTPS://S3.Example.COM:443/bucket/key?X-Amz-Signature=secret")
 	if err != nil {

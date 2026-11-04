@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -22,6 +23,8 @@ const (
 	SourceTemplateCenter = "template_center"
 	PurposeDownload      = "download"
 	PurposeRefresh       = "refresh"
+	DownloadTokenHeader  = "X-Cube-Artifact-Token"
+	DownloadNodeIDHeader = "X-Cube-Node-ID"
 
 	tokenVersion  = 1
 	maxTokenBytes = 8 << 10
@@ -47,15 +50,87 @@ type Claims struct {
 // for S3: the presigned URL is already the capability and no internal token
 // should be sent to an object store.
 type Ticket struct {
-	Source     string    `json:"source"`
-	URL        string    `json:"url"`
-	Token      string    `json:"token,omitempty"`
-	ExpiresAt  time.Time `json:"expires_at"`
-	ServerTime time.Time `json:"server_time"`
-	ArtifactID string    `json:"artifact_id"`
-	Generation int64     `json:"generation"`
-	SizeBytes  int64     `json:"size_bytes"`
-	SHA256     string    `json:"sha256"`
+	Source     string            `json:"source"`
+	URL        string            `json:"url"`
+	Method     string            `json:"method,omitempty"`
+	Headers    map[string]string `json:"headers,omitempty"`
+	Token      string            `json:"token,omitempty"`
+	ExpiresAt  time.Time         `json:"expires_at"`
+	ServerTime time.Time         `json:"server_time"`
+	ArtifactID string            `json:"artifact_id"`
+	Generation int64             `json:"generation"`
+	SizeBytes  int64             `json:"size_bytes"`
+	SHA256     string            `json:"sha256"`
+}
+
+// DownloadRequest validates the credential envelope before any network request.
+// Range is owned by the downloader; tickets may only supply TC auth headers.
+func (t Ticket) DownloadRequest(nodeID string) (string, http.Header, error) {
+	method := t.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	if method != http.MethodGet {
+		return "", nil, errors.New("artifact download ticket method must be GET")
+	}
+	if _, err := URLOrigin(t.URL); err != nil {
+		return "", nil, err
+	}
+	header := make(http.Header)
+	switch t.Source {
+	case SourceS3:
+		if t.Token != "" || len(t.Headers) != 0 {
+			return "", nil, errors.New("S3 ticket must not contain internal credentials or headers")
+		}
+	case SourceTemplateCenter:
+		for name, value := range t.Headers {
+			key := http.CanonicalHeaderKey(name)
+			if key != http.CanonicalHeaderKey(DownloadTokenHeader) && key != http.CanonicalHeaderKey(DownloadNodeIDHeader) {
+				return "", nil, errors.New("artifact ticket contains an unsupported header")
+			}
+			if _, exists := header[key]; exists {
+				return "", nil, errors.New("artifact ticket contains duplicate header aliases")
+			}
+			if !validHeaderCredential(value) {
+				return "", nil, errors.New("artifact ticket contains an invalid header value")
+			}
+			header.Set(key, value)
+		}
+		if t.Token != "" {
+			if !validHeaderCredential(t.Token) {
+				return "", nil, errors.New("artifact ticket contains an invalid token")
+			}
+			if token := header.Get(DownloadTokenHeader); token != "" && token != t.Token {
+				return "", nil, errors.New("artifact ticket token fields disagree")
+			}
+			header.Set(DownloadTokenHeader, t.Token)
+		}
+		if header.Get(DownloadTokenHeader) == "" {
+			return "", nil, errors.New("TemplateCenter ticket has no download token")
+		}
+		if !validHeaderCredential(nodeID) {
+			return "", nil, errors.New("artifact ticket node id is invalid")
+		}
+		if node := header.Get(DownloadNodeIDHeader); node != "" && node != nodeID {
+			return "", nil, errors.New("artifact ticket header node id does not match this node")
+		}
+		header.Set(DownloadNodeIDHeader, nodeID)
+	default:
+		return "", nil, errors.New("unsupported artifact download source")
+	}
+	return method, header, nil
+}
+
+func validHeaderCredential(value string) bool {
+	if strings.TrimSpace(value) == "" || len(value) > maxTokenBytes {
+		return false
+	}
+	for _, char := range value {
+		if char < 0x20 || char == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // Sign returns a self-contained HMAC token. The payload is readable but cannot

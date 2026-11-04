@@ -53,6 +53,17 @@ func NewClient(cfg Config) (*Client, error) {
 		cfg.PresignExpiry = DefaultPresignExpiry
 	}
 	cfg.Driver = normalizeDriver(cfg.Driver)
+	if cfg.Driver == "fs" {
+		root := strings.TrimSpace(cfg.FSRoot)
+		if root == "" {
+			return nil, fmt.Errorf("fs root is required")
+		}
+		abs, err := filepath.Abs(root)
+		if err != nil {
+			return nil, fmt.Errorf("resolve fs root: %w", err)
+		}
+		cfg.FSRoot = abs
+	}
 	st, err := openConfiguredStore(cfg)
 	if err != nil {
 		return nil, err
@@ -184,6 +195,32 @@ func (c *Client) Delete(ctx context.Context, artifactID string) error {
 	return c.store.Delete(ctx, c.ObjectKey(artifactID))
 }
 
+// ValidateStored verifies that a persisted locator belongs to this client.
+// Legacy rows without a stable locator require explicit migration, not guessing.
+func (c *Client) ValidateStored(backend, storageRef, objectKey, artifactID string) error {
+	if c == nil || c.store == nil {
+		return fmt.Errorf("artifact store client is not configured")
+	}
+	backend = strings.ToLower(strings.TrimSpace(backend))
+	if backend == "" || backend != c.BackendName() {
+		return fmt.Errorf("stored artifact backend %q does not match configured backend %q", backend, c.BackendName())
+	}
+	if strings.TrimSpace(storageRef) == "" {
+		return fmt.Errorf("stored artifact storage_ref is required; explicit migration is needed")
+	}
+	if storageRef != c.StorageRef() {
+		return fmt.Errorf("stored artifact storage_ref does not match configured store")
+	}
+	if objectKey == "" {
+		return fmt.Errorf("stored artifact object_key is required")
+	}
+	if err := blobstore.ValidateKey(objectKey); err != nil {
+		return fmt.Errorf("stored artifact object key is invalid: %w", err)
+	}
+	_, err := c.storedUserKey(objectKey, artifactID)
+	return err
+}
+
 func (c *Client) DeleteStored(ctx context.Context, objectKey, artifactID string) error {
 	key, err := c.storedUserKey(objectKey, artifactID)
 	if err != nil {
@@ -225,7 +262,7 @@ func (c *Client) storedUserKey(objectKey, artifactID string) (string, error) {
 	if prefix != "" {
 		if strings.HasPrefix(stored, prefix+"/") {
 			stored = strings.TrimPrefix(stored, prefix+"/")
-		} else if strings.Contains(stored, "/") {
+		} else {
 			return "", fmt.Errorf("stored object key %q does not match configured prefix %q", objectKey, prefix)
 		}
 	}

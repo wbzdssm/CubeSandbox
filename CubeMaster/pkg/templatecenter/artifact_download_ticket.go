@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/localcache"
-	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore/configenv"
 	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 )
@@ -48,6 +48,9 @@ func IssueArtifactDownloadTicket(ctx context.Context, artifactID, nodeID, refres
 	nodeID = strings.TrimSpace(nodeID)
 	if artifactID == "" || nodeID == "" {
 		return nil, ErrArtifactDownloadUnauthorized
+	}
+	if store == nil || store.db == nil {
+		return nil, ErrTemplateStoreNotInitialized
 	}
 	now := time.Now()
 	claims, err := artifactticket.Verify(
@@ -102,6 +105,7 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 	}
 	expiresAt := now.Add(ttl)
 	ticket := &artifactticket.Ticket{
+		Method:     http.MethodGet,
 		ExpiresAt:  expiresAt.UTC(),
 		ServerTime: now.UTC(),
 		ArtifactID: artifact.ArtifactID,
@@ -145,6 +149,10 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 	ticket.Source = artifactticket.SourceTemplateCenter
 	ticket.URL = downloadURL
 	ticket.Token = token
+	ticket.Headers = map[string]string{
+		artifactticket.DownloadTokenHeader:  token,
+		artifactticket.DownloadNodeIDHeader: strings.TrimSpace(nodeID),
+	}
 	return ticket, nil
 }
 
@@ -218,62 +226,87 @@ func configuredTemplateCenterDownloadBase() string {
 // ensureArtifactStableLocator lazily upgrades pre-migration rows before they
 // are distributed. Short-lived credentials never enter these columns.
 func ensureArtifactStableLocator(ctx context.Context, artifact *models.RootfsArtifact) error {
-	if artifact == nil {
-		return errors.New("artifact is nil")
+	if artifact == nil || strings.TrimSpace(artifact.ArtifactID) == "" {
+		return errors.New("artifact is nil or has no id")
 	}
+	if store == nil || store.db == nil {
+		return ErrTemplateStoreNotInitialized
+	}
+	if artifact.Status != ArtifactStatusReady {
+		return fmt.Errorf("artifact %s is not ready", artifact.ArtifactID)
+	}
+	if strings.TrimSpace(artifact.StorageRef) == "" && artifactUsesS3(artifact) {
+		return fmt.Errorf("artifact %s requires explicit migration of its S3 storage locator", artifact.ArtifactID)
+	}
+
+	candidate := *artifact
 	updates := map[string]any{}
-	if artifact.Generation <= 0 {
-		artifact.Generation = 1
-		updates["generation"] = artifact.Generation
+	if candidate.Generation <= 0 {
+		candidate.Generation = 1
+		updates["generation"] = candidate.Generation
 	}
-	if strings.TrimSpace(artifact.OwnerTCDownloadBase) == "" {
+	if strings.TrimSpace(candidate.OwnerTCDownloadBase) == "" {
 		if baseURL := configuredTemplateCenterDownloadBase(); baseURL != "" {
-			artifact.OwnerTCDownloadBase = baseURL
+			candidate.OwnerTCDownloadBase = baseURL
 			updates["owner_tc_download_base"] = baseURL
 		}
 	}
-	if strings.TrimSpace(artifact.StorageRef) == "" {
-		if storageRef := inferredArtifactStorageRef(artifact); storageRef != "" {
-			artifact.StorageRef = storageRef
+	if strings.TrimSpace(candidate.StorageRef) == "" {
+		if storageRef := inferredArtifactStorageRef(&candidate); storageRef != "" {
+			candidate.StorageRef = storageRef
 			updates["storage_ref"] = storageRef
 		}
 	}
+
+	query := store.db.WithContext(ctx).Table(constants.RootfsArtifactTableName).
+		Where("artifact_id = ? AND deleted_at IS NULL AND status = ?", artifact.ArtifactID, artifact.Status)
+	if artifact.Generation == 0 {
+		query = query.Where("(generation = ? OR generation IS NULL)", artifact.Generation)
+	} else {
+		query = query.Where("generation = ?", artifact.Generation)
+	}
+	for _, field := range []struct{ column, value string }{
+		{"storage_backend", artifact.StorageBackend},
+		{"object_key", artifact.ObjectKey},
+		{"storage_ref", artifact.StorageRef},
+		{"owner_tc_download_base", artifact.OwnerTCDownloadBase},
+		{"artifact_url", artifact.ArtifactURL},
+		{"ext4_path", artifact.Ext4Path},
+	} {
+		if field.value == "" {
+			query = query.Where("("+field.column+" = ? OR "+field.column+" IS NULL)", field.value)
+		} else {
+			query = query.Where(field.column+" = ?", field.value)
+		}
+	}
 	if len(updates) == 0 {
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return fmt.Errorf("check stable locator for artifact %s: %w", artifact.ArtifactID, err)
+		}
+		if count != 1 {
+			return fmt.Errorf("stable locator conflict for artifact %s: READY artifact snapshot changed", artifact.ArtifactID)
+		}
 		return nil
 	}
-	if err := store.db.WithContext(ctx).Table(constants.RootfsArtifactTableName).
-		Where("artifact_id = ? AND deleted_at IS NULL", artifact.ArtifactID).
-		Updates(updates).Error; err != nil {
-		return fmt.Errorf("backfill stable locator for artifact %s: %w", artifact.ArtifactID, err)
+	result := query.Updates(updates)
+	if result.Error != nil {
+		return fmt.Errorf("backfill stable locator for artifact %s: %w", artifact.ArtifactID, result.Error)
 	}
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("stable locator conflict for artifact %s: READY artifact snapshot changed", artifact.ArtifactID)
+	}
+	artifact.Generation = candidate.Generation
+	artifact.OwnerTCDownloadBase = candidate.OwnerTCDownloadBase
+	artifact.StorageRef = candidate.StorageRef
 	return nil
 }
 
 func inferredArtifactStorageRef(artifact *models.RootfsArtifact) string {
-	if artifact == nil {
+	if artifact == nil || artifactUsesS3(artifact) {
 		return ""
 	}
 	switch strings.ToLower(strings.TrimSpace(artifact.StorageBackend)) {
-	case "s3":
-		cfg := configenv.ParseArtifactS3()
-		if cfg.Bucket == "" {
-			return ""
-		}
-		key := strings.Trim(strings.TrimSpace(artifact.ObjectKey), "/")
-		if key == "" {
-			key = blobstore.ArtifactExt4Key(cfg.Prefix, artifact.ArtifactID)
-		}
-		u := &url.URL{Scheme: "s3", Host: cfg.Bucket, Path: "/" + key}
-		endpoint := cfg.NodeEndpoint
-		if endpoint == "" {
-			endpoint = cfg.Endpoint
-		}
-		if endpoint != "" {
-			q := u.Query()
-			q.Set("endpoint", endpoint)
-			u.RawQuery = q.Encode()
-		}
-		return u.String()
 	case "fs":
 		return (&url.URL{Scheme: "file", Path: filepath.Clean(configenv.ResolveArtifactFSRoot())}).String()
 	default:

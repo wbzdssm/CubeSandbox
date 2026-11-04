@@ -158,6 +158,7 @@ func tryDownloadPmemFile(ctx context.Context, imagePath string, spec *cubeimages
 
 type resolvedArtifactDownload struct {
 	URL               string
+	Method            string
 	Header            http.Header
 	SizeBytes         int64
 	SHA256            string
@@ -287,22 +288,13 @@ func fetchArtifactDownloadTicket(ctx context.Context, ticketURL, artifactID, nod
 	if err != nil || origin != expectedOrigin {
 		return nil, fmt.Errorf("artifact download ticket origin does not match the authorized origin")
 	}
-	header := make(http.Header)
-	switch ticket.Source {
-	case artifactticket.SourceS3:
-		// The presigned URL is the only S3 credential. Never leak internal
-		// headers to the object store.
-	case artifactticket.SourceTemplateCenter:
-		if strings.TrimSpace(ticket.Token) == "" {
-			return nil, fmt.Errorf("TemplateCenter download ticket has no token")
-		}
-		header.Set("X-Cube-Artifact-Token", ticket.Token)
-		header.Set(constants.ArtifactDownloadNodeIDHeader, nodeID)
-	default:
-		return nil, fmt.Errorf("unsupported artifact download source %q", ticket.Source)
+	method, header, err := ticket.DownloadRequest(nodeID)
+	if err != nil {
+		return nil, &artifactDownloadError{err: err, class: artifactDownloadFatal}
 	}
 	return &resolvedArtifactDownload{
 		URL:               ticket.URL,
+		Method:            method,
 		Header:            header,
 		SizeBytes:         ticket.SizeBytes,
 		SHA256:            ticket.SHA256,
@@ -384,7 +376,14 @@ func downloadArtifactAttempt(ctx context.Context, tmpPath string, source *resolv
 		}
 		offset = 0
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, source.URL, nil)
+	method := source.Method
+	if method == "" {
+		method = http.MethodGet
+	}
+	if method != http.MethodGet {
+		return false, &artifactDownloadError{err: errors.New("artifact download method must be GET"), class: artifactDownloadFatal}
+	}
+	req, err := http.NewRequestWithContext(ctx, method, source.URL, nil)
 	if err != nil {
 		return false, err
 	}
@@ -395,11 +394,7 @@ func downloadArtifactAttempt(ctx context.Context, tmpPath string, source *resolv
 	if offset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}
-	client := http.DefaultClient
-	if source.EnforceSameOrigin {
-		client = artifactDownloadHTTPClient
-	}
-	resp, err := client.Do(req)
+	resp, err := artifactDownloadHTTPClient.Do(req)
 	if err != nil {
 		return false, sanitizeArtifactHTTPError(err)
 	}
