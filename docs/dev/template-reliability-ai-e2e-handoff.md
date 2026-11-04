@@ -12,11 +12,10 @@
 
 | 角色 | 地址 | 允许执行的操作 |
 |---|---|---|
-| 构建/隔离测试机 | `9.135.79.34` | 拉取代码、组件测试、统一构建、保存产物；不部署控制面服务 |
-| 控制面 | `9.135.79.75` | 部署 CubeMaster、CubeMaster CLI、CubeTemplateCenter；执行控制面验证 |
+| 构建机兼控制面 | `9.135.79.34` | 在隔离 worktree 中测试/构建；部署 CubeMaster、CubeMaster CLI、CubeTemplateCenter；34 的 Cubelet 保持 mask |
 | 计算节点 | `9.135.10.216` | 部署 Cubelet；执行模板分发、下载和沙箱运行验证 |
 
-SSH 端口与认证方式使用已有可用配置，**不能假定三台机器使用相同端口**。
+SSH 端口与认证方式使用已有可用配置，**不能假定 34 与 216 使用相同端口**。
 
 本次目标包括：
 
@@ -39,7 +38,7 @@ SSH 端口与认证方式使用已有可用配置，**不能假定三台机器�
 1. 不得在业务数据库、业务 bucket/prefix 或业务节点执行故障注入和批量夹具创建。
 2. 无法确认测试资源隔离时，只执行只读预检并停止，相关场景报告 `BLOCKED`。
 3. 不得输出 `.one-click.env`、Secret、数据库密码、S3 AK/SK、ticket、refresh token 或带签名 URL。
-4. 不得 `reset`、`rebase` 或修改三台机器原有源码工作区；构建必须使用新的临时 worktree。
+4. 不得 `reset`、`rebase` 或修改两台机器原有源码工作区；构建必须使用新的临时 worktree。
 5. 不得删除 `.codebuddy`、业务对象、业务 DB 行或现有活跃 rootfs 缓存。
 6. 不得解除 34 上已 mask 的 Cubelet 来凑第二个计算节点。
 7. 发布前必须备份真实运行二进制并记录 SHA256；任何组件失败立即回滚，不继续后续步骤。
@@ -65,20 +64,20 @@ git push origin \
 
 禁止 force push。执行 AI 必须核对拉到的分支包含 `CODE_BASE`；分支 HEAD 可以在该代码提交之上仅增加本文档。
 
-## 3. 三台机器只读预检
+## 3. 两台机器只读预检
 
 先设置本地连接变量，端口由执行环境填写：
 
 ```bash
 export BUILD_HOST=9.135.79.34
-export CONTROL_HOST=9.135.79.75
+export CONTROL_HOST="$BUILD_HOST"
 export COMPUTE_HOST=9.135.10.216
 export BUILD_SSH_PORT='<34实际SSH端口>'
-export CONTROL_SSH_PORT='<75实际SSH端口>'
+export CONTROL_SSH_PORT="$BUILD_SSH_PORT"
 export COMPUTE_SSH_PORT='<216实际SSH端口>'
 ```
 
-### 3.1 构建机 34
+### 3.1 构建/控制面主机 34：仓库与构建环境
 
 ```bash
 ssh -p "$BUILD_SSH_PORT" "root@$BUILD_HOST" '
@@ -92,7 +91,7 @@ ssh -p "$BUILD_SSH_PORT" "root@$BUILD_HOST" '
 '
 ```
 
-### 3.2 控制面 75
+### 3.2 构建/控制面主机 34：在线服务
 
 ```bash
 ssh -p "$CONTROL_SSH_PORT" "root@$CONTROL_HOST" '
@@ -244,45 +243,37 @@ cp "$EVIDENCE/binaries-built.sha256" \
   /tmp/template-reliability-318ee986.sha256
 ```
 
-四个组件必须来自同一个 worktree 和同一次代码版本，不能在三台机器分别从不同仓库构建。
+四个组件必须来自同一个 worktree 和同一次代码版本，不能在 34 与 216 分别从不同仓库构建。
 
-## 7. 分发产物
+## 7. 暂存控制面产物并分发 Cubelet
 
-在 34 执行。先在目标机创建权限受限的暂存目录：
+在 34 执行。控制面就在本机，因此直接复制到权限受限的暂存目录；只向 216 传输 Cubelet：
 
 ```bash
-ssh -p "$CONTROL_SSH_PORT" "root@$CONTROL_HOST" \
-  'install -d -m 0700 /tmp/template-reliability-318ee986'
+set -euo pipefail
+
+STAGE=/tmp/template-reliability-318ee986
+install -d -m 0700 "$STAGE"
+
+install -m 0755 "$WORKTREE/_output/bin/cubemaster" "$STAGE/cubemaster"
+install -m 0755 "$WORKTREE/_output/bin/cubemastercli" "$STAGE/cubemastercli"
+install -m 0755 "$WORKTREE/_output/bin/templatecenter" "$STAGE/templatecenter"
+cp /tmp/template-reliability-318ee986.sha256 "$STAGE/"
 
 ssh -p "$COMPUTE_SSH_PORT" "root@$COMPUTE_HOST" \
   'install -d -m 0700 /tmp/template-reliability-318ee986'
-```
 
-发送控制面产物：
-
-```bash
-scp -P "$CONTROL_SSH_PORT" \
-  "$WORKTREE/_output/bin/cubemaster" \
-  "$WORKTREE/_output/bin/cubemastercli" \
-  "$WORKTREE/_output/bin/templatecenter" \
-  /tmp/template-reliability-318ee986.sha256 \
-  "root@$CONTROL_HOST:/tmp/template-reliability-318ee986/"
-```
-
-发送计算节点产物：
-
-```bash
 scp -P "$COMPUTE_SSH_PORT" \
   "$WORKTREE/_output/bin/cubelet" \
   /tmp/template-reliability-318ee986.sha256 \
   "root@$COMPUTE_HOST:/tmp/template-reliability-318ee986/"
 ```
 
-目标机重新计算 SHA256，并与 34 清单相应行匹配；不匹配则停止。
+34 和 216 分别重新计算 SHA256 并与构建清单相应行匹配；不匹配则停止。
 
-## 8. 75 发布前基线与路径确认
+## 8. 34 发布前基线与路径确认
 
-登录 75 后执行。以下路径是常见 one-click 布局，必须先根据实际 `ExecStart` 验证：
+继续在 34 执行。以下路径是常见 one-click 布局，必须先根据实际 `ExecStart` 验证：
 
 ```bash
 set -euo pipefail
@@ -321,7 +312,7 @@ test "$(cat "$EVIDENCE/tc-health-before.txt")" = 200
 
 确认当前没有正在运行的模板 build、redo、commit 或 delete。无法确认时暂停发布。
 
-## 9. 75 部署 TC
+## 9. 34 部署 TC
 
 ```bash
 set -euo pipefail
@@ -374,7 +365,7 @@ curl -fsS --max-time 5 http://127.0.0.1:8090/health
 
 回滚后停止整个发布流程并报告 `FAIL`。
 
-## 10. 75 部署 Master 与 CLI
+## 10. 34 部署 Master 与 CLI
 
 TC 健康后执行：
 
@@ -424,7 +415,7 @@ systemctl start cube-sandbox-cubemaster.service
 systemctl is-active --quiet cube-sandbox-cubemaster.service
 ```
 
-## 11. 75 只读 Smoke
+## 11. 34 只读 Smoke
 
 ```bash
 set -euo pipefail
@@ -533,16 +524,16 @@ systemctl start cube-sandbox-cubelet.service
 systemctl is-active --quiet cube-sandbox-cubelet.service
 ```
 
-在 75/CubeOps 验证 216 节点在线、心跳正常、地址正确，且未被错误标记为退役。
+在 34/CubeOps 验证 216 节点在线、心跳正常、地址正确，且未被错误标记为退役。
 
 ## 13. E2E 前置条件
 
-在 75 设置：
+在 34 设置：
 
 ```bash
 export NODE_216='<216对应的真实节点ID>'
 export OCI_IMAGE='<固定测试镜像@sha256:digest>'
-export CUBE_API_URL='<75上实际CubeAPI地址>'
+export CUBE_API_URL='<34上实际CubeAPI地址>'
 export CUBE_PROXY_NODE_IP='<实际测试CubeProxy地址>'
 export RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 ```
@@ -552,13 +543,13 @@ export RUN_ID="$(date -u +%Y%m%d-%H%M%S)"
 1. 216 是专用节点且允许创建/销毁测试 sandbox。
 2. 使用独立测试 bucket/prefix。
 3. 数据库是测试实例，或当前操作已获明确测试许可。
-4. 216 能访问 75 的 Master/TC 及对象存储 node endpoint。
+4. 216 能访问 34 的 Master/TC 及对象存储 node endpoint。
 5. 运行时 CoW backend 和 artifact 存储是两个独立维度。
 6. S3 CoW 场景开始前，216 的 CubeS3lvol 必须处于 ready。
 
 ## 14. xfs 模板闭环
 
-在 75 执行：
+在 34 执行：
 
 ```bash
 set -euo pipefail
@@ -600,7 +591,7 @@ cm tpl status \
 
 ## 15. SDK 交叉 E2E
 
-在 34 或可访问 75 CubeAPI 的隔离 runner 执行：
+在 34 或可访问 34 CubeAPI 的隔离 runner 执行：
 
 ```bash
 cd "$WORKTREE/tests/e2e/sdk_compat"
@@ -609,7 +600,7 @@ python3 -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
 
-export CUBE_API_URL='<75实际CubeAPI地址>'
+export CUBE_API_URL='<34实际CubeAPI地址>'
 export CUBE_TEMPLATE_ID='<符合E2E要求的READY模板ID>'
 export CUBE_PROXY_NODE_IP='<实际CubeProxy地址>'
 
@@ -643,8 +634,8 @@ pytest --run-e2e \
 
 对本轮新 artifact 验证：
 
-1. 216 先向 75 Master 获取短期 ticket。
-2. 随后从对象存储或 75 TC 下载 ext4。
+1. 216 先向 34 Master 获取短期 ticket。
+2. 随后从对象存储或 34 TC 下载 ext4。
 3. Master 不承担 ext4 大字节流。
 4. size/SHA256 匹配后才发布可用模板。
 5. 内部 TC header 不得发送到对象存储。
@@ -652,7 +643,7 @@ pytest --run-e2e \
 
 只采网络连接元数据，不抓取认证 payload 或带签名 URL。
 
-无凭证负例在 75 执行：
+无凭证负例在 34 执行：
 
 ```bash
 export ARTIFACT_ID='<本轮artifact ID>'
@@ -732,12 +723,12 @@ cm tpl build-status \
 | A 节点创建、B 节点冷分发 | 当前仅确认一个计算节点 216 |
 | 永久退役节点与临时不可达对照 | 缺第二个专用计算节点或不能安全故障注入 |
 | 普通暖 COMMIT 跨节点 | 控制面能力尚未完整接通 |
-| 双 TC 私盘 GC | 75 若只有一个 TC 实例则无法验证 |
-| 双 Master 并发 fingerprint 注册 | 75 若只有一个 Master 实例则无法验证 |
+| 双 TC 私盘 GC | 34 若只有一个 TC 实例则无法验证 |
+| 双 Master 并发 fingerprint 注册 | 34 若只有一个 Master 实例则无法验证 |
 | MySQL/PG 双数据库对照 | 需要两套独立测试数据库 |
 | 真实 COS、MinIO、S3 分别验收 | 需要对应的独立 endpoint/bucket/prefix 配置 |
 
-不得把 75 控制面当作第二个计算节点，也不得启用 34 的 Cubelet来填补拓扑。
+不得把 34 控制面当作第二个计算节点，也不得启用 34 的 Cubelet 来填补拓扑。
 
 ## 21. 清理
 
@@ -761,9 +752,8 @@ cm tpl delete --template-id "$TEMPLATE_XFS"
 最终报告必须明确：
 
 ```text
-控制面：9.135.79.75
+构建机兼控制面：9.135.79.34
 计算节点：9.135.10.216
-构建/隔离测试机：9.135.79.34
 代码基线：318ee9865255844158894f8d4ec250694d1652d1
 实际构建 HEAD：<填写>
 ```
