@@ -34,6 +34,13 @@ var (
 	ErrArtifactDownloadUnconfigured = errors.New("artifact direct download is not configured")
 )
 
+// ValidateArtifactDownloadSigningKey fails fast when direct-download tickets
+// cannot be signed or verified consistently across Master and TC.
+func ValidateArtifactDownloadSigningKey() error {
+	secret := []byte(strings.TrimSpace(os.Getenv(constants.ArtifactDownloadSigningKeyEnv)))
+	return artifactticket.ValidateSigningKey(secret)
+}
+
 // IssueArtifactDownloadTicket verifies current node placement and returns a
 // fresh capability. It never returns a stored presigned URL.
 func IssueArtifactDownloadTicket(ctx context.Context, artifactID, nodeID, refreshToken string) (*artifactticket.Ticket, error) {

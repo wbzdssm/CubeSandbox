@@ -7,6 +7,7 @@ package templatecenter
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
@@ -93,6 +94,27 @@ func TestArtifactDownloadURLFallsBackToStored(t *testing.T) {
 	got := artifactDownloadURL(context.Background(), &models.RootfsArtifact{ArtifactID: "rfs-9", ArtifactURL: stored})
 	if got != stored {
 		t.Fatalf("empty fresh: got %q, want stored url %q", got, stored)
+	}
+}
+
+func TestArtifactS3StorageRefUsesNodeEndpointWithoutSecrets(t *testing.T) {
+	t.Setenv("CUBE_S3_ENDPOINT", "http://control-minio:9000")
+	t.Setenv("CUBE_S3_NODE_ENDPOINT", "http://node-minio:9000")
+	t.Setenv("CUBE_S3_BUCKET", "artifact-bucket")
+	t.Setenv("CUBE_S3_ACCESS_KEY_ID", "access-key-must-not-appear")
+	t.Setenv("CUBE_S3_SECRET_ACCESS_KEY", "secret-key-must-not-appear")
+	t.Setenv("CUBE_S3_ARTIFACT_PREFIX", "/template-artifacts/")
+
+	got, err := artifactS3StorageRef()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "s3://artifact-bucket/template-artifacts?endpoint=http%3A%2F%2Fnode-minio%3A9000"
+	if got != want {
+		t.Fatalf("storage ref = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "access-key") || strings.Contains(got, "secret-key") {
+		t.Fatalf("storage ref leaked credentials: %q", got)
 	}
 }
 

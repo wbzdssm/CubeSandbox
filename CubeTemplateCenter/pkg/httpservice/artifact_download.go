@@ -132,8 +132,8 @@ func directArtifactPath(artifact *models.RootfsArtifact) (string, error) {
 		if err := blobstore.ValidateKey(objectKey); err != nil {
 			return "", err
 		}
-		// blobstore/fs keeps object bytes under <root>/data/<full-key>.
-		dataRoot := filepath.Join(root, "data")
+		// blobstore/fs keeps object bytes under <root>/_data/<full-key>.
+		dataRoot := filepath.Join(root, "_data")
 		candidate := filepath.Clean(filepath.Join(dataRoot, filepath.FromSlash(objectKey)))
 		rel, err := filepath.Rel(dataRoot, candidate)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {

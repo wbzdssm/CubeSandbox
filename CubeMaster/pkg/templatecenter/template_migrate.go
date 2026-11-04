@@ -67,6 +67,15 @@ func validateTCLocalArtifactPath(artifactID, path string) error {
 	return fmt.Errorf("template center returned ext4 path %q outside the TC artifact store roots %v", path, roots)
 }
 
+var migrationArtifactStoreMetadata = func(artifactID string) (backend, objectKey, storageRef string, err error) {
+	backend, objectKey = artifactStoreColumns(artifactID)
+	if backend != "s3" {
+		return backend, objectKey, "", nil
+	}
+	storageRef, err = artifactS3StorageRef()
+	return backend, objectKey, storageRef, err
+}
+
 // uploadArtifactFileToTC uploads one artifact ext4 file into CubeTemplateCenter's
 // own artifact store and returns the stored file metadata.
 var uploadArtifactFileToTC = func(ctx context.Context, artifactID, filePath string) (*templateCenterUploadResult, error) {
@@ -103,11 +112,13 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 	result := &TemplateArtifactMigrationResult{TemplateID: templateID}
 
 	type artifactSnapshot struct {
-		artifactID  string
-		objectKey   string
-		status      string
-		artifactURL string
-		ext4Path    string
+		artifactID     string
+		objectKey      string
+		status         string
+		artifactURL    string
+		storageBackend string
+		storageRef     string
+		ext4Path       string
 	}
 	snapshot := artifactSnapshot{}
 	if err := withTemplateWriteLock(templateID, func() error {
@@ -130,11 +141,13 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 			return err
 		}
 		snapshot = artifactSnapshot{
-			artifactID:  artifactID,
-			objectKey:   strings.TrimSpace(artifact.ObjectKey),
-			status:      strings.TrimSpace(artifact.Status),
-			artifactURL: strings.TrimSpace(artifact.ArtifactURL),
-			ext4Path:    strings.TrimSpace(artifact.Ext4Path),
+			artifactID:     artifactID,
+			objectKey:      strings.TrimSpace(artifact.ObjectKey),
+			status:         strings.TrimSpace(artifact.Status),
+			artifactURL:    strings.TrimSpace(artifact.ArtifactURL),
+			storageBackend: strings.TrimSpace(artifact.StorageBackend),
+			storageRef:     strings.TrimSpace(artifact.StorageRef),
+			ext4Path:       strings.TrimSpace(artifact.Ext4Path),
 		}
 		return nil
 	}); err != nil {
@@ -142,38 +155,73 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 	}
 	result.ArtifactID = snapshot.artifactID
 
-	// Already S3-backed: verify object existence, then clean local residue.
-	if snapshot.artifactURL != "" {
-		exists, statErr := statArtifactObjectInS3(ctx, &models.RootfsArtifact{
-			ArtifactID: snapshot.artifactID,
-			ObjectKey:  snapshot.objectKey,
-		})
+	// Already S3-backed: validate the recorded ownership before probing. Empty
+	// storage_ref is the only legacy form that can be repaired automatically;
+	// a non-empty mismatched bucket/endpoint must go through an explicit copy.
+	legacyS3 := snapshot.storageBackend == "" && snapshot.artifactURL != ""
+	if snapshot.storageBackend == "s3" || legacyS3 {
+		artifact := &models.RootfsArtifact{
+			ArtifactID:     snapshot.artifactID,
+			ObjectKey:      snapshot.objectKey,
+			StorageBackend: snapshot.storageBackend,
+			StorageRef:     snapshot.storageRef,
+		}
+		if snapshot.storageRef != "" {
+			if _, locatorErr := artifactStoreKey(ctx, artifact); locatorErr != nil {
+				return nil, fmt.Errorf("validate migrated artifact %s storage metadata: %w", snapshot.artifactID, locatorErr)
+			}
+		}
+		exists, statErr := statArtifactObjectInS3(ctx, artifact)
 		if statErr != nil {
 			return nil, fmt.Errorf("check s3 object for artifact %s: %w", snapshot.artifactID, statErr)
 		}
-		if !exists {
-			// Not "re-run the migration": the object is already gone, so there
-			// is nothing left to upload and a re-run hits this same check.
-			return nil, fmt.Errorf("artifact %s is marked as s3-backed but the object is missing from the bucket; "+
-				"migration cannot repair it (there is nothing left to upload) -- rebuild the rootfs instead "+
-				"(`cubemastercli tpl redo --template-id %s`)", snapshot.artifactID, templateID)
-		}
-		cleaned, cleanErr := removeLocalArtifactFile(snapshot.ext4Path)
-		if cleanErr != nil {
-			// Best-effort: the artifact is already fully durable in S3, so
-			// failing the whole job over a stale local file would be misleading.
-			log.G(ctx).Errorf("artifact %s already migrated to s3 but failed to remove stale local file %q; will retry on next `tpl merge`: %v",
-				snapshot.artifactID, snapshot.ext4Path, cleanErr)
+		if exists {
+			backend, defaultObjectKey, storageRef, metadataErr := migrationArtifactStoreMetadata(snapshot.artifactID)
+			if metadataErr != nil {
+				return nil, fmt.Errorf("repair migrated artifact %s storage metadata: %w", snapshot.artifactID, metadataErr)
+			}
+			objectKey := snapshot.objectKey
+			if objectKey == "" {
+				objectKey = defaultObjectKey
+			}
+			if backend != "s3" || objectKey == "" || storageRef == "" {
+				return nil, fmt.Errorf("repair migrated artifact %s storage metadata: incomplete s3 locator", snapshot.artifactID)
+			}
+			if snapshot.storageRef == "" || snapshot.storageBackend == "" || snapshot.objectKey == "" {
+				updated, updateErr := updateRootfsArtifactIfStatus(ctx, snapshot.artifactID, snapshot.status, map[string]any{
+					"storage_backend": backend,
+					"object_key":      objectKey,
+					"storage_ref":     storageRef,
+				})
+				if updateErr != nil {
+					return nil, fmt.Errorf("repair migrated artifact %s storage metadata: %w", snapshot.artifactID, updateErr)
+				}
+				if !updated {
+					return nil, fmt.Errorf("repair migrated artifact %s storage metadata lost status race", snapshot.artifactID)
+				}
+			}
+			cleaned, cleanErr := removeLocalArtifactFile(snapshot.ext4Path)
+			if cleanErr != nil {
+				log.G(ctx).Errorf("artifact %s already migrated to s3 but failed to remove stale local file %q; will retry on next `tpl merge`: %v",
+					snapshot.artifactID, snapshot.ext4Path, cleanErr)
+				result.Migrated = false
+				result.Cleaned = false
+				return result, nil
+			}
 			result.Migrated = false
-			result.Cleaned = false
+			result.Cleaned = cleaned
+			if result.Cleaned {
+				invalidateTemplateCaches(templateID)
+			}
 			return result, nil
 		}
-		result.Migrated = false
-		result.Cleaned = cleaned
-		if result.Cleaned {
-			invalidateTemplateCaches(templateID)
+		// A stale URL is not proof that the local source vanished. If the file
+		// still exists, fall through and re-upload it; only require redo when
+		// neither durable copy exists.
+		if _, localErr := os.Stat(snapshot.ext4Path); localErr != nil {
+			return nil, fmt.Errorf("artifact %s is marked as s3-backed but the object is missing and local ext4 %q is unavailable: %w; rebuild the rootfs (`cubemastercli tpl redo --template-id %s`)",
+				snapshot.artifactID, snapshot.ext4Path, localErr, templateID)
 		}
-		return result, nil
 	}
 
 	ext4Path := snapshot.ext4Path
@@ -208,28 +256,36 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 	updates := map[string]any{}
 	uploadedToS3 := false
 	targetExt4Path := ext4Path
-	if err := uploadArtifactFileToS3(ctx, snapshot.artifactID, ext4Path); err == nil {
+	backend, objectKey, storageRef, metadataErr := migrationArtifactStoreMetadata(snapshot.artifactID)
+	if metadataErr != nil && !errors.Is(metadataErr, errS3PresignNotConfigured) {
+		return nil, fmt.Errorf("build migrated artifact %s storage metadata: %w", snapshot.artifactID, metadataErr)
+	}
+	if backend == "s3" {
+		if objectKey == "" || storageRef == "" {
+			return nil, fmt.Errorf("build migrated artifact %s storage metadata: incomplete s3 locator", snapshot.artifactID)
+		}
+		if err := uploadArtifactFileToS3(ctx, snapshot.artifactID, ext4Path); err != nil {
+			return nil, err
+		}
 		presignedURL, presignErr := presignArtifactGetURL(ctx, &models.RootfsArtifact{
-			ArtifactID: snapshot.artifactID,
-			ObjectKey:  snapshot.objectKey,
+			ArtifactID:     snapshot.artifactID,
+			ObjectKey:      objectKey,
+			StorageBackend: backend,
+			StorageRef:     storageRef,
 		})
 		if presignErr != nil {
 			return nil, fmt.Errorf("presign migrated artifact %s: %w", snapshot.artifactID, presignErr)
 		}
 		uploadedToS3 = true
 		updates = map[string]any{
-			"artifact_url": presignedURL,
-			"status":       ArtifactStatusReady,
-			"last_error":   "",
-		}
-		if backend, objectKey := artifactStoreColumns(snapshot.artifactID); backend != "" {
-			updates["storage_backend"] = backend
-			updates["object_key"] = objectKey
+			"artifact_url":    presignedURL,
+			"storage_backend": backend,
+			"object_key":      objectKey,
+			"storage_ref":     storageRef,
+			"status":          ArtifactStatusReady,
+			"last_error":      "",
 		}
 	} else {
-		if !errors.Is(err, errS3PresignNotConfigured) {
-			return nil, err
-		}
 		uploadRes, uploadErr := uploadArtifactFileToTC(ctx, snapshot.artifactID, ext4Path)
 		if uploadErr != nil {
 			return nil, fmt.Errorf("upload artifact %s to template center store: %w", snapshot.artifactID, uploadErr)
@@ -239,10 +295,13 @@ func MigrateTemplateArtifactToTC(ctx context.Context, templateID string) (*Templ
 		}
 		targetExt4Path = uploadRes.Ext4Path
 		updates = map[string]any{
-			"artifact_url": "",
-			"ext4_path":    uploadRes.Ext4Path,
-			"status":       ArtifactStatusReady,
-			"last_error":   "",
+			"artifact_url":    "",
+			"ext4_path":       uploadRes.Ext4Path,
+			"storage_backend": "",
+			"object_key":      "",
+			"storage_ref":     "",
+			"status":          ArtifactStatusReady,
+			"last_error":      "",
 		}
 		if strings.TrimSpace(uploadRes.Ext4SHA256) != "" {
 			updates["ext4_sha256"] = uploadRes.Ext4SHA256

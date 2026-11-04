@@ -1457,6 +1457,7 @@ func TestRunRedoTemplateImageJobStopsOnArtifactCleanupFailure(t *testing.T) {
 			Ext4SizeBytes:        int64(len(artifactData)),
 			DownloadToken:        "token-1",
 			MasterNodeIP:         "http://master.example",
+			OwnerTCDownloadBase:  "http://tc.example:8090",
 			Status:               ArtifactStatusReady,
 			GeneratedRequestJSON: string(generatedReqPayload),
 		}, nil
@@ -1508,6 +1509,8 @@ func TestRunRedoTemplateImageJobReloadsArtifactAfterBuildLock(t *testing.T) {
 		Ext4SHA256:              artifactSHA,
 		Ext4SizeBytes:           int64(len(artifactData)),
 		DownloadToken:           staleToken,
+		MasterNodeIP:            "http://master.example",
+		OwnerTCDownloadBase:     "http://tc.example:8090",
 		Status:                  ArtifactStatusFailed,
 		GeneratedRequestJSON:    `{}`,
 		ImageConfigJSON:         `{}`,
@@ -1537,7 +1540,7 @@ func TestRunRedoTemplateImageJobReloadsArtifactAfterBuildLock(t *testing.T) {
 	lookupCalls := 0
 	distributedToken := ""
 	distributedSHA := ""
-	generatedToken := ""
+	generatedTicketURL := ""
 	generatedSHA := ""
 
 	patches.ApplyFunc(getTemplateImageJobRecordByID, func(ctx context.Context, jobID string) (*models.TemplateImageJob, error) {
@@ -1598,7 +1601,7 @@ func TestRunRedoTemplateImageJobReloadsArtifactAfterBuildLock(t *testing.T) {
 		distributedToken = artifact.DownloadToken
 		distributedSHA = artifact.Ext4SHA256
 		if generatedReq != nil && len(generatedReq.Containers) > 0 && generatedReq.Containers[0].Image != nil {
-			generatedToken = generatedReq.Containers[0].Image.Annotations[constants.CubeAnnotationRootfsArtifactToken]
+			generatedTicketURL = generatedReq.Containers[0].Image.Annotations[constants.CubeAnnotationRootfsArtifactTicketURL]
 			generatedSHA = generatedReq.Containers[0].Image.Annotations[constants.CubeAnnotationRootfsArtifactSHA256]
 		}
 		return targets, 1, 1, 0, nil
@@ -1656,8 +1659,12 @@ func TestRunRedoTemplateImageJobReloadsArtifactAfterBuildLock(t *testing.T) {
 	if lookupCalls != 3 {
 		t.Fatalf("artifact lookups = %d, want reusability gate + foreign re-check + locked reload", lookupCalls)
 	}
-	if distributedToken != freshToken || generatedToken != freshToken {
-		t.Fatalf("distributed token=%q generated token=%q, want refreshed %q", distributedToken, generatedToken, freshToken)
+	if distributedToken != freshToken {
+		t.Fatalf("distributed token=%q, want refreshed %q", distributedToken, freshToken)
+	}
+	wantTicketURL := "http://master.example/internal/template/artifacts/" + artifactID + "/download-ticket"
+	if generatedTicketURL != wantTicketURL {
+		t.Fatalf("generated ticket url=%q, want %q", generatedTicketURL, wantTicketURL)
 	}
 	if distributedSHA != freshArtifact.Ext4SHA256 || generatedSHA != freshArtifact.Ext4SHA256 {
 		t.Fatalf("distributed sha=%q generated sha=%q, want refreshed %q", distributedSHA, generatedSHA, freshArtifact.Ext4SHA256)

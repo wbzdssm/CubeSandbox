@@ -23,6 +23,26 @@ func TestVersionedObjectKeyBindsContent(t *testing.T) {
 	}
 }
 
+func TestStorageRefUsesNodeEndpointWithoutSecrets(t *testing.T) {
+	client := &Client{cfg: Config{
+		Driver:         "s3",
+		Endpoint:       "http://control-minio:9000",
+		NodeEndpoint:   "http://node-minio:9000",
+		Bucket:         "artifact-bucket",
+		AccessKey:      "access-key-must-not-appear",
+		SecretKey:      "secret-key-must-not-appear",
+		ArtifactPrefix: "/template-artifacts/",
+	}}
+	got := client.StorageRef()
+	want := "s3://artifact-bucket/template-artifacts?endpoint=http%3A%2F%2Fnode-minio%3A9000"
+	if got != want {
+		t.Fatalf("storage ref = %q, want %q", got, want)
+	}
+	if strings.Contains(got, "access-key") || strings.Contains(got, "secret-key") {
+		t.Fatalf("storage ref leaked credentials: %q", got)
+	}
+}
+
 func TestStoredUserKeyRequiresConfiguredPrefix(t *testing.T) {
 	client := &Client{cfg: Config{ArtifactPrefix: "templates"}}
 	got, err := client.storedUserKey("templates/artifact-1.ext4", "artifact-1")

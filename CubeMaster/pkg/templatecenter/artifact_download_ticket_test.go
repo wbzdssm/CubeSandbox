@@ -45,6 +45,18 @@ func TestArtifactDownloadTTL(t *testing.T) {
 	}
 }
 
+func TestValidateArtifactDownloadSigningKey(t *testing.T) {
+	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, "short")
+	if err := ValidateArtifactDownloadSigningKey(); err == nil || !strings.Contains(err.Error(), "at least 32 bytes") {
+		t.Fatalf("short signing key error = %v", err)
+	}
+
+	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, strings.Repeat("k", 32))
+	if err := ValidateArtifactDownloadSigningKey(); err != nil {
+		t.Fatalf("valid signing key: %v", err)
+	}
+}
+
 func TestBuildArtifactDownloadTicketForTemplateCenter(t *testing.T) {
 	secret := strings.Repeat("download-key-", 3)
 	t.Setenv(constants.ArtifactDownloadSigningKeyEnv, secret)

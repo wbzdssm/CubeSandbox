@@ -120,6 +120,11 @@ func Verify(secret []byte, token string, now time.Time) (Claims, error) {
 	return claims, nil
 }
 
+// ValidateSigningKey checks the deployment-wide HMAC key before services start.
+func ValidateSigningKey(secret []byte) error {
+	return validateSecret(secret)
+}
+
 func validateSecret(secret []byte) error {
 	if len(secret) < 32 {
 		return errors.New("artifact download signing key must contain at least 32 bytes")

@@ -102,7 +102,7 @@ func TestDirectArtifactPathConstrainsFSObjectKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := filepath.Join(root, "data", "templates", "artifact-1.ext4")
+	want := filepath.Join(root, "_data", "templates", "artifact-1.ext4")
 	if got != want {
 		t.Fatalf("path = %q, want %q", got, want)
 	}
@@ -112,7 +112,7 @@ func TestDirectArtifactPathConstrainsFSObjectKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := filepath.Join(stableRoot, "data", "templates", "artifact-1.ext4"); got != want {
+	if want := filepath.Join(stableRoot, "_data", "templates", "artifact-1.ext4"); got != want {
 		t.Fatalf("stable-locator path = %q, want %q", got, want)
 	}
 

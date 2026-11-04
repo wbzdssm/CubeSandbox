@@ -151,6 +151,26 @@ func artifactStoreColumns(artifactID string) (backend, objectKey string) {
 	return st.backend, blobstore.ArtifactExt4Key(configenv.EnvOr(configenv.EnvS3ArtifactPrefix), artifactID)
 }
 
+func artifactS3StorageRef() (string, error) {
+	cfg := configenv.ParseArtifactS3()
+	if !cfg.Enabled {
+		return "", errS3PresignNotConfigured
+	}
+	endpoint := strings.TrimSpace(cfg.NodeEndpoint)
+	if endpoint == "" {
+		endpoint = strings.TrimSpace(cfg.Endpoint)
+	}
+	u := &url.URL{
+		Scheme: "s3",
+		Host:   cfg.Bucket,
+		Path:   "/" + strings.Trim(configenv.EnvOr(configenv.EnvS3ArtifactPrefix), "/"),
+	}
+	query := u.Query()
+	query.Set("endpoint", endpoint)
+	u.RawQuery = query.Encode()
+	return u.String(), nil
+}
+
 // presignArtifactGetURLWithTTL creates a fresh, bounded capability. Download
 // tickets use this directly and never fall back to a URL persisted at build
 // time.

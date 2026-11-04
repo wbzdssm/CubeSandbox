@@ -57,6 +57,16 @@ func TestRetireArtifactFingerprintRejectsStaleStatus(t *testing.T) {
 	require.False(t, retired)
 }
 
+func TestRemoteBuildDiagnosticsHandleUninitializedStore(t *testing.T) {
+	oldDB := store.db
+	store.db = nil
+	t.Cleanup(func() { store.db = oldDB })
+	require.ErrorIs(t, recordRemoteBuildDeferredError(t.Context(), "job-uninitialized", errors.New("deferred")), ErrTemplateStoreNotInitialized)
+
+	finalResult := []byte(`{"template_id":"tpl-uninitialized"}`)
+	require.Equal(t, finalResult, preserveRemoteBuildReport(t.Context(), "job-uninitialized", finalResult))
+}
+
 func TestRemoteBuildDeferredDiagnosisPreservesResult(t *testing.T) {
 	db := newMigrateSharedStoreTestDB(t)
 	require.NoError(t, db.AutoMigrate(&models.TemplateImageJob{}))
