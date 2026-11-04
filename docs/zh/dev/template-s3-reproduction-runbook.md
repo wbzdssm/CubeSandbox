@@ -104,7 +104,7 @@ SDK 配置以仓库 `examples/snapshot-rollback-clone/README.md` 和 `sdk/python
 
 修改服务配置后要确认它已进入实际进程/容器环境；仅在操作终端 `export` 不会改变已有 systemd 服务。不要打印完整 `.one-click.env` 或 Secret 来取证。
 
-**当前接口**是 `GET /internal/template/artifacts/:artifact_id/download-ticket`（无请求body）和 TC `GET/HEAD /internal/artifacts/:artifact_id/ext4`。`docs/dev/template-reliability-fix-plan.md` 是旧设计草稿，其中建议的路径和状态不能代替当前代码。
+**当前接口**是 `GET /internal/template/artifacts/:artifact_id/download-ticket`（无请求body）和 TC `GET/HEAD /internal/artifacts/:artifact_id/ext4`。[修复报告](../../dev/template-reliability-fix-plan.md) 第 0 节记录当前实施与实际验证，第 1 节以后是原始设计，不能用其中的历史路径和状态代替当前代码。统一测试入口、验收矩阵与清理流程见 [整体测试指南](../../dev/template-reliability-test-guide.md)。
 
 ## 3. 通用操作和只读取证
 

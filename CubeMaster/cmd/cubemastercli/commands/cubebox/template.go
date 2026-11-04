@@ -6,14 +6,17 @@ package cubebox
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -348,6 +351,33 @@ var TemplateCommand = cli.Command{
 	},
 }
 
+const templateBackendUsage = "runtime CoW backend (xfs|s3|cos|minio); cos/minio use the node's configured S3-compatible store, not a per-template endpoint"
+
+func normalizeCLIBackend(raw string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "cos", "minio":
+		return constants.SnapshotBackendS3, nil
+	default:
+		return constants.NormalizeSnapshotBackend(raw)
+	}
+}
+
+func applyTemplateBackendFlag(c *cli.Context, req *types.CreateCubeSandboxReq) error {
+	if !c.IsSet("backend") {
+		return nil
+	}
+	backend, err := normalizeCLIBackend(c.String("backend"))
+	if err != nil {
+		return err
+	}
+	req.Backend = backend
+	if req.Annotations == nil {
+		req.Annotations = map[string]string{}
+	}
+	req.Annotations[constants.CubeAnnotationStorageBackend] = backend
+	return nil
+}
+
 var TemplateCreateCommand = cli.Command{
 	Name:  "create",
 	Usage: "create template snapshots on healthy nodes",
@@ -368,6 +398,10 @@ var TemplateCreateCommand = cli.Command{
 		cli.StringFlag{
 			Name:  "instance-type",
 			Usage: "override instance type in request body",
+		},
+		cli.StringFlag{
+			Name:  "backend",
+			Usage: templateBackendUsage,
 		},
 		cli.StringSliceFlag{
 			Name:  "node",
@@ -428,6 +462,9 @@ var TemplateCreateCommand = cli.Command{
 		}
 		if scope := c.StringSlice("node"); len(scope) > 0 {
 			req.DistributionScope = scope
+		}
+		if err := applyTemplateBackendFlag(c, req); err != nil {
+			return err
 		}
 		req.CubeNetworkConfig = mergeCubeNetworkConfigFlags(c, req.CubeNetworkConfig)
 
@@ -876,15 +913,16 @@ var TemplateCommitCommand = cli.Command{
 }
 
 var TemplateCreateFromImageCommand = cli.Command{
-	Name:  "create-from-image",
-	Usage: "build ext4 rootfs from OCI image and create template asynchronously",
+	Name:    "create-from-image",
+	Aliases: []string{"build"},
+	Usage:   "build ext4 rootfs from OCI image and create template asynchronously",
 	Flags: []cli.Flag{
 		cli.StringFlag{Name: "image", Usage: "source OCI image reference"},
 		cli.StringFlag{Name: "alias", Usage: "human-readable stable alias for the template (e.g. my-app); sandboxes can reference the template by this alias instead of the generated template ID; valid: [a-z0-9-], max 64 chars"},
 		cli.StringFlag{Name: "writable-layer-size", Usage: "immutable writable layer size, e.g. 20Gi"},
 		cli.StringSliceFlag{Name: "expose-port", Usage: "container port to expose for the template; repeat the flag to specify multiple ports"},
 		cli.StringFlag{Name: "instance-type", Value: "cubebox", Usage: "instance type"},
-		cli.StringFlag{Name: "backend", Usage: "CoW backend for this template and its sandboxes/snapshots (xfs|s3); omit to keep the historical xfs path"},
+		cli.StringFlag{Name: "backend", Usage: templateBackendUsage},
 		cli.StringFlag{Name: "network-type", Value: "tap", Usage: "network type"},
 		cli.StringSliceFlag{Name: "node", Usage: "create template only on the specified node id or host ip; repeat to specify multiple nodes"},
 		cli.BoolFlag{Name: "allow-internet-access", Usage: "set allowInternetAccess on the network config for the generated template request"},
@@ -930,6 +968,13 @@ var TemplateCreateFromImageCommand = cli.Command{
 		if err != nil {
 			return err
 		}
+		backend := ""
+		if c.IsSet("backend") {
+			backend, err = normalizeCLIBackend(c.String("backend"))
+			if err != nil {
+				return err
+			}
+		}
 		req := &types.CreateTemplateFromImageReq{
 			Request:        &types.Request{RequestID: uuid.New().String()},
 			SourceImageRef: c.String("image"),
@@ -940,7 +985,7 @@ var TemplateCreateFromImageCommand = cli.Command{
 			ExposedPorts:       exposedPorts,
 			InstanceType:       c.String("instance-type"),
 			NetworkType:        c.String("network-type"),
-			Backend:            c.String("backend"),
+			Backend:            backend,
 			RegistryUsername:   c.String("registry-username"),
 			RegistryPassword:   c.String("registry-password"),
 			ContainerOverrides: containerOverrides,
@@ -1219,7 +1264,11 @@ var TemplateListCommand = cli.Command{
 		},
 		cli.BoolFlag{
 			Name:  "all",
-			Usage: "fetch all templates by walking bounded server pages",
+			Usage: "walk server pages; table output is flushed after each page",
+		},
+		cli.BoolFlag{
+			Name:  "no-total",
+			Usage: "skip the exact database count; use has_more for navigation (requires an updated server)",
 		},
 		cli.StringFlag{
 			Name:  "output,o",
@@ -1246,6 +1295,9 @@ var TemplateListCommand = cli.Command{
 			return errors.New("--offset must be non-negative")
 		}
 
+		if c.Bool("all") && !c.Bool("json") {
+			return streamAllTemplatePages(c, baseURL, requestID, os.Stdout)
+		}
 		var rsp *templateListResponse
 		var err error
 		if c.Bool("all") {
@@ -1270,43 +1322,23 @@ var TemplateListCommand = cli.Command{
 			commands.PrintAsJSON(rsp)
 			return nil
 		}
-		log.Printf("total: %d\n", rsp.Total)
+		if rsp.Total >= 0 {
+			log.Printf("total: %d\n", rsp.Total)
+		} else {
+			log.Printf("total: not counted (--no-total)\n")
+		}
 		if !c.Bool("all") && (rsp.HasMore || (rsp.Offset+len(rsp.Data) < rsp.Total)) {
 			nextOffset := rsp.Offset + len(rsp.Data)
 			if rsp.Limit == 0 {
 				nextOffset = c.Int("offset") + len(rsp.Data)
 			}
-			log.Printf("showing %d of %d (offset %d); next page: --offset %d, or --all\n",
-				len(rsp.Data), rsp.Total, c.Int("offset"), nextOffset)
-		}
-		wideOutput := strings.EqualFold(strings.TrimSpace(c.String("output")), "wide")
-		w := tabwriter.NewWriter(os.Stdout, 4, 8, 4, ' ', 0)
-		tabHeader := "TEMPLATE_ID\tALIAS\tSTATUS\tBACKEND\tJOB_ID\tCREATED_AT\tIMAGE_INFO"
-		if wideOutput {
-			tabHeader = "TEMPLATE_ID\tALIAS\tSTATUS\tBACKEND\tJOB_ID\tLAST_ERROR\tCREATED_AT\tIMAGE_INFO"
-		}
-		fmt.Fprintln(w, tabHeader)
-		for _, item := range rsp.Data {
-			jobID := item.JobID
-			if jobID == "" {
-				jobID = "-"
-			}
-			alias := item.DisplayName
-			if alias == "" {
-				alias = "-"
-			}
-			backend := firstNonEmptyCLI(item.Backend, item.StorageBackend)
-			var row string
-			if wideOutput {
-				row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s",
-					item.TemplateID, alias, item.Status, backend, jobID, item.LastError, item.CreatedAt, item.ImageInfo)
+			if rsp.Total >= 0 {
+				log.Printf("showing %d of %d (offset %d); next page: --offset %d, or --all\n", len(rsp.Data), rsp.Total, c.Int("offset"), nextOffset)
 			} else {
-				row = fmt.Sprintf("%s\t%s\t%s\t%s\t%s\t%s\t%s",
-					item.TemplateID, alias, item.Status, backend, jobID, item.CreatedAt, item.ImageInfo)
+				log.Printf("showing %d (offset %d); next page: --offset %d --no-total, or --all\n", len(rsp.Data), c.Int("offset"), nextOffset)
 			}
-			fmt.Fprintln(w, row)
 		}
-		return w.Flush()
+		return printTemplateListPage(os.Stdout, rsp, strings.EqualFold(strings.TrimSpace(c.String("output")), "wide"), true)
 	},
 }
 
@@ -1315,38 +1347,118 @@ var TemplateListCommand = cli.Command{
 func templateListQuery(c *cli.Context) string {
 	query := url.Values{}
 	query.Set("limit", strconv.Itoa(c.Int("limit")))
+	if c.Bool("no-total") {
+		query.Set("skip_total", "true")
+	}
 	if offset := c.Int("offset"); offset > 0 {
 		query.Set("offset", strconv.Itoa(offset))
 	}
 	return query.Encode()
 }
 
-func fetchAllTemplatePages(c *cli.Context, baseURL, requestID string) (*templateListResponse, error) {
-	const pageSize = 200
-	result := &templateListResponse{}
-	for offset := 0; ; offset += pageSize {
-		query := url.Values{}
-		query.Set("limit", strconv.Itoa(pageSize))
-		query.Set("offset", strconv.Itoa(offset))
+func walkTemplatePages(c *cli.Context, baseURL, requestID string, skipTotal bool, visit func(*templateListResponse) error) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	if timeout := c.GlobalDuration("timeout"); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+	lastPage := ""
+	for offset := 0; ; {
+		query := url.Values{"limit": {"200"}, "offset": {strconv.Itoa(offset)}}
+		if skipTotal {
+			query.Set("skip_total", "true")
+		}
 		page := &templateListResponse{}
-		if err := doHttpReq(c, baseURL+"?"+query.Encode(), http.MethodGet, requestID, nil, page); err != nil {
-			return nil, err
+		if err := doHttpReqContext(ctx, c, baseURL+"?"+query.Encode(), http.MethodGet, requestID, nil, "", page); err != nil {
+			return err
 		}
 		if page.Ret == nil {
-			return nil, errors.New("empty response")
+			return errors.New("empty response")
 		}
 		if page.Ret.RetCode != 200 {
-			return nil, errors.New(page.Ret.RetMsg)
+			return errors.New(page.Ret.RetMsg)
 		}
-		if result.Ret == nil {
-			result.Ret = page.Ret
+		if page.Limit > 0 && page.Offset != offset {
+			return fmt.Errorf("template page did not advance: requested offset %d, received %d", offset, page.Offset)
 		}
+		if len(page.Data) > 0 {
+			identity := page.Data[0].TemplateID + "\x00" + page.Data[len(page.Data)-1].TemplateID
+			if identity == lastPage {
+				return errors.New("template server repeated a page; traversal stopped")
+			}
+			lastPage = identity
+		} else if page.HasMore {
+			return errors.New("template server returned an empty page with has_more=true")
+		}
+		if err := visit(page); err != nil {
+			return err
+		}
+		if len(page.Data) == 0 {
+			return nil
+		}
+		next := offset + len(page.Data)
+		if next <= offset {
+			return errors.New("template page offset overflow")
+		}
+		if !page.HasMore && (page.Total < 0 || next >= page.Total) {
+			return nil
+		}
+		offset = next
+	}
+}
+
+func fetchAllTemplatePages(c *cli.Context, baseURL, requestID string) (*templateListResponse, error) {
+	result := &templateListResponse{}
+	err := walkTemplatePages(c, baseURL, requestID, c.Bool("no-total"), func(page *templateListResponse) error {
+		result.Ret = page.Ret
 		result.Total = page.Total
 		result.Data = append(result.Data, page.Data...)
-		if len(page.Data) == 0 || len(result.Data) >= page.Total {
-			return result, nil
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func streamAllTemplatePages(c *cli.Context, baseURL, requestID string, out io.Writer) error {
+	header, count := true, 0
+	err := walkTemplatePages(c, baseURL, requestID, true, func(page *templateListResponse) error {
+		if err := printTemplateListPage(out, page, strings.EqualFold(strings.TrimSpace(c.String("output")), "wide"), header); err != nil {
+			return err
+		}
+		header = false
+		count += len(page.Data)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("template traversal stopped after %d rows: %w", count, err)
+	}
+	log.Printf("listed: %d templates\n", count)
+	return nil
+}
+
+func printTemplateListPage(out io.Writer, page *templateListResponse, wide, header bool) error {
+	w := tabwriter.NewWriter(out, 4, 8, 4, ' ', 0)
+	if header {
+		if wide {
+			fmt.Fprintln(w, "TEMPLATE_ID\tALIAS\tSTATUS\tBACKEND\tJOB_ID\tLAST_ERROR\tCREATED_AT\tIMAGE_INFO")
+		} else {
+			fmt.Fprintln(w, "TEMPLATE_ID\tALIAS\tSTATUS\tBACKEND\tJOB_ID\tCREATED_AT\tIMAGE_INFO")
 		}
 	}
+	for _, item := range page.Data {
+		alias, jobID := firstNonEmptyCLI(item.DisplayName, "-"), firstNonEmptyCLI(item.JobID, "-")
+		backend := firstNonEmptyCLI(item.Backend, item.StorageBackend)
+		if wide {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", item.TemplateID, alias, item.Status, backend, jobID, item.LastError, item.CreatedAt, item.ImageInfo)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", item.TemplateID, alias, item.Status, backend, jobID, item.CreatedAt, item.ImageInfo)
+		}
+	}
+	return w.Flush()
 }
 
 func printTemplateSummary(rsp *templateResponse) {

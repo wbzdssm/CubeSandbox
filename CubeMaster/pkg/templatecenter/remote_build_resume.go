@@ -349,6 +349,9 @@ func prepareTemplateImageJobAfterRemoteBuild(ctx context.Context, jobID string, 
 			// build lock. Reconcile-time contention likewise leaves the durable
 			// BUILT report available for the next pass.
 			logger.Warnf("resume step 1/3 deferred: %v", err)
+			if persistErr := recordRemoteBuildDeferredError(ctx, jobID, err); persistErr != nil {
+				return nil, errors.Join(err, persistErr)
+			}
 			return nil, err
 		}
 		failErr := fmt.Errorf("register remote artifact: %w", err)
@@ -372,6 +375,7 @@ func prepareTemplateImageJobAfterRemoteBuild(ctx context.Context, jobID string, 
 		"status":                    JobStatusRunning,
 		"phase":                     JobPhaseDistributing,
 		"progress":                  70,
+		"error_message":             "",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("claim job distribution: %w", err)
@@ -388,6 +392,12 @@ func prepareTemplateImageJobAfterRemoteBuild(ctx context.Context, jobID string, 
 		generatedReq: generatedReq,
 		adopted:      adopted,
 	}, nil
+}
+
+func recordRemoteBuildDeferredError(ctx context.Context, jobID string, cause error) error {
+	return store.db.WithContext(ctx).Model(&models.TemplateImageJob{}).
+		Where("job_id = ? AND status = ?", jobID, JobStatusBuilt).
+		UpdateColumn("error_message", fmt.Sprintf("remote artifact registration deferred: %v", cause)).Error
 }
 
 // PrepareTemplateImageJobAfterRemoteBuildCallback performs the synchronous
@@ -526,13 +536,14 @@ func registerRemoteBuiltArtifactOnSession(ctx context.Context, sess *gorm.DB, re
 			adopted = true
 			return nil
 		case findErr == nil && existing.ArtifactID != result.ArtifactID:
-			// A non-READY row under a DIFFERENT artifact_id is a crashed
-			// predecessor's half-registration: a live peer finalizes inside
-			// this same lock, so one cannot be observed mid-flight. The
-			// artifact GC owns that row's lifecycle; leave the job BUILT and
-			// let the image-job reconciler replay once the row is resolved.
-			return fmt.Errorf("%w: fingerprint %.16s held by non-ready artifact %s (status %s, deleted=%v)",
-				errArtifactRegisterRetryable, fingerprint, existing.ArtifactID, existing.Status, existing.DeletedAt.Valid)
+			retired, retireErr := retireArtifactFingerprint(ctx, sess, existing)
+			if retireErr != nil {
+				return fmt.Errorf("retire predecessor artifact %s: %w", existing.ArtifactID, retireErr)
+			}
+			if !retired {
+				return fmt.Errorf("%w: fingerprint %.16s held by non-ready artifact %s (status %s, deleted=%v)",
+					errArtifactRegisterRetryable, fingerprint, existing.ArtifactID, existing.Status, existing.DeletedAt.Valid)
+			}
 		case findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound):
 			return fmt.Errorf("lookup artifact by fingerprint: %w", findErr)
 		}

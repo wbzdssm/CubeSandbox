@@ -18,6 +18,97 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestRetireArtifactFingerprint(t *testing.T) {
+	for _, status := range []string{ArtifactStatusFailed, ArtifactStatusOrphaned, ArtifactStatusCleanupPending, ArtifactStatusDeleting, ArtifactStatusReady, ArtifactStatusBuilding} {
+		t.Run(status, func(t *testing.T) {
+			db := newMigrateSharedStoreTestDB(t)
+			require.NoError(t, db.Exec("CREATE UNIQUE INDEX test_artifact_fingerprint ON "+constants.RootfsArtifactTableName+" (template_spec_fingerprint)").Error)
+			old := &models.RootfsArtifact{
+				ArtifactID: "rfs-predecessor", TemplateSpecFingerprint: "same-spec", Status: status,
+				StorageBackend: "s3", ObjectKey: "templates/old.ext4", Ext4Path: "/managed/old.ext4",
+			}
+			require.NoError(t, db.Create(old).Error)
+			retired, err := retireArtifactFingerprint(t.Context(), db, old)
+			require.NoError(t, err)
+			terminal := status != ArtifactStatusReady && status != ArtifactStatusBuilding
+			require.Equal(t, terminal, retired)
+			var kept models.RootfsArtifact
+			require.NoError(t, db.Where("artifact_id = ?", old.ArtifactID).First(&kept).Error)
+			require.Equal(t, old.Status, kept.Status)
+			require.Equal(t, old.ObjectKey, kept.ObjectKey)
+			require.Equal(t, old.Ext4Path, kept.Ext4Path)
+			if terminal {
+				require.Equal(t, retiredArtifactFingerprint(old.ArtifactID), kept.TemplateSpecFingerprint)
+				require.NoError(t, db.Create(&models.RootfsArtifact{ArtifactID: "rfs-next", TemplateSpecFingerprint: "same-spec", Status: ArtifactStatusBuilding}).Error)
+			} else {
+				require.Equal(t, "same-spec", kept.TemplateSpecFingerprint)
+			}
+		})
+	}
+}
+
+func TestRetireArtifactFingerprintRejectsStaleStatus(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	old := &models.RootfsArtifact{ArtifactID: "rfs-raced", TemplateSpecFingerprint: "same-spec", Status: ArtifactStatusCleanupPending}
+	require.NoError(t, db.Create(old).Error)
+	require.NoError(t, db.Model(&models.RootfsArtifact{}).Where("artifact_id = ?", old.ArtifactID).Update("status", ArtifactStatusBuilding).Error)
+	retired, err := retireArtifactFingerprint(t.Context(), db, old)
+	require.NoError(t, err)
+	require.False(t, retired)
+}
+
+func TestRemoteBuildDeferredDiagnosisPreservesResult(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateImageJob{}))
+	for _, status := range []string{JobStatusBuilt, JobStatusRunning, JobStatusReady, JobStatusFailed} {
+		job := &models.TemplateImageJob{JobID: "job-" + status, Status: status, ResultJSON: `{"artifact_id":"rfs-next"}`}
+		require.NoError(t, db.Create(job).Error)
+		require.NoError(t, recordRemoteBuildDeferredError(t.Context(), job.JobID, errors.New("predecessor is building")))
+		var saved models.TemplateImageJob
+		require.NoError(t, db.Where("job_id = ?", job.JobID).First(&saved).Error)
+		require.Equal(t, job.Status, saved.Status)
+		require.Equal(t, job.ResultJSON, saved.ResultJSON)
+		require.True(t, job.UpdatedAt.Equal(saved.UpdatedAt))
+		if status == JobStatusBuilt {
+			require.Contains(t, saved.ErrorMessage, "predecessor is building")
+		} else {
+			require.Empty(t, saved.ErrorMessage)
+		}
+	}
+}
+
+func TestRegisterRemoteBuiltArtifactAfterTerminalPredecessor(t *testing.T) {
+	for _, status := range []string{ArtifactStatusCleanupPending, ArtifactStatusDeleting, ArtifactStatusFailed, ArtifactStatusOrphaned, ArtifactStatusBuilding} {
+		t.Run(status, func(t *testing.T) {
+			db := newMigrateSharedStoreTestDB(t)
+			require.NoError(t, db.Exec("CREATE UNIQUE INDEX test_artifact_fingerprint ON "+constants.RootfsArtifactTableName+" (template_spec_fingerprint)").Error)
+			require.NoError(t, db.Create(&models.RootfsArtifact{ArtifactID: "rfs-predecessor", TemplateSpecFingerprint: "same-spec", Status: status, ObjectKey: "old.ext4"}).Error)
+			req := &sandboxtypes.CreateTemplateFromImageReq{Request: &sandboxtypes.Request{RequestID: "req-register-test"}, TemplateID: "tpl-retry", SourceImageRef: "example/image:test", WritableLayerSize: "1Gi", InstanceType: "cubebox", NetworkType: "tap", Backend: "xfs"}
+			result := &RemoteBuildResult{ArtifactID: "rfs-next", TemplateSpecFingerprint: "same-spec", Ext4Path: "/managed/next.ext4", Ext4SHA256: strings.Repeat("a", 64), Ext4SizeBytes: 1024,
+				MasterNodeIP: "http://master.example.com", OwnerTCDownloadBase: "http://tc.example.com", ImageConfigJSON: `{"Cmd":["sleep","infinity"]}`}
+			record, generated, adopted, err := registerRemoteBuiltArtifactOnSession(t.Context(), db, req, result, DockerImageConfig{Cmd: []string{"sleep", "infinity"}})
+			if status == ArtifactStatusBuilding {
+				require.ErrorIs(t, err, errArtifactRegisterRetryable)
+				require.Nil(t, record)
+				return
+			}
+			require.NoError(t, err)
+			require.False(t, adopted)
+			require.Equal(t, "rfs-next", record.ArtifactID)
+			require.Equal(t, ArtifactStatusReady, record.Status)
+			require.NotNil(t, generated)
+			var kept models.RootfsArtifact
+			require.NoError(t, db.Where("artifact_id = ?", "rfs-predecessor").First(&kept).Error)
+			require.Equal(t, status, kept.Status)
+			require.Equal(t, "old.ext4", kept.ObjectKey)
+			replay, _, reused, err := registerRemoteBuiltArtifactOnSession(t.Context(), db, req, result, DockerImageConfig{})
+			require.NoError(t, err)
+			require.True(t, reused)
+			require.Equal(t, record.DownloadToken, replay.DownloadToken)
+		})
+	}
+}
+
 func TestCountArtifactReferencesRejectsLikeWildcards(t *testing.T) {
 	for _, artifactID := range []string{"rfs-bad%id", "rfs-bad_id"} {
 		_, err := countArtifactReferencesTx(context.Background(), nil, artifactID, "")
@@ -73,6 +164,19 @@ func TestCleanupArtifactKeepsBuiltJobReference(t *testing.T) {
 	require.NoError(t, db.Model(&models.ArtifactNodePlacement{}).
 		Where("artifact_id = ?", artifactID).Count(&placements).Error)
 	require.EqualValues(t, 1, placements)
+}
+
+func TestCleanupArtifactRetiredReferenceDoesNotResurrect(t *testing.T) {
+	db := newMigrateSharedStoreTestDB(t)
+	require.NoError(t, db.AutoMigrate(&models.TemplateReplica{}, &models.TemplateImageJob{}, &models.SnapshotRecord{}, &models.ArtifactNodePlacement{}))
+	const id = "rfs-retired-reference"
+	require.NoError(t, db.Create(&models.RootfsArtifact{ArtifactID: id, TemplateSpecFingerprint: retiredArtifactFingerprint(id), Status: ArtifactStatusCleanupPending}).Error)
+	require.NoError(t, db.Create(&models.TemplateDefinition{TemplateID: "tpl-old-reference", RootfsArtifactID: id, Status: StatusFailed}).Error)
+	require.NoError(t, cleanupArtifactFully(t.Context(), id, "cubebox", ""))
+	var kept models.RootfsArtifact
+	require.NoError(t, db.Where("artifact_id = ?", id).First(&kept).Error)
+	require.Equal(t, ArtifactStatusCleanupPending, kept.Status)
+	require.Equal(t, retiredArtifactFingerprint(id), kept.TemplateSpecFingerprint)
 }
 
 func TestCleanupArtifactDropsRetiredPlacement(t *testing.T) {

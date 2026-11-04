@@ -199,15 +199,17 @@ const (
 // TemplateListOptions controls database pagination. A zero Limit uses the
 // finite default; callers that need every row must iterate pages explicitly.
 type TemplateListOptions struct {
-	Limit  int
-	Offset int
+	Limit     int
+	Offset    int
+	SkipTotal bool
 }
 
 // TemplateListResult carries the requested page plus the total entry count
 // measured before slicing, so paged clients can compute page counts.
 type TemplateListResult struct {
 	Templates []TemplateInfo
-	Total     int
+	Total     int // -1 when the caller explicitly skips the exact count.
+	HasMore   bool
 }
 
 // ListTemplates retains the historical all-rows contract for internal callers,
@@ -304,6 +306,10 @@ WITH ranked_jobs AS (
 	WHERE j.deleted_at IS NULL
 	  AND j.operation IN ?
 	  AND TRIM(j.template_id) <> ''
+	  AND NOT EXISTS (
+		SELECT 1 FROM %s d
+		WHERE d.deleted_at IS NULL AND d.template_id = j.template_id
+	  )
 ),
 visible_templates AS (
 	SELECT d.template_id, d.updated_at AS sort_ts
@@ -322,10 +328,6 @@ visible_templates AS (
 	FROM ranked_jobs j
 	WHERE j.row_num = 1
 	  AND NOT EXISTS (
-		SELECT 1 FROM %s d
-		WHERE d.deleted_at IS NULL AND d.template_id = j.template_id
-	  )
-	  AND NOT EXISTS (
 		SELECT 1 FROM %s s
 		WHERE s.deleted_at IS NULL
 		  AND s.snapshot_id = j.template_id
@@ -334,8 +336,8 @@ visible_templates AS (
 )`,
 		constants.TemplateImageJobTableName,
 		constants.TemplateDefinitionTableName,
-		constants.SnapshotTableName,
 		constants.TemplateDefinitionTableName,
+		constants.SnapshotTableName,
 		constants.SnapshotTableName,
 	)
 }
@@ -356,17 +358,28 @@ func listTemplatesPageFromDB(ctx context.Context, opts TemplateListOptions) (*Te
 	var countRow struct {
 		Total int64 `gorm:"column:total"`
 	}
-	if err := store.db.WithContext(ctx).Raw(cte+"\nSELECT COUNT(*) AS total FROM visible_templates", args...).Scan(&countRow).Error; err != nil {
-		return nil, err
+	countRow.Total = -1
+	if !opts.SkipTotal {
+		if err := store.db.WithContext(ctx).Raw(cte+"\nSELECT COUNT(*) AS total FROM visible_templates", args...).Scan(&countRow).Error; err != nil {
+			return nil, err
+		}
 	}
 
-	pageArgs := append(append([]any{}, args...), opts.Limit, opts.Offset)
+	pageLimit := opts.Limit
+	if opts.SkipTotal {
+		pageLimit++
+	}
+	pageArgs := append(append([]any{}, args...), pageLimit, opts.Offset)
 	var ids []templateListIDRow
 	if err := store.db.WithContext(ctx).Raw(
 		cte+"\nSELECT template_id, sort_ts FROM visible_templates ORDER BY sort_ts DESC, template_id ASC LIMIT ? OFFSET ?",
 		pageArgs...,
 	).Scan(&ids).Error; err != nil {
 		return nil, err
+	}
+	hasMore := len(ids) > opts.Limit
+	if hasMore {
+		ids = ids[:opts.Limit]
 	}
 	if len(ids) == 0 {
 		return &TemplateListResult{Templates: []TemplateInfo{}, Total: int(countRow.Total)}, nil
@@ -430,7 +443,10 @@ SELECT * FROM ranked_page_jobs WHERE row_num = 1`,
 	if err != nil {
 		return nil, err
 	}
-	return &TemplateListResult{Templates: out, Total: int(countRow.Total)}, nil
+	if !opts.SkipTotal {
+		hasMore = opts.Offset+len(out) < int(countRow.Total)
+	}
+	return &TemplateListResult{Templates: out, Total: int(countRow.Total), HasMore: hasMore}, nil
 }
 
 // hiddenSnapshotIDs returns DELETED/DELETING snapshot IDs so ListTemplates
@@ -1357,15 +1373,24 @@ func templateInfoFromJob(job *models.TemplateImageJob) TemplateInfo {
 	if status == "" {
 		status = JobStatusPending
 	}
+	backend := ""
+	var request struct {
+		Backend string `json:"backend"`
+	}
+	if json.Unmarshal([]byte(job.RequestJSON), &request) == nil {
+		backend, _ = constants.NormalizeSnapshotBackend(request.Backend)
+	}
 	return TemplateInfo{
-		TemplateID:   job.TemplateID,
-		InstanceType: job.InstanceType,
-		Version:      DefaultTemplateVersion,
-		Status:       status,
-		LastError:    job.ErrorMessage,
-		CreatedAt:    formatUTCRFC3339(job.CreatedAt),
-		ImageInfo:    composeImageInfo(job.SourceImageRef, job.SourceImageDigest),
-		JobID:        latestJobIDFromJob(job),
+		TemplateID:     job.TemplateID,
+		Backend:        backend,
+		StorageBackend: backend,
+		InstanceType:   job.InstanceType,
+		Version:        DefaultTemplateVersion,
+		Status:         status,
+		LastError:      job.ErrorMessage,
+		CreatedAt:      formatUTCRFC3339(job.CreatedAt),
+		ImageInfo:      composeImageInfo(job.SourceImageRef, job.SourceImageDigest),
+		JobID:          latestJobIDFromJob(job),
 	}
 }
 

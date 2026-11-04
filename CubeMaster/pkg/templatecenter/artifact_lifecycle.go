@@ -6,6 +6,7 @@ package templatecenter
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
@@ -20,6 +21,22 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+const retiredArtifactFingerprintPrefix = "retired:"
+
+func retiredArtifactFingerprint(artifactID string) string {
+	return fmt.Sprintf("%s%x", retiredArtifactFingerprintPrefix, sha256.Sum256([]byte(artifactID)))
+}
+
+// Retired artifacts retain their data and cleanup records but no longer own
+// the unique reuse key. Status and fingerprint guards prevent retiring a live build.
+func retireArtifactFingerprint(ctx context.Context, db *gorm.DB, artifact *models.RootfsArtifact) (bool, error) {
+	result := db.WithContext(ctx).Unscoped().Table(constants.RootfsArtifactTableName).
+		Where("artifact_id = ? AND template_spec_fingerprint = ?", artifact.ArtifactID, artifact.TemplateSpecFingerprint).
+		Where("status IN ?", []string{ArtifactStatusFailed, ArtifactStatusOrphaned, ArtifactStatusCleanupPending, ArtifactStatusDeleting}).
+		UpdateColumn("template_spec_fingerprint", retiredArtifactFingerprint(artifact.ArtifactID))
+	return result.RowsAffected > 0, result.Error
+}
 
 // requestTemplateCenterArtifactDelete asks CubeTemplateCenter to remove an
 // artifact's data (S3 object, local/shared ext4 file) and its own copy of the
@@ -104,6 +121,19 @@ func countArtifactReferencesTx(ctx context.Context, tx *gorm.DB, artifactID, exc
 	return replicaCount + jobCount + defCount + int64(len(snapshots)), nil
 }
 
+// ArtifactSourceUnreferenced rechecks every durable owner before TC claims a
+// source delete. Call it inside a transaction holding the artifact row lock.
+func ArtifactSourceUnreferenced(ctx context.Context, tx *gorm.DB, artifactID string) (bool, error) {
+	refs, err := countArtifactReferencesTx(ctx, tx, artifactID, "")
+	if err != nil || refs > 0 {
+		return false, err
+	}
+	var placements int64
+	err = tx.WithContext(ctx).Unscoped().Table(constants.ArtifactNodePlacementTableName).
+		Where("artifact_id = ?", artifactID).Count(&placements).Error
+	return placements == 0 && err == nil, err
+}
+
 // cleanupArtifactFully implements the three-phase last-owner-cleanup for one
 // artifact, shared by online template deletion, fresh-build failure cleanup,
 // and the orphan GC:
@@ -165,11 +195,10 @@ func cleanupArtifactFully(ctx context.Context, artifactID, instanceType, exclude
 			return err
 		}
 		if remaining > 0 {
-			// Still referenced by another template/job: keep it, renew the GC
-			// TTL, and revert a stale CLEANUP_PENDING back to READY so a
-			// re-referenced artifact becomes reusable again.
+			// A retired artifact may already have partially removed data; a
+			// surviving reference must not make it reusable again.
 			updates := map[string]any{"gc_deadline": time.Now().Add(defaultTemplateArtifactTTL).Unix()}
-			if artifact.Status == ArtifactStatusCleanupPending {
+			if artifact.Status == ArtifactStatusCleanupPending && !strings.HasPrefix(artifact.TemplateSpecFingerprint, retiredArtifactFingerprintPrefix) {
 				updates["status"] = ArtifactStatusReady
 			}
 			return tx.Table(constants.RootfsArtifactTableName).
@@ -181,7 +210,10 @@ func cleanupArtifactFully(ctx context.Context, artifactID, instanceType, exclude
 		}
 		if err := tx.Table(constants.RootfsArtifactTableName).
 			Where("artifact_id = ?", artifactID).
-			Update("status", ArtifactStatusCleanupPending).Error; err != nil {
+			Updates(map[string]any{
+				"status":                    ArtifactStatusCleanupPending,
+				"template_spec_fingerprint": retiredArtifactFingerprint(artifactID),
+			}).Error; err != nil {
 			return err
 		}
 		proceed = true

@@ -389,6 +389,9 @@ func downloadArtifactAttempt(ctx context.Context, tmpPath string, source *resolv
 		return false, err
 	}
 	req.Header = source.Header.Clone()
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
 	if offset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", offset))
 	}

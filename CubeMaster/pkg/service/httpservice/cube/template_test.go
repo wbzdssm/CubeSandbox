@@ -762,8 +762,18 @@ func TestListAllTemplatePagesUsesBoundedQueries(t *testing.T) {
 	}, got)
 }
 
+func TestListTemplatesLightweightPaging(t *testing.T) {
+	result := &templatecenter.TemplateListResult{Templates: []templatecenter.TemplateInfo{{TemplateID: "tpl-page"}}, Total: -1, HasMore: true}
+	gotOpts, _ := stubListTemplatesFns(t, result, nil, nil)
+	rsp := listTemplates(httptest.NewRequest(http.MethodGet, "/cube/template?limit=1&skip_total=true", nil), &CubeLog.RequestTrace{}).(*templateListResponse)
+	assert.True(t, gotOpts.SkipTotal)
+	assert.Equal(t, -1, rsp.Total)
+	assert.True(t, rsp.HasMore)
+	assert.Equal(t, 1, len(rsp.Data))
+}
+
 func TestListTemplatesRejectsInvalidPagingParams(t *testing.T) {
-	for _, rawQuery := range []string{"limit=-1", "limit=abc", "offset=-1", "offset=abc"} {
+	for _, rawQuery := range []string{"limit=-1", "limit=abc", "offset=-1", "offset=abc", "skip_total=unknown"} {
 		req := httptest.NewRequest(http.MethodGet, "/cube/template?"+rawQuery, nil)
 		rt := &CubeLog.RequestTrace{}
 		resp := listTemplates(req, rt)

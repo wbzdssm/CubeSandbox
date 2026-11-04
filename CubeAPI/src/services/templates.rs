@@ -531,10 +531,10 @@ fn validate_template_backend(backend: Option<&str>) -> AppResult<Option<String>>
     let Some(raw) = backend else {
         return Ok(None);
     };
-    if raw.is_empty() {
+    let normalized = raw.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
         return Ok(None);
     }
-    let normalized = raw.trim().to_ascii_lowercase();
     match normalized.as_str() {
         "xfs" | "s3" => Ok(Some(normalized)),
         _ => Err(AppError::BadRequest(format!(
@@ -914,8 +914,9 @@ mod tests {
             validate_template_backend(Some("XFS")).unwrap(),
             Some("xfs".to_string())
         );
-        assert_eq!(validate_template_backend(Some("")).unwrap(), None);
-        assert_eq!(validate_template_backend(None).unwrap(), None);
+        for backend in [None, Some(""), Some("  "), Some("\t\r\n")] {
+            assert_eq!(validate_template_backend(backend).unwrap(), None);
+        }
     }
 
     #[test]
@@ -925,13 +926,6 @@ mod tests {
             err,
             AppError::BadRequest(ref message)
                 if message == "unsupported backend \"ceph\" (want \"xfs\" or \"s3\")"
-        ));
-
-        let err = validate_template_backend(Some("  ")).unwrap_err();
-        assert!(matches!(
-            err,
-            AppError::BadRequest(ref message)
-                if message == "unsupported backend \"  \" (want \"xfs\" or \"s3\")"
         ));
     }
 

@@ -486,7 +486,7 @@ func listTemplates(r *http.Request, rt *CubeLog.RequestTrace) interface{} {
 		Total:   result.Total,
 		Limit:   page.Limit,
 		Offset:  page.Offset,
-		HasMore: page.Offset+len(result.Templates) < result.Total,
+		HasMore: result.HasMore || page.Offset+len(result.Templates) < result.Total,
 	}
 	replicasByTemplate, batchErr := batchReadyReplicaOrigins(r.Context(), result.Templates)
 	if batchErr != nil {
@@ -549,6 +549,13 @@ func listAllTemplatePages(ctx context.Context) (*templatecenter.TemplateListResu
 func parseTemplateListOptions(r *http.Request) (templatecenter.TemplateListOptions, error) {
 	opts := templatecenter.TemplateListOptions{}
 	query := r.URL.Query()
+	if raw := strings.TrimSpace(query.Get("skip_total")); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			return opts, fmt.Errorf("invalid skip_total %q: want a boolean", raw)
+		}
+		opts.SkipTotal = value
+	}
 	if raw := strings.TrimSpace(query.Get("limit")); raw != "" {
 		limit, err := strconv.Atoi(raw)
 		if err != nil || limit < 0 {

@@ -302,6 +302,18 @@ func runBuildLocked(
 		}
 	}
 
+	storeDir, err := image.ResolveArtifactStoreDir(ctx, artifactID)
+	if err != nil {
+		reportFailed(templatecenter.JobPhaseBuildingExt4, err.Error())
+		return err
+	}
+	releasePublication, err := holdArtifactPublicationMarker(storeDir)
+	if err != nil {
+		reportFailed(templatecenter.JobPhaseBuildingExt4, err.Error())
+		return fmt.Errorf("protect artifact publication: %w", err)
+	}
+	defer releasePublication()
+
 	// Step 7: Build ext4 (export rootfs, bake envd + CA, mkfs)
 	reportPhase(templatecenter.JobPhaseBuildingExt4, 40)
 	var caBakeResult cube_egress_ca.Result
@@ -568,11 +580,7 @@ func reuseExistingArtifact(ctx context.Context, db *gorm.DB, fingerprint string,
 		return nil, false
 	}
 
-	var statS3 func() (bool, error)
-	if s3CfgEnabled && s3Client != nil {
-		statS3 = func() (bool, error) { return s3Client.Stat(ctx, artifact.ArtifactID) }
-	}
-	reason, ok := artifactDataExists(&artifact, statS3)
+	reason, ok := reusableArtifactData(ctx, &artifact, s3CfgEnabled, s3Client)
 	if !ok {
 		log.G(ctx).Warnf("reuse check: artifact %s is READY but data is missing: %s", artifact.ArtifactID, reason)
 		return nil, false
@@ -581,6 +589,16 @@ func reuseExistingArtifact(ctx context.Context, db *gorm.DB, fingerprint string,
 	log.G(ctx).Infof("reuse check: found READY artifact %s for fingerprint %s (%s)",
 		artifact.ArtifactID, fingerprint[:16], reason)
 	return &artifact, true
+}
+
+func reusableArtifactData(ctx context.Context, artifact *models.RootfsArtifact, storeEnabled bool, client *s3store.Client) (string, bool) {
+	var statStored func() (bool, error)
+	if storeEnabled && client != nil {
+		statStored = func() (bool, error) {
+			return client.StatStored(ctx, artifact.ObjectKey, artifact.ArtifactID)
+		}
+	}
+	return artifactDataExists(artifact, statStored)
 }
 
 // artifactDataExists decides whether a READY artifact's underlying data is

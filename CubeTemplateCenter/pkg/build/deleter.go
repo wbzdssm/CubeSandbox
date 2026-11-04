@@ -34,6 +34,7 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/image"
 	"github.com/tencentcloud/CubeSandbox/CubeTemplateCenter/pkg/s3store"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ArtifactDeleter removes artifact data (S3 object + local ext4) and the
@@ -100,33 +101,32 @@ func (d *ArtifactDeleter) Delete(ctx context.Context, artifactID string) error {
 	// (DELETING -> DELETING), which the old code misread as "a peer owns it"
 	// and returned success without deleting anything.
 	var artifact models.RootfsArtifact
-	if err := d.db.WithContext(ctx).Table(artifactTableName).
-		Where("artifact_id = ?", artifactID).First(&artifact).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			logger.Infof("artifact already deleted, skipping")
+	claimed := false
+	if err := d.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Table(artifactTableName).
+			Where("artifact_id = ?", artifactID).First(&artifact).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			return err
+		}
+		if !artifactStatusClaimableForDelete(artifact.Status) {
 			return nil
 		}
-		return fmt.Errorf("load artifact row: %w", err)
+		unreferenced, err := templatecenter.ArtifactSourceUnreferenced(ctx, tx, artifactID)
+		if err != nil || !unreferenced {
+			return err
+		}
+		result := tx.Table(artifactTableName).
+			Where("artifact_id = ? AND status = ? AND updated_at = ?", artifactID, artifact.Status, artifact.UpdatedAt).
+			Updates(map[string]any{"status": "DELETING", "last_error": "", "updated_at": time.Now()})
+		claimed = result.RowsAffected > 0
+		return result.Error
+	}); err != nil {
+		return fmt.Errorf("claim unreferenced artifact: %w", err)
 	}
-	if !artifactStatusClaimableForDelete(artifact.Status) {
-		// Live (READY/BUILDING) or otherwise not the deleter's to take.
-		logger.Infof("artifact status %s is not deletable, skipping", artifact.Status)
-		return nil
-	}
-	tx := d.db.WithContext(ctx).Table(artifactTableName).
-		Where("artifact_id = ?", artifactID).
-		Where("status = ?", artifact.Status).
-		Where("updated_at = ?", artifact.UpdatedAt).
-		Updates(map[string]any{"status": "DELETING", "last_error": "", "updated_at": time.Now()})
-	if tx.Error != nil {
-		return fmt.Errorf("claim artifact row: %w", tx.Error)
-	}
-	if tx.RowsAffected == 0 {
-		// Lost the race: a peer re-claimed the row (or CubeMaster resurrected
-		// it) between our read and our CAS. InnoDB re-evaluates the WHERE on
-		// the latest committed version after waiting on the row lock, so this
-		// is unambiguous.
-		logger.Infof("artifact claim lost to a peer, skipping")
+	if !claimed {
+		logger.Infof("artifact is live, referenced, already deleted, or claimed by a peer; skipping")
 		return nil
 	}
 

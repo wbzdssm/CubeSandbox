@@ -20,7 +20,93 @@ import (
 	gormmysql "gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
+
+type templateListSQLRecorder struct {
+	logger.Interface
+	queries []string
+}
+
+func (r *templateListSQLRecorder) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	sql, _ := fc()
+	r.queries = append(r.queries, sql)
+}
+
+func TestTemplateInfoFromJobBackend(t *testing.T) {
+	for _, tc := range []struct{ request, want string }{
+		{`{"backend":"S3"}`, "s3"}, {`{"backend":"xfs"}`, "xfs"}, {`{}`, "xfs"}, {`invalid`, ""},
+	} {
+		info := templateInfoFromJob(&models.TemplateImageJob{RequestJSON: tc.request})
+		if info.Backend != tc.want || info.StorageBackend != tc.want {
+			t.Fatalf("request=%s info=%+v", tc.request, info)
+		}
+	}
+}
+
+func TestListTemplatesLightweightPagination(t *testing.T) {
+	db := newTemplateListSQLiteDB(t)
+	for i := 0; i < 3; i++ {
+		if err := db.Create(&models.TemplateDefinition{TemplateID: fmt.Sprintf("tpl-%d", i), Status: StatusReady}).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	recorder := &templateListSQLRecorder{Interface: logger.Discard}
+	db.Logger = recorder
+	for _, tc := range []struct {
+		offset, wantLen int
+		more            bool
+	}{{0, 2, true}, {2, 1, false}, {99, 0, false}} {
+		page, err := ListTemplatesWithOptions(t.Context(), TemplateListOptions{Limit: 2, Offset: tc.offset, SkipTotal: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != -1 || len(page.Templates) != tc.wantLen || page.HasMore != tc.more {
+			t.Fatalf("offset=%d page=%+v", tc.offset, page)
+		}
+	}
+	if len(recorder.queries) == 0 {
+		t.Fatal("SQL recorder did not observe any queries")
+	}
+	for _, query := range recorder.queries {
+		if strings.Contains(query, "COUNT(*) AS total FROM visible_templates") {
+			t.Fatal("lightweight page executed exact COUNT")
+		}
+	}
+}
+
+func TestListTemplatesBoundsHistoricalJobs(t *testing.T) {
+	db := newTemplateListSQLiteDB(t)
+	defs := make([]models.TemplateDefinition, 250)
+	jobs := make([]models.TemplateImageJob, 0, 2000)
+	for i := range defs {
+		id := fmt.Sprintf("tpl-%04d", i)
+		defs[i] = models.TemplateDefinition{TemplateID: id, Status: StatusReady}
+		for attempt := 0; attempt < 8; attempt++ {
+			jobs = append(jobs, models.TemplateImageJob{TemplateID: id, JobID: fmt.Sprintf("job-%d-%d", i, attempt), Operation: JobOperationCreate, AttemptNo: int32(attempt + 1)})
+		}
+	}
+	if err := db.CreateInBatches(defs, 50).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.CreateInBatches(jobs, 50).Error; err != nil {
+		t.Fatal(err)
+	}
+	page, err := ListTemplatesWithOptions(t.Context(), TemplateListOptions{Limit: 99999, SkipTotal: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(page.Templates) != MaxTemplateListLimit || !page.HasMore {
+		t.Fatalf("unbounded page: %+v", page)
+	}
+	page, err = ListTemplatesWithOptions(t.Context(), TemplateListOptions{Limit: 10, Offset: 200})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.Total != len(defs) || len(page.Templates) != 10 {
+		t.Fatalf("historical jobs incorrectly inflated list: %+v", page)
+	}
+}
 
 // ---- sliceTemplateInfos ----
 

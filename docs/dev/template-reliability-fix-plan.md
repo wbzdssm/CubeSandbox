@@ -1,12 +1,152 @@
-# 模板可靠性与 ext4 直连下载：需求及修复方案
+# 模板可靠性与 ext4 直连下载：整体清单、修复进度与验证报告
 
-> 状态：待实施、待评审，不代表代码已完成或已发布。
-> 整理日期：2026-10-21。
-> 交接分支：`fix/artifact-download-s3-direct`。
-> 当前基线：`74207466`，继承 `feat/template-backend-api` 的模板 backend 参数工作。
-> 范围：五项修复；不新增下载模式开关，不执行提交或推送。
+> 更新日期：2026-11-04。
+> 工作分支：`fix/artifact-download-s3-direct`；本轮开始时 HEAD 为 `6e7cbcee`。
+> 状态：已有实现及本轮专项修复，尚未完成全部集成验收；本轮未提交、未推送、未部署。
+> 安全边界：不删除业务桶对象、不修改线上配置，不将暖状态提交降级为冷镜像重建。
+> 下文第 1 节以后的原始设计保留用于追溯；其“当前”“待实施”指原设计时点。实际实施状态以第 0 节为准。
+> 整体测试命令、集群验收矩阵、证据与清理流程见 [整体测试指南](template-reliability-test-guide.md)；新增指南不代表已执行全部集成验收。
 
-## 1. 需求总览与边界
+## 0. 本轮实施总览
+
+### 0.1 功能、问题与状态矩阵
+
+| 项目 | 原因/目标 | 当前实现 | 验证与剩余边界 |
+|---|---|---|---|
+| 模板 `backend` 参数 | 将模板 CoW 后端传给 CubeMaster | 分支已有 API、Go/Node/Python SDK、文档与测试；GitHub #2039 已合并相应功能，本轮仅统一纯空白为省略 | Rust 测试未运行；本机无 cargo。旧 #1983 与上游功能重叠，不应原样重复合并 |
+| R1/R2 ext4 直连与短期授权 | Master 不搬运 ext4 字节，定位稳定、授权短期有效 | 分支已有 `f80e1c2c`：稳定定位/迁移、Master ticket、TC 下载、Cubelet 直接拉取及授权刷新 | 不是本轮新实现；需在集群验证 S3/MinIO 和本地/CBS/CFS 场景 |
+| R3 模板数据库分页 | 避免全量读取再切片，以及逐页等待全量输出 | 已有 DB LIMIT/OFFSET；本轮新增 skip_total（LIMIT+1）、窗口计算前排除已有模板历史 job、CLI --all 逐页 flush/共享截止时间/实际页长度推进 | SQLite 250 模板 + 2000 历史作业、has_more、无 COUNT、真实 CLI HTTP 与 race 专项通过；生产 DB EXPLAIN、深 offset 与并发更新仍需验收 |
+| CLI 存储后端选择 | JSON 模板创建缺 backend flag；希望接受 COS/MinIO 名称 | `tpl create` 支持 --backend；`tpl build` 为 create-from-image 别名；xfs/s3/cos/minio 在发送前校验，cos/minio 规范为 s3 | 真实 cli.App→HTTP 参数测试通过；COS/MinIO 使用节点已有 S3-compatible 配置，不是每请求切换不同 bucket，也不代表独立 native COS 后端 |
+| R4 / #2063 redo 旧产物引用 | 新 UUID 产物生成后 definition/request/cache 仍指向旧产物 | `6e7cbcee` 已做事务内替换与缓存同步，保留 alias/CreatedAt 并拒绝不安全替换 | `TestEnsureTemplateDefinition*` 专项通过；不等于覆盖同 ID 篡改 SHA 或完整双 Master redo 压测 |
+| R5 / #1965 退役节点与清理引用 | 已退役节点、残留引用使删除不收敛或状态失真 | 分支已有注册状态感知、当前地址解析、引用保护等改动 | 退役 placement、注册表未就绪及 BUILT 引用保护专项通过；真实节点 RPC/快照删除验收仍需执行 |
+| #2078 相同 fingerprint 构建重试 | 终态旧 A 占唯一 fingerprint，新 B 的 BUILT 回调无法注册 | 本轮增加终态 fingerprint 退休、保留旧清理行与对象位置；新 B 可注册；活跃 BUILDING 仍等待 | 实际注册状态矩阵和重复回调幂等专项通过；不将有效 BUILT 按随意超时丢弃，MySQL/PG 并发验收待执行 |
+| TC 版本化对象误判不存在 | UploadVersioned 写 `id-SHA.ext4`，复用却 HEAD 历史 `id.ext4` | 本轮改用 `StatStored(ObjectKey, ArtifactID)` | 在 34 的 Linux 执行实际 fs blobstore 发布/复用回归通过；未访问真实桶 |
+| #2110 TC 私有盘残留 | 一个 TC 删掉共享 artifact 行后，其他 TC 私有盘无法从 DB 扫到文件 | 本轮新增每副本独立本地 sweep，位于共享锁之外；executor idle gate、完整发布 marker、最终 DB 引用复查 | 孤儿删除、DB 失败关闭、活跃构建、marker、近期目录、symlink 与锁内复查专项通过；真实多副本/共享盘滚动升级验收待执行 |
+| #2095 暖 `tpl commit` 跨节点 | origin-only 注册未接通暖包远端状态、导入与模板调度 | 本轮只修 expected>=ready、未尝试 peer 不记 FAILED、origin phase/job 来源；image backfill 纳入 PARTIALLY_READY 并明确拒绝 COMMIT | 账本与防冷启动退化测试通过；完整暖模板跨节点能力仍未接通，不能关闭该 issue |
+| 其他存储与 `jfs` | 前次上游检查提到 jfs 支持范围；当前工作分支 Master/Cubelet CoW 链路只支持 xfs/s3 | 未擅自把 jfs/fs/未知字符串映射为运行时 S3；COS/MinIO 仅在 CLI 作为兼容别名 | 其他 S3-compatible 对象存储使用既有 s3 驱动与部署配置；fs 制品存储和运行时 CoW 是独立维度。新增 native 后端、多存储 profile 或 jfs 需完整实现与验收 |
+
+GitHub 信息沿用前次核对的 master `434d6d2c` 与 issue 快照，不等同于发布状态。本轮工作区基于旧功能分支，未自动 rebase/merge 最新 master，避免覆盖既有改动。集成 PR 前必须重新核对上游冲突及功能重叠。
+
+### 0.2 本轮代码落点
+
+- `CubeAPI/src/services/templates.rs`：先 trim 再判空；覆盖空串、空格、制表/换行。
+- `CubeMaster/pkg/templatecenter/artifact_lifecycle.go`：终态清理释放唯一 reuse key；退休记录不因残留引用恢复 READY。
+- `CubeMaster/pkg/templatecenter/remote_build_resume.go`：补偿历史终态占位；BUILT 阻塞原因持久化；恢复分发时清空诊断。
+- `CubeMaster/pkg/templatecenter/template_commit.go`：origin-only 暖提交的真实计数和副本来源。
+- `CubeMaster/pkg/templatecenter/replica_backfill_reconciler.go`：部分就绪 image-backed 模板纳入扫描；按真正最新 job 判定来源（不预先滤掉 COMMIT），暖 COMMIT 不得回退到历史 CREATE/REDO 的冷 rootfs 分发。
+- `CubeTemplateCenter/pkg/build/deleter.go`：TC 源删除前在 artifact 行锁事务内复查全部 definition/replica/BUILT job/snapshot 引用和 node placements，不能绕过 Master 保护。`deleter_test.go` 在真实 SQLite 下覆盖每类引用与无引用成功清理；`go.mod/go.sum` 仅增加所需测试依赖。
+- `CubeTemplateCenter/pkg/build/build.go`：版本化存储 key 复用；构建、上传、回调完整周期发布保护。
+- `CubeTemplateCenter/pkg/build/local_gc.go`：保守私盘清理与发布 marker。
+- `CubeTemplateCenter/pkg/build/executor.go`：`WithIdle` 同锁保护 Submit 与最终引用复查/删除。
+- `CubeTemplateCenter/pkg/reconcile/reconciler.go` 和 `cmd/templatecenter/app/main.go`：每副本独立 sweep 接入，共享 sweep 失败不阻断本地 sweep。
+- 对应 `artifact_lifecycle_test.go`、`template_commit_test.go`、`replica_backfill_reconciler_test.go`、`build_test.go`、`local_gc_test.go`：专项回归。
+
+### 0.3 fingerprint 退休协议
+
+现有 SQL schema 是 `template_spec_fingerprint NOT NULL UNIQUE`，不能直接设置 NULL，也不能让多个旧记录共用空串。
+
+- 对 FAILED / ORPHANED / CLEANUP_PENDING / DELETING 的旧 artifact，以状态与旧 fingerprint 为 CAS 条件改为 `retired:<SHA256(artifact_id)>`，长度固定且每行唯一。
+- 正常最后引用释放时，状态与 fingerprint 在同一清理事务中更新；历史终态记录在新注册时补偿退休。
+- 旧 artifact ID、状态、ObjectKey、StorageRef、Ext4Path、placements 等清理线索不删除，新构建使用新 UUID 正常占用原 fingerprint。
+- READY / BUILDING 不退休；无法取得安全状态时保留 BUILT 重试并暴露具体原因。
+- 原始 fingerprint 的构建溯源仍可从 image job 与构建结果取得；退休 artifact 表字段此后是不可复用占位 key，不再是原始构建 fingerprint。
+- 多数据库并发、遗留软删除 READY 记录、READY 但对象确实丢失的 phantom winner，仍需独立验收/修复，不能把本补丁描述为任意异常均已收敛。
+
+### 0.4 本地 GC 的删除边界
+
+只扫描管理 root 下单层合法 `rfs-*` 目录，目录年龄至少两小时。实际删除前，在本副本 executor 的 idle 临界区里重新验证：
+
+1. 任意 artifact 行（含软删除）存在则保留。
+2. 任意 definition、replica、snapshot 或 node placement 仍引用则保留。
+3. PENDING / RUNNING / BUILT job 引用则保留；尚未分配 artifact ID 的活跃构建也阻止扫描删除。
+4. mkfs marker 或完整发布 marker 仍活跃则保留；任意 DB/目录/marker 读取错误关闭删除。
+5. 拒绝 root 本身、符号链接目录、非法 ID 或改变过的 root。
+
+本地 sweep 不写共享 DB、不删 S3、不发 node RPC；共享删除仍由既有三阶段清理处理。发布 marker 覆盖 BuildExt4 后的上传/回调，并周期续 mtime。持续构建的副本会保守延迟本地 GC。仍有数据库历史记录的目录不会被本补丁主动裁剪。
+
+### 0.5 #2095 必须另做的暖状态能力
+
+不能用“查询 PARTIALLY_READY 后从祖先 ext4 再建一次”代替暖提交：那会丢掉运行时内存和 rootfs 变更。
+
+- S3 已有 rootfs + memory + metadata UUID、远端上传状态、兼容性判定和 sandbox 私有 import 路径；当前普通 COMMIT 模板未把这些控制面事实接通。
+- 需要持久关联暖包、origin/版本/CPU/kernel、上传 DONE 状态、模板恢复入口及删除所有权。
+- XFS 目前没有等价远端完整暖包传输，不能声明跨节点已支持。
+- 必须做双节点真实 S3 验收：内存 marker、rootfs 修改、源节点退役、导出未完成/失败、缺盘、二次增量提交、并发销毁与重启恢复；导入盘属于 sandbox，不能把它写成永久模板 READY 副本。
+
+### 0.6 CLI 后端与大列表使用方式
+
+必须使用本分支重新编译的 CLI 和 Master；只更新 CLI 不会让旧服务端获得 DB 分页/skip_total 能力。
+
+```bash
+# 在 Linux 仓库根目录编译，输出到临时目录；不自动替换线上程序
+(cd CubeMaster && go build -o /tmp/cubemastercli ./cmd/cubemastercli)
+
+# 检查参数，不创建模板
+/tmp/cubemastercli tpl create --help
+/tmp/cubemastercli tpl build --help
+/tmp/cubemastercli tpl list --help
+
+# 从已有请求 JSON 创建；不传 --backend 时保留 JSON 的已有选择
+/tmp/cubemastercli tpl create --file /path/to/request.json --backend s3
+
+# OCI 镜像创建；替换真实镜像并确认节点配置后再执行
+/tmp/cubemastercli tpl build --image registry.example.com/app:tag --writable-layer-size 20Gi --backend cos --detach
+
+# 单页：缺省 50，服务端最多 200；下一页 offset=50
+/tmp/cubemastercli tpl list --limit 50 --offset 0
+/tmp/cubemastercli tpl list --limit 50 --offset 50
+
+# 大数据推荐：不执行精确 COUNT，通过 has_more 提示翻页
+/tmp/cubemastercli tpl list --limit 50 --offset 0 --no-total
+/tmp/cubemastercli tpl list --limit 50 --offset 50 --no-total
+
+# 表格遍历：每页直接输出、默认跳过 COUNT，共享 2 分钟预算，可 Ctrl+C
+/tmp/cubemastercli --timeout 2m tpl list --all
+```
+
+CLI 的 `--backend cos` / `--backend minio` 规范化为运行时 `s3`，使用 Cubelet 已启用的 S3 CoW 存储，不会自动设置 COS endpoint、凭证或 bucket；两者不是不同的原生 CoW driver。模板制品位置由 Master/TC 的 `CUBE_ARTIFACT_STORE_BACKEND` 与 `CUBE_S3_*`/fs 配置独立决定。COS 制品使用 s3 driver + COS S3-compatible HTTPS endpoint。若要求每个模板同时从多个 bucket/profile 中选择，当前补丁没有实现此协议，不能用 alias 冒充。
+
+列表返回默认精确 `total`，保持兼容。`skip_total=true` 时 `total=-1` 表示未计数，`has_more` 由最多 LIMIT+1 个 ID 计算。普通 `tpl list --all` 不保存全部条目；`--all --json` 为保持单个 JSON 响应格式仍聚合全部条目，可能耗内存，不推荐用于海量结果。遍历按实际返回条数推进，服务端不推进/重复/空页却 has_more=true 则报错停止；请求总预算不再每页重置。表格逐页 flush 可能使不同页的列宽略有不同。
+
+OFFSET 分页不是跨请求一致性快照；并发更新可能重复/跳项。LIMIT 限制的是返回条数，不意味着数据库永不遍历/排序全部可见 ID。实际慢 SQL、索引和深页性能仍需在生产数据库用 EXPLAIN 核对。本轮已把有 definition 的历史 job 排除在全局窗口计算之外，不宣称任意规模下“永不卡”。
+
+### 0.7 验证方式与实际结果
+
+本轮专项验证使用 Go 1.25.7 自动工具链。Linux 用例是在本地交叉编译后到 34 执行测试二进制，数据来自 testing 临时目录/SQLite/模拟引用，不是生产桶数据。
+
+```bash
+# 在仓库根目录执行；macOS 可运行这些无 gomonkey 依赖的专项
+(cd CubeMaster && go test ./pkg/templatecenter -count=1 \
+  -run '^(TestRegisterRemoteBuiltArtifactAfterTerminalPredecessor|TestRetireArtifactFingerprint|TestRemoteBuildDeferredDiagnosis|TestCommitReplicaSummary|TestListBackfillDefinitions|TestBackfillRejectsWarmCommit|TestEnsureTemplateDefinition|TestCleanupArtifact)')
+
+(cd CubeTemplateCenter && go test -race ./pkg/reconcile ./pkg/s3store -count=1)
+
+# CLI 包全套，以及新增命令/分页的 race 专项
+(cd CubeMaster && go test ./cmd/cubemastercli/commands/cubebox -count=1)
+(cd CubeMaster && go test -race ./cmd/cubemastercli/commands/cubebox -count=1 \
+  -run '^(TestTemplateBackendCLIRequest|TestApplyTemplateBackendFlag|TestWalkTemplatePages|TestStreamTemplatePages|TestTemplateListQuery)')
+(cd CubeMaster && go test ./pkg/templatecenter -count=1 \
+  -run '^(TestListTemplates|TestTemplateInfoFromJobBackend)')
+(cd CubeMaster && go test ./pkg/service/httpservice/cube -count=1 \
+  -run '^(TestListTemplatesLightweightPaging|TestListTemplatesRejectsInvalidPagingParams|TestListTemplatesPaginationAndBatchOrigin|TestListTemplatesWithoutPagingParamsUsesFiniteDefault)$')
+
+# 在 Linux 的仓库根目录执行以下 TC 专项
+(cd CubeTemplateCenter && go test ./pkg/build -count=1 \
+  -run '^(TestReusableArtifactData|TestLocalArtifactSweep|TestArtifactPublicationMarker|TestExecutorWithIdle|TestArtifactDataExists|TestDeleteLocalExt4|TestManagedArtifactDir|TestDeleter)')
+
+# 格式/空白验证
+git diff --check
+```
+
+- CLI 包全套、新增分页/后端 race、SQLite 数据库分页和 HTTP 轻量参数专项通过；新 CLI Linux 编译与 34 上帮助/测试二进制验证通过，未向线上 Master 发送创建模板请求。
+- Master 定义同步/引用保护、终态注册/重复回调、诊断、暖提交账本及 image backfill 专项通过。
+- TC build 指定专项在 34 Linux 通过；TC 程序 Linux 交叉编译通过。
+- TC reconcile/s3store race 回归通过（macOS linker 有 warning，不影响退出码）。
+- 本机无 cargo/rustfmt，Rust 编译与格式验证未执行。
+- Master 全套 macOS 测试先前遇到 gomonkey 修改可执行内存失败；不能算全套通过。
+- 多副本真实 MySQL/PostgreSQL、共享存储与真实暖状态跨节点集成测试尚未完成。不执行提交、推送或线上部署。
+
+## 1. 需求总览与边界（原始设计）
 
 | 编号 | 需求 | 完成标准 |
 |---|---|---|
