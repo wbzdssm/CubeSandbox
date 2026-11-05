@@ -397,7 +397,7 @@ func rootfsArtifactReuseVerdict(ctx context.Context, record *models.RootfsArtifa
 		case artifactServabilityServable:
 			return nil
 		case artifactServabilityMissing:
-			demoteUnservableRootfsArtifact(ctx, record.ArtifactID, reason)
+			demoteUnservableRootfsArtifact(ctx, record.ArtifactID, record.Generation, reason)
 			return errors.New("artifact not servable from the download endpoint; row demoted")
 		default:
 			return fmt.Errorf("artifact servability unknown: %s", reason)
