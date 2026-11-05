@@ -20,11 +20,15 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/templatecenter"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore/configenv"
+	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
 	"gorm.io/gorm"
 )
 
 var directArtifactIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
 var errArtifactDownloadStoreUnavailable = errors.New("artifact download store is unavailable")
+
+// verifyNodeArtifactDownload is swapped in tests.
+var verifyNodeArtifactDownload = templatecenter.VerifyArtifactDownloadToken
 
 var loadDirectDownloadArtifact = func(c *gin.Context, artifactID string) (*models.RootfsArtifact, error) {
 	db := templatecenter.GetDB()
@@ -63,6 +67,41 @@ func artifactDownloadHandler(c *gin.Context) {
 		c.Status(http.StatusGone)
 		return
 	}
+	serveArtifactFile(c, artifact)
+}
+
+// nodeArtifactDownloadHandler serves direct-mode fs-backed artifact bytes to
+// Cubelet. It sits on a route with NO shared component-token middleware (see
+// registerRoutes in server.go): authentication here is the short-lived,
+// node- and generation-bound download token that CubeMaster signed in
+// IssueArtifactDownloadTicket, verified locally against the DB-backed store
+// and node cache that TC shares with Master (InitForTemplateCenter +
+// nodemeta.Init) — not the TC-wide callback/component secret, which must
+// never be handed to a node.
+func nodeArtifactDownloadHandler(c *gin.Context) {
+	artifactID := strings.TrimSpace(c.Param("artifact_id"))
+	nodeID := strings.TrimSpace(c.GetHeader(artifactticket.DownloadNodeIDHeader))
+	token := strings.TrimSpace(c.GetHeader(artifactticket.DownloadTokenHeader))
+	if !directArtifactIDPattern.MatchString(artifactID) || nodeID == "" || token == "" {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	artifact, err := verifyNodeArtifactDownload(c.Request.Context(), artifactID, nodeID, token)
+	switch {
+	case err == nil:
+		serveArtifactFile(c, artifact)
+	case errors.Is(err, templatecenter.ErrArtifactDownloadUnauthorized):
+		c.Status(http.StatusForbidden)
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		c.Status(http.StatusNotFound)
+	case errors.Is(err, templatecenter.ErrTemplateStoreNotInitialized):
+		c.Status(http.StatusServiceUnavailable)
+	default:
+		c.Status(http.StatusInternalServerError)
+	}
+}
+
+func serveArtifactFile(c *gin.Context, artifact *models.RootfsArtifact) {
 	path, err := directArtifactPath(artifact)
 	if err != nil {
 		c.Status(http.StatusNotFound)

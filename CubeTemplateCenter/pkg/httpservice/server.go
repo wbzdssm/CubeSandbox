@@ -128,6 +128,8 @@ func (s *internalHttp) registerRoutes() {
 	artifactAPI := api.InternalAPIGroup(internal)
 	artifactAPI.GET("/artifacts/:artifact_id/ext4", artifactDownloadHandler)
 	artifactAPI.HEAD("/artifacts/:artifact_id/ext4", artifactDownloadHandler)
+	internal.GET("/internal/artifacts/:artifact_id/ext4", nodeArtifactDownloadHandler)
+	internal.HEAD("/internal/artifacts/:artifact_id/ext4", nodeArtifactDownloadHandler)
 
 	root := s.engine.Group("")
 	root.Use(middleware.GinRequestMiddleware())

@@ -571,15 +571,7 @@ func TestNewRedoTemplateImageJobRecordPersistsRequestID(t *testing.T) {
 	}
 }
 
-func enableDirectArtifactDownloadForTest(t *testing.T) {
-	t.Helper()
-	old := artifactDirectDownloadEnabled
-	artifactDirectDownloadEnabled = func() bool { return true }
-	t.Cleanup(func() { artifactDirectDownloadEnabled = old })
-}
-
 func TestGenerateTemplateCreateRequestInjectsImmutableRootfsMetadata(t *testing.T) {
-	enableDirectArtifactDownloadForTest(t)
 	req := &types.CreateTemplateFromImageReq{
 		Request:           &types.Request{RequestID: "req-1"},
 		SourceImageRef:    "docker.io/library/nginx:latest",
@@ -638,7 +630,6 @@ func TestGenerateTemplateCreateRequestInjectsImmutableRootfsMetadata(t *testing.
 }
 
 func TestGenerateTemplateCreateRequestIssuesTicketForS3Artifacts(t *testing.T) {
-	enableDirectArtifactDownloadForTest(t)
 	oldPresign := presignArtifactGetURLWithTTL
 	t.Cleanup(func() { presignArtifactGetURLWithTTL = oldPresign })
 	presignArtifactGetURLWithTTL = func(_ context.Context, artifact *models.RootfsArtifact, _ time.Duration) (string, error) {
@@ -677,7 +668,6 @@ func TestGenerateTemplateCreateRequestIssuesTicketForS3Artifacts(t *testing.T) {
 }
 
 func TestGenerateTemplateCreateRequestUsesArtifactRowMasterForTicketURL(t *testing.T) {
-	enableDirectArtifactDownloadForTest(t)
 	oldPresign := presignArtifactGetURLWithTTL
 	t.Cleanup(func() { presignArtifactGetURLWithTTL = oldPresign })
 	presignArtifactGetURLWithTTL = func(_ context.Context, artifact *models.RootfsArtifact, _ time.Duration) (string, error) {

@@ -120,7 +120,6 @@ type CommonConf struct {
 	// at the cost of more frequent DB queries.
 	TemplateCacheTTL     time.Duration `yaml:"template_cache_ttl"`
 	ArtifactDownloadTTL  string        `yaml:"artifact_download_ttl"`
-	ArtifactDownloadMode string        `yaml:"artifact_download_mode"`
 	// TemplateCenterAddrValue is CubeTemplateCenter's HTTP base URL from conf.yaml.
 	// Named with a Value suffix to avoid colliding with the TemplateCenterAddr()
 	// method on Config. Access via Config.TemplateCenterAddr() which handles the
@@ -888,25 +887,18 @@ func preComHandleConf(config *Config) error {
 	if strings.TrimSpace(config.Common.ArtifactDownloadTTL) == "" {
 		config.Common.ArtifactDownloadTTL = "1h"
 	}
-	if strings.TrimSpace(config.Common.ArtifactDownloadMode) == "" {
-		config.Common.ArtifactDownloadMode = "proxy"
-	}
 	_, err := config.Common.ArtifactDownloadDuration()
 	return err
 }
 
+// ArtifactDownloadDuration returns the TTL for an artifact's short-lived
+// download credential (presigned S3 URL, or TC/Master ticket). Nodes always
+// download directly from the owning storage (S3 or TemplateCenter); there is
+// no Master-proxied fallback mode.
 func (c *CommonConf) ArtifactDownloadDuration() (time.Duration, error) {
-	raw, mode := "1h", "proxy"
-	if c != nil {
-		if strings.TrimSpace(c.ArtifactDownloadTTL) != "" {
-			raw = strings.TrimSpace(c.ArtifactDownloadTTL)
-		}
-		if strings.TrimSpace(c.ArtifactDownloadMode) != "" {
-			mode = strings.TrimSpace(c.ArtifactDownloadMode)
-		}
-	}
-	if mode != "proxy" && mode != "direct" {
-		return 0, errors.New("common.artifact_download_mode must be proxy or direct")
+	raw := "1h"
+	if c != nil && strings.TrimSpace(c.ArtifactDownloadTTL) != "" {
+		raw = strings.TrimSpace(c.ArtifactDownloadTTL)
 	}
 	ttl, err := time.ParseDuration(raw)
 	if err != nil {

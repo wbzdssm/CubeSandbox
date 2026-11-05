@@ -17,9 +17,11 @@ import (
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/config"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/constants"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/db/models"
+	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/base/node"
 	"github.com/tencentcloud/CubeSandbox/CubeMaster/pkg/localcache"
 	"github.com/tencentcloud/CubeSandbox/pkgs/blobstore/configenv"
 	"github.com/tencentcloud/CubeSandbox/pkgs/proto/artifactticket"
+	"gorm.io/gorm"
 )
 
 const (
@@ -123,7 +125,7 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 		return ticket, nil
 	}
 
-	downloadURL, err := masterArtifactDownloadURL(artifact)
+	downloadURL, err := TemplateCenterDirectArtifactDownloadURL(artifact)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
 	}
@@ -141,7 +143,7 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
 	}
-	ticket.Source = artifactticket.SourceMaster
+	ticket.Source = artifactticket.SourceTemplateCenter
 	ticket.URL = downloadURL
 	ticket.Token = token
 	ticket.Headers = map[string]string{
@@ -151,7 +153,12 @@ func buildArtifactDownloadTicket(ctx context.Context, artifact *models.RootfsArt
 	return ticket, nil
 }
 
-func buildArtifactDownloadRefreshToken(ctx context.Context, artifact *models.RootfsArtifact, nodeID string, now time.Time) (string, error) {
+// BuildArtifactDownloadRefreshToken mints the long-lived (24h) capability
+// that Cubelet stores on the pod and exchanges for a short-lived download
+// ticket via IssueArtifactDownloadTicket. It is exported so
+// CubeTemplateCenter's test suite can drive the real end-to-end
+// issuance+verification path without duplicating ticket-signing logic.
+func BuildArtifactDownloadRefreshToken(ctx context.Context, artifact *models.RootfsArtifact, nodeID string, now time.Time) (string, error) {
 	if artifact == nil || strings.TrimSpace(artifact.ArtifactID) == "" ||
 		strings.TrimSpace(nodeID) == "" {
 		return "", ErrArtifactDownloadUnauthorized
@@ -189,7 +196,7 @@ func artifactDirectDownloadOrigin(ctx context.Context, artifact *models.RootfsAr
 		}
 	} else {
 		var err error
-		rawURL, err = masterArtifactDownloadURL(artifact)
+		rawURL, err = TemplateCenterDirectArtifactDownloadURL(artifact)
 		if err != nil {
 			return "", fmt.Errorf("%w: %v", ErrArtifactDownloadUnconfigured, err)
 		}
@@ -313,11 +320,6 @@ var artifactDownloadTTL = func() (time.Duration, error) {
 	return (*config.CommonConf)(nil).ArtifactDownloadDuration()
 }
 
-var artifactDirectDownloadEnabled = func() bool {
-	cfg := config.GetConfig()
-	return cfg != nil && cfg.Common != nil && strings.TrimSpace(cfg.Common.ArtifactDownloadMode) == "direct"
-}
-
 func artifactUsesS3(artifact *models.RootfsArtifact) bool {
 	if artifact == nil {
 		return false
@@ -364,16 +366,14 @@ func artifactDownloadTicketURL(baseURL, artifactID string) (string, error) {
 	return url.JoinPath(u.String(), "internal", "template", "artifacts", artifactID, "download-ticket")
 }
 
-func masterArtifactDownloadURL(artifact *models.RootfsArtifact) (string, error) {
-	base := effectiveArtifactDownloadBaseURL("", artifact)
-	ticketURL, err := artifactDownloadTicketURL(base, artifact.ArtifactID)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSuffix(ticketURL, "download-ticket") + "ext4", nil
-}
-
-// VerifyArtifactDownloadToken is only called by CubeMaster, never TemplateCenter.
+// VerifyArtifactDownloadToken verifies a node's per-artifact download
+// capability against the current replica placement. It is called both by
+// CubeMaster's legacy proxy handler (handleMasterArtifactDownload) and
+// directly by CubeTemplateCenter's node-facing handler
+// (nodeArtifactDownloadHandler), since TC shares this package's DB-backed
+// store and node cache (see CubeTemplateCenter's InitForTemplateCenter and
+// nodemeta.Init) and therefore never needs an extra HTTP hop back to Master
+// just to check a token.
 func VerifyArtifactDownloadToken(ctx context.Context, artifactID, nodeID, token string) (*models.RootfsArtifact, error) {
 	if store == nil || store.db == nil {
 		return nil, ErrTemplateStoreNotInitialized
@@ -403,6 +403,28 @@ func VerifyArtifactDownloadToken(ctx context.Context, artifactID, nodeID, token 
 
 var lookupArtifactDownloadNode = localcache.GetNode
 
+// SetArtifactDownloadStoreForTest wires the package-level store and node
+// lookup used by ticket issuance/verification (IssueArtifactDownloadTicket,
+// VerifyArtifactDownloadToken) to test doubles and returns a restore
+// function. It is exported — not a _test.go helper — specifically so
+// CubeTemplateCenter's own test binary (a different Go package that only
+// calls these exported functions, never this package's private `store`)
+// can exercise the real cross-component download-authorization path
+// against a throwaway DB instead of stubbing VerifyArtifactDownloadToken.
+// Production code never calls this.
+func SetArtifactDownloadStoreForTest(db *gorm.DB, lookupNode func(string) (*node.Node, bool)) func() {
+	oldDB := store.db
+	oldLookup := lookupArtifactDownloadNode
+	store.db = db
+	if lookupNode != nil {
+		lookupArtifactDownloadNode = lookupNode
+	}
+	return func() {
+		store.db = oldDB
+		lookupArtifactDownloadNode = oldLookup
+	}
+}
+
 func authorizeArtifactReplica(ctx context.Context, artifactID, nodeID string) error {
 	if store == nil || store.db == nil {
 		return ErrTemplateStoreNotInitialized
@@ -422,6 +444,10 @@ func authorizeArtifactReplica(ctx context.Context, artifactID, nodeID string) er
 	return nil
 }
 
+// TemplateCenterArtifactDownloadURL is only used by the legacy proxy mode
+// (proxyTemplateCenterArtifact): Master forwards the call on the TC endpoint
+// that is gated by the shared component/callback token, since the caller is
+// Master itself, not a node.
 func TemplateCenterArtifactDownloadURL(artifact *models.RootfsArtifact) (string, error) {
 	base := strings.TrimSpace(artifact.OwnerTCDownloadBase)
 	if base == "" {
@@ -436,30 +462,44 @@ func TemplateCenterArtifactDownloadURL(artifact *models.RootfsArtifact) (string,
 	return u.String(), nil
 }
 
-func artifactDownloadAnnotations(ctx context.Context, artifact *models.RootfsArtifact, baseURL string) (map[string]string, error) {
-	return artifactDownloadAnnotationsForMode(ctx, artifact, baseURL, artifactDirectDownloadEnabled())
+// TemplateCenterDirectArtifactDownloadURL is used by direct mode for
+// fs-backed artifacts: it points straight at TC's node-facing
+// /internal/artifacts/:id/ext4 route, which Cubelet calls with the
+// per-node, per-generation download token issued by IssueArtifactDownloadTicket
+// (verified locally by TC via VerifyArtifactDownloadToken, no Master hop for
+// the file bytes).
+func TemplateCenterDirectArtifactDownloadURL(artifact *models.RootfsArtifact) (string, error) {
+	if artifact == nil {
+		return "", errors.New("artifact is nil")
+	}
+	base := strings.TrimSpace(artifact.OwnerTCDownloadBase)
+	if base == "" {
+		base = configuredTemplateCenterDownloadBase()
+	}
+	return templateCenterArtifactURL(base, artifact.ArtifactID)
 }
 
-func artifactDownloadAnnotationsForMode(ctx context.Context, artifact *models.RootfsArtifact, baseURL string, direct bool) (map[string]string, error) {
+// artifactDownloadAnnotations builds the ticket-protocol annotations that
+// tell Cubelet where to fetch its short-lived download ticket (Master) and
+// which origin the resulting file bytes must come from (S3 or the owning
+// TemplateCenter). There is no Master-proxied fallback: every artifact is
+// downloaded directly from its storage.
+func artifactDownloadAnnotations(ctx context.Context, artifact *models.RootfsArtifact, baseURL string) (map[string]string, error) {
 	annotations := map[string]string{
 		constants.CubeAnnotationRootfsArtifactID:        artifact.ArtifactID,
 		constants.CubeAnnotationRootfsArtifactSHA256:    artifact.Ext4SHA256,
 		constants.CubeAnnotationRootfsArtifactSizeBytes: fmt.Sprint(artifact.Ext4SizeBytes),
 	}
 	baseURL = effectiveArtifactDownloadBaseURL(baseURL, artifact)
-	if !direct {
-		annotations[constants.CubeAnnotationRootfsArtifactURL] = buildDownloadURL(baseURL, artifact.ArtifactID, artifact.DownloadToken)
-		annotations[constants.CubeAnnotationRootfsArtifactToken] = artifact.DownloadToken
-		return annotations, nil
-	}
 	ticketURL, err := artifactDownloadTicketURL(baseURL, artifact.ArtifactID)
 	if err != nil {
 		return nil, err
 	}
-	origin, err := artifactticket.URLOrigin(ticketURL)
-	if artifactUsesS3(artifact) {
-		origin, err = artifactDirectDownloadOrigin(ctx, artifact)
-	}
+	// The node fetches the ticket from Master but, for both S3 and fs/TC
+	// artifacts, downloads the bytes from a different origin (the object
+	// store or the owner TC) — Cubelet pins to the latter, not to Master's
+	// ticket-issuing origin. See artifactDirectDownloadOrigin.
+	origin, err := artifactDirectDownloadOrigin(ctx, artifact)
 	if err != nil {
 		return nil, err
 	}

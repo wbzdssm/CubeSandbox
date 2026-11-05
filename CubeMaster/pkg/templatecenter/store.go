@@ -1002,23 +1002,18 @@ func injectArtifactRefreshToken(ctx context.Context, req *sandboxtypes.CreateCub
 	if err != nil {
 		return fmt.Errorf("load artifact refresh authorization: %w", err)
 	}
-	direct := artifactDirectDownloadEnabled()
-	if direct {
-		if err := ensureArtifactStableLocator(ctx, artifact); err != nil {
-			return err
-		}
+	if err := ensureArtifactStableLocator(ctx, artifact); err != nil {
+		return err
 	}
-	downloadAnnotations, err := artifactDownloadAnnotationsForMode(ctx, artifact, "", direct)
+	downloadAnnotations, err := artifactDownloadAnnotations(ctx, artifact, "")
 	if err != nil {
 		return err
 	}
-	if direct {
-		token, err := buildArtifactDownloadRefreshToken(ctx, artifact, nodeID, time.Now())
-		if err != nil {
-			return err
-		}
-		downloadAnnotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = token
+	token, err := BuildArtifactDownloadRefreshToken(ctx, artifact, nodeID, time.Now())
+	if err != nil {
+		return err
 	}
+	downloadAnnotations[constants.CubeAnnotationRootfsArtifactRefreshToken] = token
 	for _, container := range req.Containers {
 		if container == nil || container.Image == nil {
 			continue

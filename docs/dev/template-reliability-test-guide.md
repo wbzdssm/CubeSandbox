@@ -1,7 +1,8 @@
 # 模板可靠性、存储后端与大列表：整体测试指南
 
-> 更新日期：2026-11-04。适用范围：`fix/artifact-download-s3-direct` 分支及当前工作区补丁。
-> 本文是测试流程，不是已完成的集群验收报告。新增本文时仅核对代码和测试入口，未新增部署或端到端测试执行。
+> 更新日期：2026-11-05。协议与测试入口已按源码 `3cbc88c1` 核对；执行时必须固定交付 SHA。
+> 本文是测试流程，不是集群验收通过报告。本次交叉审计及实际测试结果见 [`template-reliability-cross-check-20261105.md`](template-reliability-cross-check-20261105.md)。
+> 当前有两个隔离反例 FAIL、TC ETag 测试夹具矛盾及未入库的验收脚本引用；不得直接进入发布。下表“已有证据”包含历史结果，不代表本次重跑全部通过。
 > 已有结果见 [修复报告第 0.7 节](template-reliability-fix-plan.md#07-验证方式与实际结果)；详细集群操作见 [模板/S3 复现手册](../zh/dev/template-s3-reproduction-runbook.md)。修复报告第 1 节以后保留原始设计，不代表当前实现。
 
 ## 1. 范围、状态与通过标准
@@ -137,7 +138,7 @@ run_go CubeMaster master-http-list ./pkg/service/httpservice/cube \
 run_go CubeMaster cli-all ./cmd/cubemastercli/commands/cubebox '-'
 
 run_go CubeMaster cli-backend-pages-race ./cmd/cubemastercli/commands/cubebox \
-  '^(TestTemplateBackendCLIRequest|TestApplyTemplateBackendFlag|TestWalkTemplatePages(UsesActualPageLength|StopsWithoutProgress|SharesDeadline)|TestStreamTemplatePagesFlushesBeforeNextRequest|TestTemplateListQuerySkipsTotalWhenRequested)$' race
+  '^(TestTemplateBackendCLIRequest|TestApplyTemplateBackendFlag|TestWalkTemplatePages(UsesActualPageLength|StopsWithoutProgress|SharesDeadline|RejectsShiftedRows)|TestStreamTemplatePagesFlushesBeforeNextRequest|TestTemplateListQuerySkipsTotalWhenRequested)$' race
 ```
 
 断言重点：真实 CLI 解析到 HTTP 请求；非法 backend 零请求；JSON backend 不传 flag 时保留、显式 flag 时覆盖；默认有限页、最大 200、轻量模式无精确 COUNT；实际页长度推进、第一页在下一请求前输出、无进展停止、总超时不每页重置。内部 `BackCompatReturnsAll` 不表示 HTTP 默认无限返回。
@@ -148,22 +149,27 @@ TC/Cubelet 在 Linux 执行；Cubelet 应先完成第 4 节构建前置准备。
 
 ```bash
 run_go CubeMaster master-download ./pkg/templatecenter \
-  '^(TestArtifactDownloadTTL|TestBuildArtifactDownload(TicketForTemplateCenter|RefreshToken|TicketForS3UsesFreshBoundedURL|TicketDoesNotFallBackToStoredS3URL)|TestEnsureArtifactStableLocatorBackfillsLegacyRow)$'
+  '^(TestArtifactDownload(RejectsDeletedReplicaAndForgedToken|AnnotationsModeSnapshot|UsesExistingCredentialOnly)|TestBuildArtifactDownload(TicketForTemplateCenter|RefreshToken|TicketForS3UsesFreshBoundedURL|TicketDoesNotFallBackToStoredS3URL)|TestEnsureArtifactStableLocator.*)$'
+
+run_go CubeMaster master-download-proxy ./pkg/service/httpservice/cube \
+  '^(TestLegacyArtifactProxyAllowsSlowStreams)$'
 
 run_go CubeTemplateCenter tc-download ./pkg/httpservice \
-  '^(TestArtifactDownloadHandlerValidatesTokenIdentityAndGeneration|TestDirectArtifactPathConstrainsFSObjectKey)$'
+  '^(TestArtifactDownloadHandlerOnlyUsesComponentAuthentication|TestDirectArtifactPathConstrainsFSObjectKey)$'
 
 run_go Cubelet cubelet-download ./internal/cube/server/images/ext4image \
-  '^(TestFetchS3TicketDoesNotForwardInternalHeaders|TestFetchArtifactTicketRejects(ExpiredOrWrongIdentity|UnexpectedOrigin)|TestDownloadArtifact(RefreshesTicketAndResumes|StopsOnTicketUnauthorized|RejectsMismatchedContentRange|WithIndependentKernelSource)|TestRewriteDownloadHost(LeavesS3PresignedURLUntouched|RewritesCubeMasterRoute|RewritesTicketURL|LeavesTemplateCenterURLUntouched|EmptyEndpointPassesThrough)|TestIsS3PresignedURLDetectsSigV4Signature)$'
+  '^(TestFetchMasterTicketUsesReachableMaster|TestFetchHeaderTicketAndDownload|TestFetchTicketRejectsCredentialInjection|TestArtifactDownloadRejectsCrossOriginRedirect|TestFetchS3TicketDoesNotForwardInternalHeaders|TestFetchArtifactTicketRejects(ExpiredOrWrongIdentity|UnexpectedOrigin)|TestDownloadArtifact(RefreshesTicketAndResumes|StopsOnTicketUnauthorized|RejectsMismatchedContentRange|WithIndependentKernelSource)|TestRewriteDownloadHost(LeavesS3PresignedURLUntouched|RewritesCubeMasterRoute|RewritesTicketURL|LeavesTemplateCenterURLUntouched|EmptyEndpointPassesThrough)|TestIsS3PresignedURLDetectsSigV4Signature)$'
 ```
 
-这些测试使用签名替身、SQLite/httptest，不访问真实桶。TC 已有测试包含正常 GET、旧 generation 410、错误 node/篡改 token 401、路径越界拒绝；不应扩大为所有 HEAD/Range/撤销并发均已覆盖。
+这些测试使用签名替身、SQLite/httptest，不访问真实桶。Master 校验节点 capability、generation 和当前 replica；TC 只校验组件凭据，并检查 READY、路径及文件。TC 单测新增 ETag/If-Range 断言，但 `3cbc88c1` 的 fixture 未设置 SHA256，预计该用例失败；本次只交叉编译，尚未原生运行该包。不能通过删除断言或排除该测试将门禁标为通过。
+
+Cubelet 上述选择器当前匹配 17 个顶层测试。每次升级都要检查实际运行集合，不只检查“至少有一个测试”；proto 的 `artifactticket` 与 demo 还应整包执行 `-race`。
 
 ### 3.5 TC 对象复用、引用删除和本地 GC
 
 ```bash
 run_go CubeTemplateCenter tc-build-gc ./pkg/build \
-  '^(TestReusableArtifactDataUsesStoredVersionedKey|TestArtifactDataExists(S3ObjectConfirmed|S3ObjectMissing|S3ErrorFallsBackToLocalDisk|BackendWithoutURL|LocalOnlyArtifact)|TestLocalArtifactSweep(DurableReferences|Safety|RechecksReferencesInsideIdleGate)|TestArtifactPublicationMarkerLifecycle|TestExecutorWithIdleSkipsActiveBuild|TestDeleteLocalExt4(RemovesManagedDir|RefusesPathTraversal)|TestManagedArtifactDir|TestDeleter(PreservesEveryDurableReference|EmptyArtifactID))$'
+  '^(TestReusableArtifactDataUsesStoredVersionedKey|TestArtifactDataExists(S3ObjectConfirmed|S3ObjectMissing|S3ErrorFallsBackToLocalDisk|BackendWithoutURL|LocalOnlyArtifact)|TestLocalArtifactSweep(DurableReferences|Safety|RechecksReferencesInsideIdleGate)|TestArtifactPublicationMarkerLifecycle|TestExecutorWithIdleSkipsActiveBuild|TestDeleteLocalExt4(RemovesManagedDir|RefusesPathTraversal)|TestManagedArtifactDir|TestDeleter(PreservesEveryDurableReference|EmptyArtifactID|ValidatesStoreBeforeDeletingAnyData))$'
 
 run_go CubeTemplateCenter tc-reconcile-race ./pkg/reconcile '-' race
 run_go CubeTemplateCenter tc-s3store-race ./pkg/s3store '-' race
@@ -234,9 +240,9 @@ make -C "$ROOT/CubeMaster" test-race > "$EVIDENCE/master-race-gate.log" 2>&1
 | ext4 artifact | Master/TC `CUBE_ARTIFACT_STORE_BACKEND=s3|fs` | S3-compatible 对象存储或 TC 文件系统；本地盘/CBS/CFS 属于 fs 介质 |
 | artifact S3 配置 | `CUBE_S3_ENDPOINT`、`CUBE_S3_NODE_ENDPOINT`、`CUBE_S3_BUCKET`、`CUBE_S3_REGION` | 分别核对控制面与节点可达地址、测试 bucket/region；COS 使用兼容驱动和正确 HTTPS endpoint |
 | artifact fs 配置 | `CUBE_ARTIFACT_STORE_FS_ROOT`、`CUBE_TEMPLATE_CENTER_DOWNLOAD_ADDR` | 根目录和真正持有 artifact 的 TC 下载地址 |
-| 下载授权 | `CUBE_ARTIFACT_DOWNLOAD_SIGNING_KEY`、TTL 配置 | Master/TC key 匹配且受控分发，不能复用构建/删除 token 的含义 |
+| 下载授权 | Master `common.artifact_download_ttl`；组件秘密 `CUBE_TEMPLATE_CALLBACK_TOKEN` | 没有 proxy/direct 开关，所有制品下载都走短期票据+refresh capability。S3 走 presigned URL，fs/TC 走 TC 的节点直连 `/internal/artifacts/:id/ext4`（节点 token 本地验证，不是组件秘密）。组件秘密 `CUBE_TEMPLATE_CALLBACK_TOKEN` 仅用于 Master/TC 之间既有的旧版公共下载代理路由，与票据协议无关 |
 
-`artifact=s3 + CoW=xfs` 是有效隔离组合，建议先跑。TTL 默认 `1h`，合法范围 `1m`–`24h`；`CUBE_ARTIFACT_DOWNLOAD_TOKEN_TTL` 是别名，两者同时非空时别名优先，测试只设一个。修改测试服务配置后必须核实进入实际进程；终端 export 不会改变已启动服务。
+`artifact=s3 + CoW=xfs` 是有效隔离组合，建议先跑。短期票据 TTL 默认 `1h`，合法范围 `1m`–`24h`，可配置 `2h`。`3cbc88c1` 不再使用旧 `CUBE_ARTIFACT_DOWNLOAD_SIGNING_KEY`、`CUBE_ARTIFACT_DOWNLOAD_TTL` / `CUBE_ARTIFACT_DOWNLOAD_TOKEN_TTL` 配置；one-click 中仍有旧 signing key 生成逻辑，不能当作当前协议依据。旧 `/cube/template/artifact/download` 公共路由和其静态下载 token 仍存在，但新建模板的注解永远是票据协议，不会再指向该路由。修改测试服务配置后必须核实进入实际进程；终端 export 不会改变已启动服务。
 
 每模板选择不同 bucket/profile、任意 native 后端、完整 `jfs` 链路目前没有实现。`--backend cos` 被接受不代表已经真实访问 COS。
 
@@ -304,13 +310,14 @@ cm tpl status --job-id "$REDO_JOB_ID" --json > "$EVIDENCE/redo-B-status.json"
 | ID | 操作 | 必须观察的结果 |
 |---|---|---|
 | D01 | artifact=s3，先用 CoW=xfs，B 冷下载 | B 向 Master 取票，随后向 S3/MinIO/COS GET；ext4 字节不经 Master，size/SHA256 匹配，B 可执行 |
-| D02 | artifact=fs，文件只存在于持有它的 TC，Master 不挂该目录 | B 直连正确 TC 下载；分别测 TC 私盘/CBS/CFS；错误 owner locator 明确失败，不回落 Master 中转 |
-| D03 | 默认 1h 和 2h TTL；另用合法 1m TTL、限速下载覆盖过期 | TTL/identity/generation 正确，过期重新取票，有界重试并正确续传 |
-| D04 | 受控撤销/错误 node、旧 generation、篡改票据 | 明确拒绝；TC 旧 generation 410、错误 node/篡改 token 401；不读取错误对象、不无限重试 |
-| D05 | 受控中断与错误 Content-Range、size/SHA256 | 正常断点恢复；错误范围/完整性不得发布 READY；不混用不同 generation 的字节 |
+| D02 | artifact=fs，文件只在 owner TC，Master 不挂目录 | B 持 Master 签发的节点 token，直接向 owner TC 的 `/internal/artifacts/:id/ext4` GET；字节不经 Master；TC 本地校验节点 token（不是组件秘密）；错误 owner 明确失败 |
+| D03 | 默认 1h 和 2h TTL；合法 1m TTL 配合断开后重连 | 新请求过期后重新取票、有界续传；在途连接不要求 TTL 到点断开；不能将旧公共路由的静态 token 当短期票据 |
+| D04 | 撤销/错误 node、旧 generation、篡改票据 | Master 新取票请求拒绝（有效格式负例 403）；TC 节点 token 校验失败 403；已签 S3 URL 不保证即时撤销 |
+| D05 | 受控中断与错误 Content-Range、size/SHA256 | 正常断点恢复；完整性错误不得发布最终文件；已有缓存命中复验另列风险场景 |
 | D06 | node endpoint 不可达或 TLS 不可信 | 明确失败并保留原因；不关闭 TLS 校验、不静默换源 |
+| D07 | public API auth 开/关，冷节点 | 记录实际可用性；不以暖缓存成功代替冷下载验证 |
 
-Master 取票入口为 `GET /internal/template/artifacts/:artifact_id/download-ticket`，TC 文件入口为 `GET/HEAD /internal/artifacts/:artifact_id/ext4`。凭证只在授权测试客户端内存中处理，不放在命令参数、shell 历史或报告。GET presigned URL 不能直接拿来证明 HEAD 成功。
+Master 取票入口为 `GET /internal/template/artifacts/:artifact_id/download-ticket`；文件字节由 S3（presigned URL）或 TC 的节点直连入口 `GET/HEAD /internal/artifacts/:artifact_id/ext4` 提供，Master 不再有自己的 `ext4` 文件路由。旧公共下载路由 `/cube/template/artifact/download`（组件/静态 token）仍存在但新建模板不再使用。凭证只在授权测试客户端内存中处理，不放在命令参数、shell 历史或报告。GET presigned URL 不能直接拿来证明 HEAD 成功。
 
 取证包括 artifact ID/generation、脱敏 locator、下载时间线、Master/TC/对象存储字节量、B 落地 size/SHA256 和沙箱真实执行。只采网络包元信息，不抓认证 payload。Master/TC 同 IP 时按端口和服务计数区分；对象域名有多个 IP 时漏抓不能算“没有流量”。内部 TC/控制通道认证 header 不得带到 S3。
 
@@ -459,3 +466,55 @@ Linux 可测全量表格进程耗时/最大 RSS：
 5. 恢复测试环境 TTL、限速、故障注入和服务配置，核实进程实际配置与健康状态；不触及线上配置。
 6. 测试部署回退使用记录的旧二进制/镜像和兼容配置，先停止测试流量。若存在 schema/状态协议变化，必须审阅兼容性并先备份测试 DB，不能仅回退程序或删除新状态行。
 7. 合并/发布门禁：专项确实运行、静态/构建通过、关键引用与授权负例通过、对应真实 DB/存储/多副本验收完成、剩余 BLOCKED/SKIP 明示并经负责人确认。本文不会自动进行提交、推送或部署。
+
+## 11. 现有 E2E 可复用部分与补测流程（2026-11-05）
+
+本节是**补测规格，不是新增测试已实现/已通过**。当前 `3cbc88c1` 的两个隔离反例仍 FAIL，ETag fixture 阻塞仍待修复；本次没有运行 live E2E、部署或故障注入。流程图见 [当前数据流与 E2E 交互图](artifact-direct-download-architecture.html)，实际结果见 [交叉验证报告](template-reliability-cross-check-20261105.md)。
+
+### 11.1 现有覆盖不能直接拼成完整闭环
+
+| 现有入口 | 可复用 | 缺口 |
+|---|---|---|
+| `tests/e2e/sdk_compat/cases/templates/test_alias.py` | 模板 build/等待 READY、alias、创建参数持久化 | 未用本次新模板创建沙箱执行命令；没有源对象/节点 SHA、冷下载字节路径 |
+| `cases/commands/test_run.py`、`cases/filesystem/test_read_write.py` | 真实 exit/stdout/stderr、文件内容断言 | 使用沙箱 fixture，与新模板构建不是同一条用例 |
+| `tests/e2e/sdk_compat/conftest.py` 与 `framework/reporting.py` | `--run-e2e` 显式开启、登记/清理 sandbox、失败保留、脱敏报告 | 不自动提供独立 DB/prefix/TC root、A/B 节点；模板直接请求不自动接入完整 trace |
+| `framework/build_throttle.py` | 跨 worker 默认串行 build 到 READY | 增加 xdist worker 不等于触发双 Master 注册或迟到回调竞态 |
+| `cases/auth/test_api_key.py` | CubeAPI 模板 API 鉴权 | 不是制品票据下载授权；合法凭据“不等于401”不证明业务成功 |
+
+新增场景建议仍放入现有 `sdk_compat` 测试组织，显式使用本次 `template_id` 建沙箱，并登记本用例所有资源。涉及进程重启、存储/数据库故障的系统测试应单独 opt-in，不混入常规 SDK 用例。当前没有找到统一部署级 barrier/failpoint；下面的屏障都是**建议新增**，不能直接照图调用。
+
+### 11.2 补测矩阵：先确定性交错，再真实系统
+
+| ID | 第一层补测 / 确定性前置 | 完整 E2E 与必需断言 | 当前状态 |
+|---|---|---|---|
+| E01 新模板闭环 | 复用 build/READY；从同一新模板创建沙箱，不用默认预置模板 | 冷下载、DB artifact/replica/placement、对象和节点 SHA/size、命令/file marker、正常删除与引用收敛 | 规格待实现；单专用计算节点可做 |
+| E02 票据字节与授权 | 真实路由/中间件下 fs/s3×public auth 开关；虚构凭据捕获日志 | S3 bytes 绕开 Master；FS bytes 直连 owner TC，不经 Master；撤销后新请求拒绝；旧公共入口边界单列 | 规格待实现；不宣称已签 S3 URL即时撤销 |
+| E03 到期重连/Range | 合法短 TTL，断开后等到期再重连；不用睡眠碰运气模拟竞态 | 下一轮取票、partial/Content-Range 正确、size/hash一致、最终可运行；不要求在途连接到点中断 | 部分组件回归已有，真实环境待测 |
+| E04 迟到 progress / 重复 BUILT | 正式 DB/HTTP 回归：BUILT→claim→迟到 RUNNING/旧 phase→重复 BUILT；建议 B1 claim 后屏障 | 第二 claim 必须 false；实际 CreateImage 不重复，definition/replica/最终制品唯一 | 隔离状态机反例已 FAIL；先修实现 |
+| E05 迁移与旧探测 | 阻塞旧 stat/404；建议 B2 old-probe 返回前屏障；完成正常迁移再释放 | 新 locator 仍 READY，下载新对象/owner、hash/size与运行正确，旧缓存不污染 | SQL降级反例已 FAIL；完整交错待测 |
+| E06 claim 后崩溃 | B1 claim 后、B3 首副本后、B4 definition 写前；隔离 Master 受控重启 | 持久进度续跑、唯一恢复者、防重复/丢引用；不能仅超时 FAILED | 候选缺口，未复现完整系统；需真实 DB，跨副本需双 Master |
+| E07 ETag / If-Range | 先设置正确 SHA fixture，Linux 原生 handler测试 | 正确/错误 If-Range、HEAD/Range 的内容及status；FS代理链再验证 | fixture静态矛盾，原生运行尚未执行 |
+| E08 session unlock/cancel | MySQL/PG 两会话，取消ctx与解锁失败注入 | 第二会话可得锁，不确定连接不能回池长期持锁 | 候选待测；不需要第二计算节点 |
+| E09 同store错locator删除 | 空DB/FS中 A 指向有引用 B；正常删除 A；保留B控制样本 | B对象/hash/引用均保留；多owner/私盘路由再用双TC | 候选待测；现有wrong-root测试不覆盖 |
+| E10 upload与GC / 发布失败 | B5 GC最终检查后、B6 upload link/响应前、B7 PUT后；测试控制器精确交错 | 上传成功对应有效文件；callback/CAS失败的对象有持久cleanup账本且收敛 | 候选待测；先单组件，后真实TC/DB/store |
+| E11 scan公平性 | 大于batch的不可处理前批+可处理尾批；有限轮sweep | 尾批在约定窗口推进；记录不可处理原因与cursor | 候选待测；先真实DB集成，不靠sleep |
+| E12 错误缓存与日志 | 专用临时缓存预置足够大错误文件；全部凭据用虚构值 | 拒绝/重新下载错误缓存；query/嵌套annotations/refresh/组件token无泄漏 | 缓存当前轻量检查；脱敏候选待测 |
+
+E04/E05 的现有反例是 SQLite/Go overlay，不是正式入库测试，更不是线上故障证据。E08–E12 不需要先等齐 A/B 计算节点；它们可先做组件集成。双 TC 私盘、A→B cold redo、源节点失效与双 Master 接管仍需专用真实拓扑。暖 COMMIT 跨节点仍 BLOCKED，不能用 cold redo 或只恢复文件替代。
+
+### 11.3 屏障和故障预算
+
+- 不向生产协议随意添加 pause/crash 接口。优先依赖注入、隔离HTTP/store、进程内channel；集群hook仅测试构建可用，默认不编入生产。
+- 每个barrier提供到达确认、有限等待、释放/取消、日志关联ID。未收到到达确认记 NOT_RUN，不能把随意延迟后正常结束算覆盖。
+- 每个进程重启/网络故障只作用于登记的隔离实例；事前确认操作者、最大故障时间、恢复步骤、失败资源保留策略。
+- `RUN_ID → request_id → template/job/artifact/generation → node/TC ID` 串联请求、DB状态、存储bytes、落盘SHA和沙箱断言。捕获的是脱敏元信息，不记录token原文。
+
+### 11.4 执行门禁
+
+1. 先修E04/E05与E07 fixture；正式回归必须实际执行。不得删断言、跳过失败用例或把COMPILE_PASS算运行通过。
+2. Linux原生与真实DB组件门禁通过后，再新增E01单节点闭环；模板创建成功、READY、health=200分别不等于完整通过。
+3. 明确存储类型、TTL和public auth配置；完成E02/E03。已有暖缓存无法作为冷下载证据。
+4. 专用A/B、双Master/TC、独立DB/store/root和fault hooks齐备后，执行多副本/冷redo/恢复/GC；资源不足记NOT_RUN，未接通能力记BLOCKED。
+5. 清理按本次资源账本执行并验证收敛，不能吞异常后默认通过。保留失败证据后再审批人工清理。
+
+当前handoff的34控制面+216单计算不足以证明多副本/A-B验收环境齐备；34 Cubelet保持mask。本节不会自动开live测试、切换配置或部署。

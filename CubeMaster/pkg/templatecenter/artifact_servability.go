@@ -193,8 +193,12 @@ func probeServabilityOnce(ctx context.Context, artifact *models.RootfsArtifact) 
 	return verdict, reason
 }
 
-// probeArtifactServability issues the same request a cubelet would issue for
-// this artifact and classifies the answer.
+// probeArtifactServability issues the same component-authenticated request
+// Master itself would use to check artifact state on TC, and classifies the
+// answer. It is a liveness/placement probe, not a replay of Cubelet's own
+// download request: Cubelet downloads fs/TC artifacts directly from TC's
+// node-facing, per-node-token endpoint (see TemplateCenterDirectArtifactDownloadURL),
+// never through this component-token endpoint.
 func probeArtifactServability(ctx context.Context, artifact *models.RootfsArtifact) (artifactServability, string) {
 	if artifact == nil {
 		return artifactServabilityUnknown, "nil artifact"

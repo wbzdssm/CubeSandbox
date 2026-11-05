@@ -22,21 +22,20 @@ import (
 
 func TestArtifactDownloadConfig(t *testing.T) {
 	for _, tc := range []struct {
-		name, ttl, mode string
-		want            time.Duration
-		invalid         bool
+		name, ttl string
+		want      time.Duration
+		invalid   bool
 	}{
-		{"defaults", "", "", time.Hour, false},
-		{"direct", "2h", "direct", 2 * time.Hour, false},
-		{"min", "1m", "proxy", time.Minute, false},
-		{"max", "24h", "direct", 24 * time.Hour, false},
-		{"malformed", "bad", "direct", 0, true},
-		{"too_short", "30s", "", 0, true},
-		{"too_long", "25h", "", 0, true},
-		{"bad_mode", "1h", "anonymous", 0, true},
+		{"defaults", "", time.Hour, false},
+		{"custom", "2h", 2 * time.Hour, false},
+		{"min", "1m", time.Minute, false},
+		{"max", "24h", 24 * time.Hour, false},
+		{"malformed", "bad", 0, true},
+		{"too_short", "30s", 0, true},
+		{"too_long", "25h", 0, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			conf := &Config{Common: &CommonConf{ArtifactDownloadTTL: tc.ttl, ArtifactDownloadMode: tc.mode}}
+			conf := &Config{Common: &CommonConf{ArtifactDownloadTTL: tc.ttl}}
 			err := preComHandleConf(conf)
 			if (err != nil) != tc.invalid {
 				t.Fatalf("validation error = %v", err)

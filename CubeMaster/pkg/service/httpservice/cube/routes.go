@@ -185,6 +185,4 @@ func RegisterTemplateRoutes(g *gin.RouterGroup) {
 func RegisterInternalTemplateRoutes(g *gin.RouterGroup) {
 	g.POST("/internal/template/jobs/:job_id/status", handleTemplateJobStatusCallback)
 	g.GET("/internal/template/artifacts/:artifact_id/download-ticket", handleArtifactDownloadTicket)
-	g.GET("/internal/template/artifacts/:artifact_id/ext4", handleMasterArtifactDownload)
-	g.HEAD("/internal/template/artifacts/:artifact_id/ext4", handleMasterArtifactDownload)
 }

@@ -1,0 +1,2261 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'unsafe-inline';style-src 'unsafe-inline';img-src data:;connect-src 'none';object-src 'none';base-uri 'none';form-action 'none'">
+<title>模板制品与 E2E 流程图</title>
+<style>
+:root{--ink:#17243d;--muted:#627087;--line:#dce3ef;--blue:#365bd8;--green:#087d70;--red:#b5344b;--amber:#8c5d13;--purple:#7251a5;--paper:#fff;--bg:#f3f6fb}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:78px}body{margin:0;color:var(--ink);background:var(--bg);font:15px/1.7 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}button,input,a{touch-action:manipulation}button{font:inherit;cursor:pointer}button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visible,summary:focus-visible{outline:3px solid #e0a937;outline-offset:4px}h1,h2,h3,p{margin-top:0}h1{font-size:clamp(28px,4vw,44px);line-height:1.25;letter-spacing:-1px;margin-bottom:17px}h2{font-size:24px;line-height:1.4;margin-bottom:7px}h3{font-size:17px;margin-bottom:9px}p{margin-bottom:12px}a{color:var(--blue)}.wrap{width:min(1380px,calc(100% - 48px));margin:auto}.skip{position:absolute;left:12px;top:-80px;padding:10px;background:#fff;z-index:30}.skip:focus{top:10px}.bar{position:sticky;top:0;background:#ffffffed;backdrop-filter:blur(9px);border-bottom:1px solid var(--line);z-index:10}.bar .wrap{display:flex;gap:24px;align-items:center;min-height:64px}.brand{font-size:12px;font-weight:800;letter-spacing:1px;white-space:nowrap}.brand:before{content:'';display:inline-block;width:9px;height:9px;background:var(--blue);border-radius:3px;margin-right:9px}.nav{display:flex;flex:1;gap:20px;overflow:auto;white-space:nowrap}.nav a{font-size:13px;color:var(--muted);text-decoration:none;padding:12px 0}.btn{border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);padding:7px 13px;white-space:nowrap;font-size:13px}.btn:hover{border-color:var(--blue);color:var(--blue)}.hero{padding:42px 0 17px}.hero-grid{display:grid;grid-template-columns:1.8fr 1fr;gap:30px}.eyebrow{font-size:11px;letter-spacing:2px;color:var(--blue);font-weight:750;margin-bottom:13px}.lead{font-size:17px;color:var(--muted)}.snapshot{background:#1c2d49;border-radius:17px;color:#fff;padding:23px;align-self:start}.snapshot span{color:#c8d3e6;font-size:12px}.snapshot strong{display:block;font-size:17px;margin:9px 0}.snapshot p{font-size:13px;color:#d9e4f7;margin:0}.notice{font-size:13px;color:#775219;background:#fff7e6;border:1px solid #ead8b3;border-radius:12px;padding:14px 18px;margin-top:20px}.section{padding:23px 0 7px}.head{display:flex;gap:14px;margin-bottom:18px}.index{min-width:35px;height:35px;border-radius:10px;color:var(--blue);background:#e8edfb;font:700 13px/35px ui-monospace,monospace;text-align:center}.muted{color:var(--muted);font-size:13px;margin:0}.panel{background:#fff;border:1px solid var(--line);border-radius:17px;overflow:hidden;box-shadow:0 8px 28px #22386009}.panel-top{padding:17px 22px;border-bottom:1px solid var(--line);display:flex;gap:18px;align-items:center;justify-content:space-between}.panel-top h3{margin:0}.legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--muted);font-size:12px}.legend span{display:inline-flex;gap:6px;align-items:center}.legend i{width:20px;height:0;border-top:2px solid var(--blue)}.legend .ctrl{border-color:var(--purple);border-top-style:dashed}.legend .bad{border-color:var(--red);border-top-style:dotted}.canvas{padding:12px;overflow-x:auto;overscroll-behavior-x:contain;background-image:radial-gradient(#c5cfde66 .75px,transparent .75px);background-size:17px 17px}.canvas svg{display:block;width:100%;height:auto;min-width:960px}.canvas.zoom svg{min-width:1240px}.frame{fill:#f4f7fd88;stroke:#b9c9df;stroke-width:1.4;stroke-dasharray:7 5}.frame-title{font-size:13px;fill:#4e6390;font-weight:700}.node{cursor:pointer}.node rect{fill:#fff;stroke:#c5d0e1;stroke-width:1.5;rx:11}.node text{font-size:16px;font-weight:680;fill:var(--ink);pointer-events:none}.node .sub{font-size:12px;font-weight:400;fill:var(--muted)}.node.active rect{fill:#eaf8f3;stroke:#80b8a8}.node.blocked rect{fill:#fff0f3;stroke:#d47485}.node.waiting rect{fill:#fff7e7;stroke:#d9b579}.node.inactive{opacity:.42}.node:hover rect,.node:focus rect{stroke:var(--blue);stroke-width:2.5}.wire{fill:none;stroke:#7188c1;stroke-width:2.2}.wire.control{stroke:var(--purple);stroke-dasharray:6 5}.wire.retry{stroke-dasharray:9 4}.wire.active{stroke:var(--green);stroke-dasharray:8 6}.wire.blocked{stroke:var(--red);stroke-dasharray:3 5}.wire.waiting{stroke:var(--amber);stroke-dasharray:7 5}.wire.inactive{stroke:#cfd8e6;opacity:.5}.wire-label{font-size:12px;fill:var(--muted);paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}.inspector{padding:17px 22px;background:#f8fafe;border-top:1px solid var(--line);display:grid;grid-template-columns:200px 1fr;gap:16px}.inspector strong{font-size:14px}.inspector p{color:var(--muted);font-size:13px;margin:0}.tabs{display:flex;gap:8px;flex-wrap:wrap;padding:17px 21px;border-bottom:1px solid var(--line)}.tab{border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--muted);padding:9px 14px;font:inherit;font-size:13px}.tab[aria-selected=true]{background:var(--blue);color:#fff;border-color:var(--blue)}.scene-head{padding:20px 23px 10px}.scene-head h3{font-size:20px;margin-bottom:5px}.badge{display:inline-block;padding:4px 9px;border-radius:6px;background:#edf1ff;color:var(--blue);font-size:11px;font-weight:700;margin-bottom:10px}.scene-desc{font-size:14px;color:var(--muted)}.conditions{padding:14px 20px;background:#f8f4fd;border:1px solid #ded4eb;border-radius:12px;margin:5px 23px 17px}.conditions strong{font-size:13px}.conditions label{display:flex;align-items:center;gap:9px;font-size:13px;margin-top:9px;cursor:pointer}.conditions input{accent-color:var(--blue);width:17px;height:17px}.conditions p{font-size:12px;color:var(--muted);margin:9px 0 0}.notes{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:18px 23px}.note{border:1px solid var(--line);border-radius:10px;padding:13px 16px;background:#f7f9fd;font-size:13px}.timeline{padding:18px 23px}.time-head,.time-row{display:grid;grid-template-columns:140px 1fr 1fr;gap:20px}.time-head{font-size:12px;color:var(--muted);font-weight:700;padding-bottom:12px}.time-row{border-top:1px solid var(--line);padding:16px 0;font-size:13px}.time-row time{font:650 12px/1.8 ui-monospace,monospace;color:var(--blue)}.grid-two{display:grid;grid-template-columns:1fr 1fr;gap:18px}.body-pad{padding:21px 23px}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-top:20px}.summary p{background:#fff;border:1px solid var(--line);padding:16px;border-radius:12px;color:var(--muted);font-size:13px;margin:0}.evidence-row{padding:13px 0;border-top:1px solid var(--line)}.evidence-row:first-child{border:0}.evidence-row p{font-size:13px;margin:6px 0}.source{font-size:12px;color:var(--muted);overflow-wrap:anywhere}details{padding:15px 0;border-top:1px solid var(--line)}details:first-child{border:0}summary{cursor:pointer;font-size:14px;font-weight:650}details p{font-size:13px;color:var(--muted);margin:10px 0 0}.footer{padding:30px 0;color:var(--muted);font-size:12px}.error{padding:25px;background:#fff0f2;color:#9e243c;margin:20px auto;border:1px solid #e0a2ae;border-radius:12px}.print-note{display:none}[hidden]{display:none!important}body:not(.paused) .wire.active{animation:flow 1.3s linear infinite}@keyframes flow{to{stroke-dashoffset:-28}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.wire{animation:none!important}}@media(max-width:760px){.wrap{width:calc(100% - 28px)}.bar .wrap{gap:0;flex-wrap:wrap;min-height:55px}.brand{flex:1;padding:14px 0}.nav{order:3;flex:auto;width:100%;gap:19px;border-top:1px solid var(--line)}.nav a{padding:8px 0}.hero{padding-top:25px}.hero-grid,.summary,.grid-two{grid-template-columns:1fr;gap:14px}.lead{font-size:15px}.snapshot{padding:18px}.head h2{font-size:21px}.panel-top{flex-direction:column;align-items:flex-start;padding:15px}.tabs{padding:13px;gap:7px}.tab{flex:1 1 120px}.scene-head{padding:18px 16px 8px}.conditions{margin:5px 16px 13px}.notes{grid-template-columns:1fr;padding:15px}.inspector{grid-template-columns:1fr;gap:5px;padding:15px}.time-head{display:none}.time-row{grid-template-columns:1fr;gap:10px}.time-row div:before{content:attr(data-lane);display:block;font-size:11px;color:var(--muted);margin-bottom:5px}.time-row div{border-left:2px solid #a1b1d7;padding-left:10px}.timeline{padding:15px}.canvas{padding:6px}.body-pad{padding:18px}.btn{font-size:12px;padding:6px 9px}}
+.wire.control.active{stroke-dasharray:2 4 9 4}.wire.retry.active{stroke-dasharray:12 4 2 4}.wire.control.blocked{stroke-dasharray:2 4 8 4}.wire.retry.blocked{stroke-dasharray:9 3 2 3}
+@media print{@page{size:A4 landscape;margin:12mm}body{background:#fff;font-size:11px}.wrap{width:100%;max-width:none}.bar,.tabs,.no-print,.skip{display:none!important}.hero{padding:5px 0 10px}.hero-grid{grid-template-columns:1.8fr 1fr}h1{font-size:28px}h2{font-size:20px}.section,.conditions,.note{break-inside:avoid}.panel{box-shadow:none}.canvas{overflow:visible;background:none}.canvas svg,.canvas.zoom svg{min-width:0;width:100%}.summary{grid-template-columns:repeat(3,1fr)}.notes{grid-template-columns:repeat(3,1fr)}.grid-two{grid-template-columns:1fr 1fr}.wire{animation:none!important}.conditions input{accent-color:#333}.print-note{display:block}.time-head,.time-row{grid-template-columns:140px 1fr 1fr}.time-row div:before{display:none}.time-row div{border:0;padding:0}.footer{padding:15px 0}}
+.wrap,.panel,.canvas,.nav{min-width:0}.inspector p,.note,.summary p,details p{overflow-wrap:anywhere}details p{white-space:pre-line}.node .sub{font-size:11px}
+.seq-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding:15px 23px;border-bottom:1px solid var(--line);background:#f8fafe}.seq-toolbar label{font-size:13px;display:flex;align-items:center;gap:8px;margin-left:auto}.seq-toolbar input{accent-color:var(--green)}.seq-toolbar button:disabled{cursor:default;opacity:.4}.seq-step-count{font:650 13px ui-monospace,monospace;color:var(--blue);padding:0 8px}.seq-kind{font-size:12px;font-weight:700}.seq-lane{stroke:#bfccde;stroke-dasharray:4 6;stroke-width:1.2}.seq-actor{fill:#f2f6fd;stroke:#b8c8e1;stroke-width:1.2}.seq-actor-name{fill:var(--ink);font-size:15px;font-weight:700}.seq-actor-sub{fill:var(--muted);font-size:11px}.seq-row{cursor:pointer}.seq-row .seq-row-bg{fill:transparent;stroke:transparent}.seq-row.seq-selected .seq-row-bg{fill:#edf3ff;stroke:#b8cbee}.seq-row:focus .seq-row-bg{stroke:#d69d27;stroke-width:2}.seq-row:not(.seq-selected):hover .seq-row-bg{fill:#f3f6fb}.seq-line{fill:none;stroke-width:2}.seq-message{font-size:13px;fill:var(--ink);font-weight:600;paint-order:stroke;stroke:#fff;stroke-width:4px}.seq-meta{font-size:11px;fill:var(--muted);paint-order:stroke;stroke:#fff;stroke-width:3px}.seq-number{font:650 11px ui-monospace,monospace;fill:var(--muted)}.seq-future{opacity:.43}.seq-data-only .seq-row:not(.seq-data){opacity:.19}.seq-data-only .seq-row.seq-selected{opacity:1}.seq-active-marker{fill:var(--blue)}.seq-legend{padding:0 23px 16px}.seq-legend .seq-local{border-color:#627087}.seq-legend .seq-data-color{border-color:#087d70}.seq-legend .seq-retry-color{border-color:#8c5d13;border-top-style:dashed}.seq-detail{grid-template-columns:250px 1fr}.seq-detail p{white-space:pre-line}.seq-help{padding:12px 23px;font-size:12px;color:var(--muted)}@media(max-width:760px){.seq-toolbar{padding:13px}.seq-toolbar label{margin-left:0;width:100%}.seq-detail{grid-template-columns:1fr}.seq-legend{padding:0 16px 13px}.seq-help{padding:12px 16px}}@media print{.seq-toolbar{display:none}.seq-row,.seq-data-only .seq-row{opacity:1!important}.seq-row-bg{fill:transparent!important;stroke:transparent!important}.seq-detail{grid-template-columns:250px 1fr}.seq-active-marker{display:none}.seq-message{font-size:14px}.seq-legend{display:flex}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">跳到图解内容</a>
+<header class="bar"><div class="wrap"><span class="brand">CUBE / E2E FLOW</span><nav class="nav" aria-label="章节导航"><a href="#auth-sequence">鉴权与字节时序</a><a href="#overview">全链路</a><a href="#scenarios">局部场景</a><a href="#timeline">双时间线</a><a href="#evidence">证据与边界</a></nav><button class="btn" id="print-button">打印当前场景</button></div></header>
+<main id="main" class="wrap">
+<section class="hero"><div class="hero-grid"><div><div class="eyebrow">IMPLEMENTATION / COVERAGE / VERIFICATION</div><h1 id="page-title">交互式系统图解</h1><p class="lead" id="page-subtitle"></p></div><aside class="snapshot"><span id="audience"></span><strong id="snapshot"></strong><p id="disclaimer"></p></aside></div><div class="notice">所有交互仅用于本地说明，不读取实时状态、不调用生产接口。箭头动画只表达方向，不表示真实数量、吞吐或已验证的恢复进度。</div><div class="summary" id="summary"></div></section>
+<section class="section" id="auth-sequence">
+<div class="head"><span class="index">SEQ</span><div><h2>鉴权与文件字节：逐步交互时序图</h2><p class="muted">从上往下是调用顺序，不是耗时。点击任意箭头、下一步或播放；绿色实线只代表文件字节，紫色虚线是授权控制。</p></div></div>
+<div class="panel">
+<div class="tabs" id="seq-tabs" role="tablist" aria-label="鉴权时序路径"></div>
+<div id="seq-panel" role="tabpanel" tabindex="0">
+<div class="scene-head"><span class="badge">源码机制 · 3cbc88c1 · 非实测执行动画</span><h3 id="seq-title"></h3><p class="scene-desc" id="seq-description"></p></div>
+<div class="legend seq-legend"><span><i class="ctrl"></i>授权 / JSON / 请求</span><span><i class="seq-data-color"></i>文件 bytes</span><span><i class="seq-local"></i>本地检查</span><span><i class="seq-retry-color"></i>重试</span><span><i class="bad"></i>拒绝</span></div>
+<div class="seq-toolbar no-print"><button class="btn" id="seq-reset">回到起点</button><button class="btn" id="seq-prev">上一步</button><button class="btn" id="seq-next">下一步</button><button class="btn" id="seq-play" aria-pressed="false">播放调用顺序</button><span class="seq-step-count" id="seq-count"></span><label><input type="checkbox" id="seq-data-only">突出文件字节流</label></div>
+<div class="canvas" id="seq-canvas" role="region" tabindex="0" aria-label="交互时序图，可横向滚动"></div>
+<div class="inspector seq-detail" aria-live="polite"><strong id="seq-detail-title"></strong><p id="seq-detail"></p></div>
+<p class="seq-help">关键边界：refresh 只给 Master；S3 请求只有对象签名；新 FS/TC 路径的节点 download token 在 Master 验证，组件 token 在 TC 验证。默认 proxy 是另一条兼容链路。</p>
+</div></div>
+</section>
+<section class="section" id="overview"><div class="head"><span class="index">01</span><div><h2>先看全局：从请求到结果</h2><p class="muted">点击或用键盘选择组件查看职责。数据、控制、重试关系使用不同线型。</p></div></div><div class="panel"><div class="panel-top"><h3>端到端链路</h3><div class="legend"><span><i></i>数据 / 调用</span><span><i class="ctrl"></i>控制</span><span><i class="bad"></i>阻断</span></div></div><div class="canvas" tabindex="0" role="region" aria-label="总链路，可横向滚动" id="overview-canvas"></div><div class="inspector" aria-live="polite"><strong id="overview-detail-title">选择一个组件</strong><p id="overview-detail">总图只保留主要职责；详细状态在局部场景中展开。</p></div></div></section>
+<section class="section" id="scenarios"><div class="head"><span class="index">02</span><div><h2>再看局部：同一系统，不同状态</h2><p class="muted">当前机制、已复现FAIL、建议补测分开。条件开关不改变已记录的失败结果。</p></div></div><div class="panel"><div class="tabs" id="scene-tabs" role="tablist" aria-label="场景选择"></div><div id="scene-panel" role="tabpanel" tabindex="0"><div class="scene-head"><span class="badge" id="scene-kind"></span><h3 id="scene-title"></h3><p class="scene-desc" id="scene-description"></p><div class="legend"><span><i style="border-color:var(--green)"></i>可流转 / 条件预期</span><span><i class="bad"></i>阻断</span><span><i style="border-color:var(--amber)"></i>等待 / 旧任务</span><button class="btn no-print" id="motion-button" aria-pressed="false">暂停流向动画</button><button class="btn no-print" id="zoom-button" aria-pressed="false">放大局部图</button></div></div><div id="conditions" class="conditions" hidden></div><div class="canvas" tabindex="0" role="region" aria-label="当前场景图，可横向滚动" id="detail-canvas"></div><div class="inspector" aria-live="polite"><strong id="node-detail-title">选择节点查看说明</strong><p id="node-detail">选择当前流程节点查看机制与验证边界。</p></div><div class="notes" id="scene-notes" aria-live="polite"></div></div></div></section>
+<section class="section" id="timeline"><div class="head"><span class="index">03</span><div><h2>把两条时间线分开</h2><p class="muted">逻辑执行阶段，不是生产耗时。READY、完成下载、真实运行和引用收敛分别验收。</p></div></div><div class="panel timeline"><div class="time-head" id="time-head"></div><div id="time-rows"></div></div></section>
+<section class="section" id="evidence"><div class="head"><span class="index">04</span><div><h2>证据、边界与验收</h2><p class="muted">将观察、推断和条件演示分开。图清晰不代表证据已经完整。</p></div></div><div class="grid-two"><article class="panel body-pad"><h3>结论从哪里来</h3><div id="evidence-list"></div></article><article class="panel body-pad"><h3>读者常见问题</h3><div id="questions"></div></article></div></section>
+<footer class="footer"><p>单文件 HTML · 无外部依赖 · 支持离线打开 · 仅供解释，不执行变更</p><p class="print-note">打印的是当前选中的场景。需要其他场景时，在网页切换后再打印。</p></footer>
+</main>
+<noscript><div class="wrap error">此数据驱动模板需要JavaScript才能绘图。请在可信本地浏览器中启用JavaScript；页面不进行网络请求。</div></noscript>
+<script id="atlas-data" type="application/json">
+{
+  "title": "模板制品：当前数据流与 E2E 补测",
+  "subtitle": "源码 3cbc88c1：Master 统一授权，S3 可直连，FS/TC 仍由 Master 代理。先把两个失败反例固化成确定性回归，再补构建、冷下载、运行与故障恢复闭环。",
+  "audience": "研发 / 测试 / 运维 · 实现与验收分开看",
+  "snapshot": "2026-11-05 · 源码 3cbc88c1",
+  "disclaimer": "这是源码机制与补测设计，不是实时拓扑或已完成的 E2E。两个 FAIL 来自先前隔离 SQLite/overlay 反例；本页不执行部署、故障注入或网络请求。",
+  "summary": [
+    "现有模板 E2E：build→等待 READY、alias 和参数持久化；命令与文件 E2E 单独存在。缺少用本次新模板创建沙箱并核验冷下载的串联闭环。",
+    "不能靠随机并发补可靠性：现有 runner 默认串行 build。迟到回调、迁移/探测、claim 后崩溃需要确定性屏障；部署级统一 fault hook 目前未找到。",
+    "先组件集成，再真实环境 E2E。SDK mock、SQLite 断言、交叉编译、READY 和 health=200 都不能单独算真实业务 E2E PASS。"
+  ],
+  "overview": {
+    "width": 1240,
+    "height": 700,
+    "groups": [
+      {
+        "id": "oc",
+        "x": 20,
+        "y": 25,
+        "w": 1200,
+        "h": 240,
+        "label": "控制与元数据：构建、注册、replica 授权、分发"
+      },
+      {
+        "id": "od",
+        "x": 20,
+        "y": 310,
+        "w": 1200,
+        "h": 365,
+        "label": "字节路径与最终业务：S3 直连；FS / TC 经 Master；新下载完成校验"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "client",
+        "group": "oc",
+        "x": 40,
+        "y": 105,
+        "w": 215,
+        "h": 100,
+        "label": "调用方 / E2E runner",
+        "sub": "Template.build / status",
+        "detail": "当前模板用例只构建、等待 READY 并检查 API 元数据；需新增本次 template_id → Sandbox.create → commands/files 的同链路断言。不能直接沿用预置模板的 sandbox fixture。",
+        "state": "normal"
+      },
+      {
+        "id": "master",
+        "group": "oc",
+        "x": 425,
+        "y": 105,
+        "w": 245,
+        "h": 100,
+        "label": "CubeMaster",
+        "sub": "callback / 签票 / 代理 / 分发",
+        "detail": "DB 保存稳定 locator、generation、SHA256、size。先写 replica 再发 CreateImage。默认 proxy 使用旧静态 token；direct 使用 refresh capability，Master 从 callback secret 派生签名 key。",
+        "state": "normal"
+      },
+      {
+        "id": "db",
+        "group": "oc",
+        "x": 950,
+        "y": 105,
+        "w": 235,
+        "h": 100,
+        "label": "元数据 DB",
+        "sub": "artifact / job / replica / 引用",
+        "detail": "Cubelet 不直连 DB。E2E 要核对 job/definition/artifact/replica/placement 与对象/节点文件的一致性。SQLite 回归不能代替 MySQL/PG 双会话锁、双 Master 重启验收。",
+        "state": "normal"
+      },
+      {
+        "id": "tc",
+        "group": "od",
+        "x": 40,
+        "y": 375,
+        "w": 245,
+        "h": 100,
+        "label": "CubeTemplateCenter",
+        "sub": "构建 ext4 / FS 文件 / 上传",
+        "detail": "BUILT callback 注册 READY 后才异步分发。当前 TC 下载端只校验组件 callback token，不验 Cubelet 的 node capability；FS/TC 源字节由 Master 中转。TC 私盘须命中实际文件持有者。",
+        "state": "normal"
+      },
+      {
+        "id": "store",
+        "group": "od",
+        "x": 455,
+        "y": 375,
+        "w": 245,
+        "h": 100,
+        "label": "S3 兼容存储",
+        "sub": "版本 key / presigned GET",
+        "detail": "S3/MinIO/COS S3兼容配置路径。新票据无内部 Header/token，URL 自身是 bearer capability。已签 URL 不保证即时撤销；真实 IAM/网络/签名 E2E 待验。",
+        "state": "normal"
+      },
+      {
+        "id": "cubelet",
+        "group": "od",
+        "x": 940,
+        "y": 375,
+        "w": 245,
+        "h": 100,
+        "label": "Cubelet / 专用节点",
+        "sub": "缓存 / GET / Range / 重试",
+        "detail": "direct 每次尝试向 Master 取票，默认 TTL=1h，可配置 2h，refresh 固定24h。新下载做完整性校验；最终缓存命中仅检查 >1024 字节，不复验 hash/generation。不能删活跃缓存制造测试条件。",
+        "state": "normal"
+      },
+      {
+        "id": "runtime",
+        "group": "od",
+        "x": 940,
+        "y": 565,
+        "w": 245,
+        "h": 90,
+        "label": "本地 ext4 → 沙箱",
+        "sub": "真实命令 / 文件 / marker",
+        "detail": "新模板运行闭环必须 assert 真实 exit/stdout/stderr 与文件内容；检查 job READY、service active 或预置模板可运行不足以证明本轮制品正确。暖 COMMIT 跨节点能力仍 BLOCKED。",
+        "state": "normal"
+      }
+    ],
+    "edges": [
+      {
+        "id": "oe1",
+        "from": "client",
+        "to": "master",
+        "points": [
+          [
+            255,
+            155
+          ],
+          [
+            425,
+            155
+          ]
+        ],
+        "label": "① 模板请求",
+        "lx": 285,
+        "ly": 142,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "oe2",
+        "from": "master",
+        "to": "db",
+        "points": [
+          [
+            670,
+            155
+          ],
+          [
+            950,
+            155
+          ]
+        ],
+        "label": "③ READY / replica / locator",
+        "lx": 700,
+        "ly": 142,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "oe3",
+        "from": "master",
+        "to": "tc",
+        "points": [
+          [
+            480,
+            205
+          ],
+          [
+            480,
+            285
+          ],
+          [
+            165,
+            285
+          ],
+          [
+            165,
+            375
+          ]
+        ],
+        "label": "② 远端构建",
+        "lx": 225,
+        "ly": 274,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "oe4",
+        "from": "tc",
+        "to": "master",
+        "points": [
+          [
+            285,
+            400
+          ],
+          [
+            325,
+            400
+          ],
+          [
+            325,
+            192
+          ],
+          [
+            425,
+            192
+          ]
+        ],
+        "label": "BUILT 元数据",
+        "lx": 330,
+        "ly": 337,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "oe5",
+        "from": "tc",
+        "to": "store",
+        "points": [
+          [
+            285,
+            435
+          ],
+          [
+            455,
+            435
+          ]
+        ],
+        "label": "上传版本对象",
+        "lx": 303,
+        "ly": 422,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "oe6",
+        "from": "master",
+        "to": "cubelet",
+        "points": [
+          [
+            595,
+            205
+          ],
+          [
+            595,
+            295
+          ],
+          [
+            1060,
+            295
+          ],
+          [
+            1060,
+            375
+          ]
+        ],
+        "label": "④ CreateImage；direct 下带续票能力",
+        "lx": 642,
+        "ly": 283,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "oe7",
+        "from": "cubelet",
+        "to": "master",
+        "points": [
+          [
+            940,
+            400
+          ],
+          [
+            845,
+            400
+          ],
+          [
+            845,
+            230
+          ],
+          [
+            645,
+            230
+          ],
+          [
+            645,
+            205
+          ]
+        ],
+        "label": "⑤ 取票 / 文件请求",
+        "lx": 851,
+        "ly": 337,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "oe8",
+        "from": "store",
+        "to": "cubelet",
+        "points": [
+          [
+            700,
+            445
+          ],
+          [
+            940,
+            445
+          ]
+        ],
+        "label": "direct + S3：对象 bytes",
+        "lx": 711,
+        "ly": 431,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "oe9",
+        "from": "tc",
+        "to": "master",
+        "points": [
+          [
+            95,
+            375
+          ],
+          [
+            95,
+            240
+          ],
+          [
+            450,
+            240
+          ],
+          [
+            450,
+            205
+          ]
+        ],
+        "label": "TC bytes → Master",
+        "lx": 109,
+        "ly": 228,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "oe10",
+        "from": "master",
+        "to": "cubelet",
+        "points": [
+          [
+            670,
+            190
+          ],
+          [
+            790,
+            190
+          ],
+          [
+            790,
+            520
+          ],
+          [
+            1060,
+            520
+          ],
+          [
+            1060,
+            475
+          ]
+        ],
+        "label": "代理 bytes（默认 proxy / direct FS）",
+        "lx": 609,
+        "ly": 506,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "oe11",
+        "from": "cubelet",
+        "to": "runtime",
+        "points": [
+          [
+            1060,
+            475
+          ],
+          [
+            1060,
+            565
+          ]
+        ],
+        "label": "⑥ 校验 / rename / 运行",
+        "lx": 1070,
+        "ly": 547,
+        "kind": "data",
+        "state": "normal"
+      }
+    ]
+  },
+  "diagram": {
+    "width": 1240,
+    "height": 725,
+    "groups": [
+      {
+        "id": "steps",
+        "x": 20,
+        "y": 25,
+        "w": 1200,
+        "h": 675,
+        "label": "局部顺序图 · 编号与文字定义每步含义；屏障/修复预期不是当前已实现能力"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "n1",
+        "group": "steps",
+        "x": 40,
+        "y": 105,
+        "w": 245,
+        "h": 100,
+        "label": "① 测试前置",
+        "sub": "固定版本 / 独立资源",
+        "detail": "场景节点描述当前机制或建议测试步骤，必须阅读场景证据等级。",
+        "state": "normal"
+      },
+      {
+        "id": "n2",
+        "group": "steps",
+        "x": 425,
+        "y": 105,
+        "w": 245,
+        "h": 100,
+        "label": "② 请求 / 阶段",
+        "sub": "进入实际处理链路",
+        "detail": "由当前场景覆盖，不进行真实请求。",
+        "state": "normal"
+      },
+      {
+        "id": "n3",
+        "group": "steps",
+        "x": 940,
+        "y": 105,
+        "w": 245,
+        "h": 100,
+        "label": "③ 持久化边界",
+        "sub": "版本 / 状态 / 所有权",
+        "detail": "由当前场景覆盖，注意 DB 更新与异步工作之间的边界。",
+        "state": "normal"
+      },
+      {
+        "id": "n4",
+        "group": "steps",
+        "x": 40,
+        "y": 365,
+        "w": 245,
+        "h": 100,
+        "label": "④ 后续操作",
+        "sub": "正常流程或确定性故障",
+        "detail": "故障动作仅在隔离测试中实施，本页没有操作能力。",
+        "state": "normal"
+      },
+      {
+        "id": "n5",
+        "group": "steps",
+        "x": 425,
+        "y": 365,
+        "w": 245,
+        "h": 100,
+        "label": "⑤ 继续处理",
+        "sub": "字节 / 状态流转",
+        "detail": "由当前场景覆盖。",
+        "state": "normal"
+      },
+      {
+        "id": "n6",
+        "group": "steps",
+        "x": 940,
+        "y": 365,
+        "w": 245,
+        "h": 100,
+        "label": "⑥ 实际结果",
+        "sub": "核对断言与证据",
+        "detail": "由当前场景覆盖。",
+        "state": "normal"
+      },
+      {
+        "id": "n7",
+        "group": "steps",
+        "x": 940,
+        "y": 580,
+        "w": 245,
+        "h": 95,
+        "label": "⑦ 验收结论",
+        "sub": "PASS / FAIL / NOT_RUN",
+        "detail": "不可将图中的绿色路径当作测试 PASS。",
+        "state": "normal"
+      },
+      {
+        "id": "n8",
+        "group": "steps",
+        "x": 425,
+        "y": 580,
+        "w": 245,
+        "h": 95,
+        "label": "测试控制器",
+        "sub": "建议 barrier / 证据采集",
+        "detail": "部署级 barrier 尚未实现。生产构建不得开放可远程触发的故障注入接口。",
+        "state": "waiting"
+      }
+    ],
+    "edges": [
+      {
+        "id": "e12",
+        "from": "n1",
+        "to": "n2",
+        "points": [
+          [
+            285,
+            155
+          ],
+          [
+            425,
+            155
+          ]
+        ],
+        "label": "请求 / 顺序推进",
+        "lx": 298,
+        "ly": 142,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "e23",
+        "from": "n2",
+        "to": "n3",
+        "points": [
+          [
+            670,
+            155
+          ],
+          [
+            940,
+            155
+          ]
+        ],
+        "label": "读写 / 保存阶段",
+        "lx": 728,
+        "ly": 142,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "e21",
+        "from": "n2",
+        "to": "n1",
+        "points": [
+          [
+            425,
+            187
+          ],
+          [
+            285,
+            187
+          ]
+        ],
+        "label": "返回下载描述",
+        "lx": 298,
+        "ly": 218,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "e14",
+        "from": "n1",
+        "to": "n4",
+        "points": [
+          [
+            165,
+            205
+          ],
+          [
+            165,
+            365
+          ]
+        ],
+        "label": "下一请求",
+        "lx": 175,
+        "ly": 290,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "e34",
+        "from": "n3",
+        "to": "n4",
+        "points": [
+          [
+            1060,
+            205
+          ],
+          [
+            1060,
+            270
+          ],
+          [
+            165,
+            270
+          ],
+          [
+            165,
+            365
+          ]
+        ],
+        "label": "下一阶段 / 按编号推进",
+        "lx": 435,
+        "ly": 258,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "e45",
+        "from": "n4",
+        "to": "n5",
+        "points": [
+          [
+            285,
+            415
+          ],
+          [
+            425,
+            415
+          ]
+        ],
+        "label": "继续 / 返回",
+        "lx": 308,
+        "ly": 402,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "e56",
+        "from": "n5",
+        "to": "n6",
+        "points": [
+          [
+            670,
+            415
+          ],
+          [
+            940,
+            415
+          ]
+        ],
+        "label": "处理结果",
+        "lx": 753,
+        "ly": 402,
+        "kind": "data",
+        "state": "normal"
+      },
+      {
+        "id": "e67",
+        "from": "n6",
+        "to": "n7",
+        "points": [
+          [
+            1060,
+            465
+          ],
+          [
+            1060,
+            580
+          ]
+        ],
+        "label": "核对最终状态",
+        "lx": 1070,
+        "ly": 535,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "e38",
+        "from": "n3",
+        "to": "n8",
+        "points": [
+          [
+            1185,
+            155
+          ],
+          [
+            1202,
+            155
+          ],
+          [
+            1202,
+            555
+          ],
+          [
+            545,
+            555
+          ],
+          [
+            545,
+            580
+          ]
+        ],
+        "label": "建议屏障 / 观察点",
+        "lx": 695,
+        "ly": 544,
+        "kind": "control",
+        "state": "normal"
+      },
+      {
+        "id": "e84",
+        "from": "n8",
+        "to": "n4",
+        "points": [
+          [
+            425,
+            630
+          ],
+          [
+            165,
+            630
+          ],
+          [
+            165,
+            465
+          ]
+        ],
+        "label": "仅测试环境：注入 / 释放",
+        "lx": 176,
+        "ly": 617,
+        "kind": "retry",
+        "state": "normal"
+      },
+      {
+        "id": "e87",
+        "from": "n8",
+        "to": "n7",
+        "points": [
+          [
+            670,
+            630
+          ],
+          [
+            940,
+            630
+          ]
+        ],
+        "label": "脱敏证据 / 联合断言",
+        "lx": 720,
+        "ly": 617,
+        "kind": "control",
+        "state": "normal"
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "s3",
+      "label": "S3 直连",
+      "title": "direct + S3：向 Master 换票，对象 bytes 直达节点",
+      "kind": "当前源码机制 · 真实云 E2E 待测",
+      "description": "先登记 replica 再下发 CreateImage。Cubelet 使用 node ID + refresh token 取票，Master 检查当前授权后重签对象 GET URL；新下载校验后才能发布最终文件。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "e12",
+        "e23",
+        "e21",
+        "e14",
+        "e45",
+        "e56",
+        "e67"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① Cubelet",
+          "sub": "收到本次 CreateImage",
+          "detail": "核对本次 artifact_id、generation、hash、size；使用冷节点/新制品保证不是缓存命中。",
+          "state": "active"
+        },
+        "n2": {
+          "label": "② Master 取票",
+          "sub": "node + refresh capability",
+          "detail": "验证 expiry/purpose/node/artifact、节点存在、replica phase、artifact READY/generation；不是知道ID就能取票。",
+          "state": "active"
+        },
+        "n3": {
+          "label": "③ DB / 当前授权",
+          "sub": "稳定 locator + replica",
+          "detail": "locator 在 DB，短期 URL 请求时重签；Cubelet 不连接 DB。",
+          "state": "active"
+        },
+        "n4": {
+          "label": "④ S3 兼容 GET",
+          "sub": "仅 presigned query / Range",
+          "detail": "source=s3：token/headers 必须为空；Range 由下载器设置。内网凭据不得转发到对象服务。",
+          "state": "active"
+        },
+        "n5": {
+          "label": "⑤ Cubelet 临时文件",
+          "sub": ".download / 有界重试",
+          "detail": "最多4次尝试，续传需要响应 Range 正确和内容信息相容。",
+          "state": "active"
+        },
+        "n6": {
+          "label": "⑥ size / SHA256",
+          "sub": "通过后 rename",
+          "detail": "新下载完整校验；不要用SDK层mock代替实际节点文件检查。",
+          "state": "active"
+        },
+        "n7": {
+          "label": "⑦ 新模板真实运行",
+          "sub": "命令 / 文件 marker",
+          "detail": "本次template_id创建沙箱，核对exit/stdout/stderr与文件内容，并登记失败资源。",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "active",
+        "e23": "active",
+        "e21": "active",
+        "e14": "active",
+        "e45": "active",
+        "e56": "active",
+        "e67": "waiting"
+      },
+      "notes": [
+        "E2E 增补：direct×S3/MinIO/COS 配置，1h/2h、冷下载、断开后过期重连、错误签名和摘要。真实环境分别验收。",
+        "S3 URL 可转交；Master 拒绝续票不等于即时撤销已签 URL，TTL 不保证中断在途传输。",
+        "必须证明对象 bytes 到节点、内部凭据未外发、实际文件正确并可运行；不是只等 READY。"
+      ]
+    },
+    {
+      "id": "tc",
+      "label": "TC 经 Master",
+      "title": "direct + FS：节点持票访问 Master，Master 代理 owner TC",
+      "kind": "当前源码机制 · 不是 Cubelet 直连 TC",
+      "description": "新票据 url 指向取票所用 Master 的固定 /ext4 入口。Master 验证 capability/replica，剥离节点凭据，仅使用组件认证访问真正能读文件的 TC。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "e12",
+        "e23",
+        "e21",
+        "e14",
+        "e45",
+        "e56",
+        "e67"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① Cubelet",
+          "sub": "node ID + refresh token",
+          "state": "active"
+        },
+        "n2": {
+          "label": "② Master 取票",
+          "sub": "返回固定 Master /ext4",
+          "state": "active"
+        },
+        "n3": {
+          "label": "③ DB locator / replica",
+          "sub": "READY / generation / owner",
+          "state": "active"
+        },
+        "n4": {
+          "label": "④ Master 下载接口",
+          "sub": "验证节点票据与授权",
+          "detail": "当前非S3票据仍走Master。default proxy不使用这一新capability协议。",
+          "state": "active"
+        },
+        "n5": {
+          "label": "⑤ owner TC",
+          "sub": "仅组件认证 + Range",
+          "detail": "GET/HEAD /tc/api/v1/artifacts/:id/ext4，只检查组件凭据/READY/路径；不检查节点票据generation/expiry。",
+          "state": "active"
+        },
+        "n6": {
+          "label": "⑥ Master → Cubelet",
+          "sub": "代理 bytes / 校验落盘",
+          "state": "active"
+        },
+        "n7": {
+          "label": "⑦ 新模板沙箱运行",
+          "sub": "文件 / 命令 / 引用",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "active",
+        "e23": "active",
+        "e21": "active",
+        "e14": "active",
+        "e45": "active",
+        "e56": "active",
+        "e67": "waiting"
+      },
+      "notes": [
+        "E2E 增补：正确/错误 owner、TC组件凭据缺失、Master撤销、Range/If-Range及跨origin redirect；新模板实际运行。",
+        "TC ETag 单测 fixture 未设置 SHA 却断言 abc123：先修夹具，再 Linux 原生运行；本轮尚未运行该包。",
+        "多 TC 私盘不是任意负载均衡可互换。34控制+216单计算不能自动视为双TC或A/B节点。"
+      ]
+    },
+    {
+      "id": "proxy",
+      "label": "旧公共路由",
+      "title": "旧公共路由：静态 URL/token；文件经 Master 与 TC 代理",
+      "kind": "既有公共下载路由 · 新模板不再使用",
+      "description": "已删除 common.artifact_download_mode 这个开关：现在所有新建模板的下载注解都是票据协议，不会再指向这条路由。/cube/template/artifact/download 这条预先存在的公共路由本身仍保留（静态 token，不下发 refresh token），仅作历史参照，不是可配置的下载模式。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "e12",
+        "e23",
+        "e34",
+        "e45",
+        "e56",
+        "e67"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① Cubelet 旧描述",
+          "sub": "旧 URL + 静态 token",
+          "state": "active"
+        },
+        "n2": {
+          "label": "② Master 公共下载",
+          "sub": "代理请求 / auth 开关",
+          "state": "active"
+        },
+        "n3": {
+          "label": "③ TC 下载处理",
+          "sub": "组件认证 / 旧兼容能力",
+          "state": "active"
+        },
+        "n4": {
+          "label": "④ FS / S3 源文件",
+          "sub": "TC 读取文件或拉取对象",
+          "state": "active"
+        },
+        "n5": {
+          "label": "⑤ TC → Master",
+          "sub": "流式代理 bytes",
+          "state": "active"
+        },
+        "n6": {
+          "label": "⑥ Master → Cubelet",
+          "sub": "校验新下载 / rename",
+          "state": "active"
+        },
+        "n7": {
+          "label": "⑦ 冷下载真实运行",
+          "sub": "auth 组合分别报告",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "active",
+        "e23": "active",
+        "e34": "active",
+        "e45": "active",
+        "e56": "active",
+        "e67": "waiting"
+      },
+      "notes": [
+        "proxy 与 direct 测试必须显式记录进程实际mode，不能仅修改终端env或用缓存命中证明下载可用。",
+        "旧token不自动得到新票据 TTL/replica 撤销语义；public auth启用时真实路由可用性要单独测。",
+        "日志负例使用虚构凭据，检查query、嵌套Image annotations、refresh与组件认证均不泄露。"
+      ]
+    },
+    {
+      "id": "late",
+      "label": "迟到回调 FAIL",
+      "title": "V01：迟到 RUNNING 重置 phase，第二次 claim 成功",
+      "kind": "已复现 SQLite/overlay FAIL · 不是线上事故证据",
+      "description": "按固定顺序构造 BUILT→claim→迟到 RUNNING/BUILDING_EXT4→重复 BUILT→再 claim。现有状态机允许第二次 claim；下一步需要固化正式 DB/HTTP 回归与受控分发屏障。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "n8",
+        "e12",
+        "e23",
+        "e34",
+        "e45",
+        "e56",
+        "e67",
+        "e38",
+        "e84"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① 首个 BUILT",
+          "sub": "job 已保存 READY",
+          "state": "active"
+        },
+        "n2": {
+          "label": "② 首次分发 claim",
+          "sub": "BUILT → RUNNING",
+          "state": "active"
+        },
+        "n3": {
+          "label": "③ phase=DISTRIBUTING",
+          "sub": "防重条件已建立",
+          "state": "active"
+        },
+        "n4": {
+          "label": "④ 迟到 RUNNING",
+          "sub": "旧 phase=BUILDING_EXT4",
+          "state": "blocked"
+        },
+        "n5": {
+          "label": "⑤ 重复 BUILT 被接受",
+          "sub": "phase guard 已被重置",
+          "state": "blocked"
+        },
+        "n6": {
+          "label": "⑥ 第二 claim=true",
+          "sub": "隔离反例实际结果",
+          "state": "blocked"
+        },
+        "n7": {
+          "label": "⑦ 断言 FAIL",
+          "sub": "预期第二 claim=false",
+          "detail": "复现只证明状态机能重开claim，不证明线上已经发生重复分发。",
+          "state": "blocked"
+        },
+        "n8": {
+          "label": "建议 B1 屏障",
+          "sub": "claim 后暂停 continuation",
+          "detail": "先组件中控制顺序；未来测试构建需受控barrier。当前部署级hook未实现，不依靠sleep随机复现。",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "active",
+        "e23": "active",
+        "e34": "blocked",
+        "e45": "blocked",
+        "e56": "blocked",
+        "e67": "blocked",
+        "e38": "waiting",
+        "e84": "waiting"
+      },
+      "notes": [
+        "先把本地overlay转正式回归，修复phase/epoch防倒退；保留连续BUILT幂等等原有测试。",
+        "HTTP组件集成需检查真实callback响应、DB phase与第二claim；集群再检查实际CreateImage不重复。",
+        "E2E建议：claim后屏障，投递迟到progress及重复BUILT，再释放；屏障当前待实现，失败必须保留证据。"
+      ]
+    },
+    {
+      "id": "migration",
+      "label": "旧探测 FAIL",
+      "title": "V02：迁移 locator 后，旧探测仍可把新行降为 FAILED",
+      "kind": "已复现 SQL/overlay FAIL · 完整迁移交错待测",
+      "description": "generation 不变切换新 ref，再提交旧 generation 的失败探测，demotion CAS 仍匹配。应增加 locator revision 或将被探测 locator 纳入 CAS/缓存 key。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "n8",
+        "e12",
+        "e23",
+        "e34",
+        "e45",
+        "e56",
+        "e67",
+        "e38",
+        "e84"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① 读取旧 READY 快照",
+          "sub": "generation=9 / old ref",
+          "state": "active"
+        },
+        "n2": {
+          "label": "② 发起旧位置探测",
+          "sub": "针对 old store / owner",
+          "state": "active"
+        },
+        "n3": {
+          "label": "③ 暂存旧 404 结果",
+          "sub": "建议探测 barrier",
+          "detail": "完整网络E2E中此屏障待实现；本轮SQL反例直接控制调用顺序。",
+          "state": "waiting"
+        },
+        "n4": {
+          "label": "④ 完成 locator 迁移",
+          "sub": "ref=new / generation仍9",
+          "state": "active"
+        },
+        "n5": {
+          "label": "⑤ 新位置本应 READY",
+          "sub": "新对象 / owner 可服务",
+          "state": "active"
+        },
+        "n6": {
+          "label": "⑥ 提交旧 missing",
+          "sub": "仅 ID + generation CAS",
+          "state": "blocked"
+        },
+        "n7": {
+          "label": "⑦ 新行 FAILED",
+          "sub": "隔离降级断言 FAIL",
+          "detail": "反例证明旧demotion可以降级新ref；完整迁移和探测并发E2E尚未执行。",
+          "state": "blocked"
+        },
+        "n8": {
+          "label": "建议 B2 屏障",
+          "sub": "旧stat返回前暂停",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "active",
+        "e23": "waiting",
+        "e34": "active",
+        "e45": "active",
+        "e56": "blocked",
+        "e67": "blocked",
+        "e38": "waiting",
+        "e84": "waiting"
+      },
+      "notes": [
+        "组件测试使用阻塞stat/隔离HTTP服务，而不是sleep：扣住旧404、正常迁移、释放结果、新行仍READY。",
+        "后续真实store/owner E2E还须新位置GET、hash/size、沙箱运行，并确认旧缓存未污染新locator。",
+        "不是先前locator回填CAS失败：该问题是探测降级/缓存未覆盖locator变更，不能认为回填CAS已解决。"
+      ]
+    },
+    {
+      "id": "crash",
+      "label": "claim 后重启",
+      "title": "建议：持久 claim 后崩溃，恢复必须续跑且不重复",
+      "kind": "待实现补测 · 当前恢复能力存在候选缺口",
+      "description": "在 claim 后、首个副本后、definition写前设确定性屏障；隔离Master受控重启。检查RUNNING/DISTRIBUTING持久进度，而不是只等待超时FAILED。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "n8",
+        "e12",
+        "e23",
+        "e34",
+        "e45",
+        "e56",
+        "e67",
+        "e38",
+        "e84",
+        "e87"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① 独立 Master / DB",
+          "sub": "固定SHA与故障预算",
+          "state": "waiting"
+        },
+        "n2": {
+          "label": "② BUILT 注册并 claim",
+          "sub": "使用真实callback链路",
+          "state": "waiting"
+        },
+        "n3": {
+          "label": "③ 持久 DISTRIBUTING",
+          "sub": "与异步continuation分开",
+          "state": "waiting"
+        },
+        "n4": {
+          "label": "④ 测试 Master 重启",
+          "sub": "仅隔离实例 / 已审批",
+          "state": "waiting"
+        },
+        "n5": {
+          "label": "⑤ 恢复分发所有权",
+          "sub": "持久进度 / 续跑 / 防重",
+          "detail": "当前候选问题：BUILT reconciler不扫描RUNNING/DISTRIBUTING；这里是验收要求，不宣称已支持。",
+          "state": "blocked"
+        },
+        "n6": {
+          "label": "⑥ replica / definition",
+          "sub": "唯一赢家 / 不丢引用",
+          "state": "waiting"
+        },
+        "n7": {
+          "label": "⑦ 实际文件与运行",
+          "sub": "非仅超时FAILED",
+          "state": "waiting"
+        },
+        "n8": {
+          "label": "建议 B1 / B3 / B4",
+          "sub": "claim后 / 首副本 / 定义前",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "waiting",
+        "e23": "waiting",
+        "e34": "waiting",
+        "e45": "blocked",
+        "e56": "waiting",
+        "e67": "waiting",
+        "e38": "waiting",
+        "e84": "waiting",
+        "e87": "waiting"
+      },
+      "notes": [
+        "先真实DB组件恢复，再双Master接管；独立测试构建启用fault hooks，生产构建默认不包含。",
+        "须记录恢复者、job/artifact/generation、实际分发数和引用；取消ctx的session unlock另做MySQL/PG两会话测试。",
+        "两台机器不等于双Master/双TC/A-B计算拓扑；缺资源记NOT_RUN，未实现能力记BLOCKED。"
+      ]
+    },
+    {
+      "id": "gate",
+      "label": "补测与门禁",
+      "title": "补测顺序：组件失败先挡住，再单节点闭环与多副本 E2E",
+      "kind": "验收设计 / 条件推演 · 不是已通过",
+      "description": "现有sdk_compat可复用资源生命周期、命令/文件断言和报告框架。模板trace、跨组件DB/对象/落盘证据、A/B拓扑与统一barrier仍需补充。",
+      "show": [
+        "steps",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "n8",
+        "e12",
+        "e23",
+        "e34",
+        "e45",
+        "e56",
+        "e67",
+        "e87"
+      ],
+      "nodeStates": {
+        "n1": {
+          "label": "① 固定SHA / 隔离资源",
+          "sub": "专用DB、root、prefix、节点",
+          "state": "waiting"
+        },
+        "n2": {
+          "label": "② 修复 V01/V02/V03",
+          "sub": "两个FAIL + ETag fixture",
+          "state": "blocked"
+        },
+        "n3": {
+          "label": "③ 组件门禁实际执行",
+          "sub": "Linux原生 / 真DB / 未跳过",
+          "state": "blocked"
+        },
+        "n4": {
+          "label": "④ 新模板单节点闭环",
+          "sub": "build→冷下载→运行",
+          "state": "waiting"
+        },
+        "n5": {
+          "label": "⑤ A/B + 双Master/TC",
+          "sub": "cold redo / 故障交错 / GC",
+          "state": "waiting"
+        },
+        "n6": {
+          "label": "⑥ 联合一致性核对",
+          "sub": "DB / 对象 / hash / 恢复",
+          "state": "waiting"
+        },
+        "n7": {
+          "label": "⑦ 分项报告与清理",
+          "sub": "故障未触发=NOT_RUN",
+          "state": "waiting"
+        },
+        "n8": {
+          "label": "统一脱敏证据",
+          "sub": "RUN/job/artifact/node ID",
+          "state": "waiting"
+        }
+      },
+      "edgeStates": {
+        "e12": "blocked",
+        "e23": "blocked",
+        "e34": "blocked",
+        "e45": "waiting",
+        "e56": "waiting",
+        "e67": "waiting",
+        "e87": "waiting"
+      },
+      "conditions": [
+        {
+          "id": "fixes",
+          "label": "三个已知阻塞已修复且正式回归通过（本地演示，当前不成立）",
+          "checked": false
+        },
+        {
+          "id": "native",
+          "label": "Linux原生与真实DB组件门禁通过，无遗漏/SKIP（本地演示）",
+          "checked": false
+        },
+        {
+          "id": "isolated",
+          "label": "独立资源、故障预算和专用拓扑已确认（本地演示）",
+          "checked": false
+        }
+      ],
+      "whenReady": {
+        "title": "条件假设满足后：允许继续补测，不是已经 E2E PASS",
+        "description": "开关仅演示准入关系，不改变已核实的失败结果。各业务闭环仍须执行并交付真实断言，任何未触发故障或缺失拓扑仍单列NOT_RUN/BLOCKED。",
+        "nodeStates": {
+          "n1": {
+            "state": "active"
+          },
+          "n2": {
+            "state": "active",
+            "sub": "假设修复且通过"
+          },
+          "n3": {
+            "state": "active",
+            "sub": "假设完成组件门禁"
+          },
+          "n4": {
+            "state": "waiting",
+            "sub": "获准执行；尚未通过"
+          }
+        },
+        "edgeStates": {
+          "e12": "active",
+          "e23": "active",
+          "e34": "waiting"
+        },
+        "notes": [
+          "条件全部勾选只是本地推演，不能把本轮两个FAIL改成PASS，也不能推导发布授权。",
+          "新增闭环应从本次新模板创建沙箱，不使用默认预置模板；暖COMMIT跨节点仍BLOCKED。",
+          "失败资源按登记清单保留，清理引用收敛必须assert；不得用吞异常finally当作GC成功。"
+        ]
+      },
+      "notes": [
+        "可先单组件补：错同store locator删除、upload/GC屏障、scan公平性、错误缓存复验、日志脱敏。它们不要求A/B两计算节点。",
+        "现有sdk_compat build默认串行，增加worker不等于回调/注册竞态测试；必须显式设计屏障。",
+        "已知两项反例FAIL和ETag夹具阻塞未解除。勾选条件仅教学展示，当前不得发布。"
+      ]
+    }
+  ],
+  "timelineLabels": [
+    "控制 / 持久元数据",
+    "文件 / 实际业务"
+  ],
+  "timeline": [
+    {
+      "time": "阶段1 · 构建",
+      "primary": "TC 构建、版本化上传、BUILT回调；Master同步登记READY。",
+      "secondary": "源文件存在；但节点下载和沙箱运行尚未证明。"
+    },
+    {
+      "time": "阶段2 · 分发",
+      "primary": "先写replica，再CreateImage；direct下发refresh能力。",
+      "secondary": "先检查缓存；要用冷节点/新制品断言真实下载。"
+    },
+    {
+      "time": "阶段3 · 取票",
+      "primary": "Master查节点/replica/generation，签1h或2h票据。",
+      "secondary": "S3对象bytes直达；FS/TC bytes仍经过Master。"
+    },
+    {
+      "time": "阶段4 · 下载",
+      "primary": "401/403后下一轮重新取票，最多4次；撤销/版本变化拒绝续票。",
+      "secondary": "Range、响应范围、size/SHA检查；在途连接不因TTL必然断开。"
+    },
+    {
+      "time": "阶段5 · 发布",
+      "primary": "回报分发结果、登记placement/replica；完整引用一致性另验。",
+      "secondary": "临时文件校验→rename→本次模板沙箱执行marker/文件断言。"
+    },
+    {
+      "time": "补测 · 故障",
+      "primary": "迟到progress、claim后崩溃、迁移/旧探测使用受控屏障。",
+      "secondary": "始终核对对象/文件hash与实际运行；不是只等待READY或FAILED。"
+    }
+  ],
+  "evidence": [
+    {
+      "level": "源码核实",
+      "claim": "默认proxy；direct下S3直连，FS经Master验签代理TC。TC当前使用组件认证。",
+      "source": "CubeMaster/pkg/templatecenter/{distribution,artifact_download_ticket}.go；service/httpservice/cube/{artifact_download_ticket,template_proxy}.go；CubeTemplateCenter/pkg/httpservice/artifact_download.go"
+    },
+    {
+      "level": "现有E2E覆盖",
+      "claim": "模板build/READY与alias已实现；真实commands/files断言可复用，但目前不是本次新模板的完整串联闭环。",
+      "source": "tests/e2e/sdk_compat/cases/templates/test_alias.py:109–187；commands/test_run.py:36–57；filesystem/test_read_write.py:20–38"
+    },
+    {
+      "level": "本地已复现 FAIL",
+      "claim": "迟到RUNNING允许第二claim；旧探测把新locator行降FAILED。只证明SQL/状态机反例，不证明线上事故。",
+      "source": ".codebuddy/verification/template-cross-check-3cbc88c1-20261105/cross-check-repro.jsonl 与 cross_check_repro_test.go；最新报告 docs/dev/template-reliability-cross-check-20261105.md"
+    },
+    {
+      "level": "待实现 / 待执行",
+      "claim": "统一部署级barrier未找到；Linux原生TC/Cubelet、真实数据库、多节点与云端完整E2E尚未完成。",
+      "source": "docs/dev/template-reliability-test-guide.md；template-reliability-ai-e2e-handoff.md；COMPILE_PASS不等于运行PASS。"
+    }
+  ],
+  "questions": [
+    {
+      "title": "E2E能直接解决两个FAIL吗？",
+      "body": "不能。测试只发现/约束行为，不修复实现。先正式固化两个隔离反例并修复，再通过真实HTTP/DB与分发屏障证明全链路没有重复或误降级。"
+    },
+    {
+      "title": "哪些不必等第二计算节点？",
+      "body": "ETag/Range handler、MySQL/PG双会话解锁、同store错key删除、upload/GC交错、scan饥饿、错误缓存复验和日志脱敏，可先组件集成。A/B cold redo、源节点失效、多TC私盘及双Master接管另需真实拓扑。"
+    },
+    {
+      "title": "34控制面 + 216单计算够吗？",
+      "body": "只可承载专用隔离条件下单计算闭环。34 Cubelet保持mask，不把控制机器当计算节点；第二专用计算节点、双Master/TC、独立DB/store需显式准备。"
+    },
+    {
+      "title": "怎样算E2E PASS？",
+      "body": "固定SHA与实际二进制版本；本次模板、冷下载字节路径、DB引用、对象/节点hash/size、真实命令/文件、故障触发和恢复都满足用例断言。缺故障触发记NOT_RUN，缺未实现能力记BLOCKED。"
+    },
+    {
+      "title": "新 fault hook 怎么安全提供？",
+      "body": "仅测试构建、独立进程/资源中使用受限控制器和明确预算；生产构建默认不包含远程pause/crash入口。先用组件注入或屏障证明交错，再评审集群测试hook。"
+    }
+  ]
+}
+</script>
+<script>
+'use strict';
+(() => {
+const $ = id => document.getElementById(id);
+const ns = 'http://www.w3.org/2000/svg';
+const states = new Set(['normal','active','blocked','waiting','inactive']);
+const kinds = new Set(['data','control','retry']);
+const palette = {normal:'#7188c1',active:'#087d70',blocked:'#b5344b',waiting:'#8c5d13',inactive:'#cfd8e6'};
+const el = (tag,text,cls) => { const e=document.createElement(tag); if(text!==undefined)e.textContent=text; if(cls)e.className=cls; return e; };
+const svgEl = (tag,attrs={},text) => {const e=document.createElementNS(ns,tag); for(const [k,v] of Object.entries(attrs))e.setAttribute(k,String(v)); if(text!==undefined)e.textContent=text; return e;};
+function assert(test,message){if(!test)throw new Error(message);}
+function validID(id){return typeof id==='string'&&/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id);}
+function validateGraph(g){
+  assert(Number.isFinite(g.width)&&g.width>0&&Number.isFinite(g.height)&&g.height>0,'图尺寸必须为正数');
+  const all=[...g.groups,...g.nodes,...g.edges], ids=new Set();
+  for(const item of all){assert(validID(item.id)&&!ids.has(item.id),'重复或非法实体ID');ids.add(item.id);}
+  const nodes=new Set(g.nodes.map(n=>n.id)), groups=new Set(g.groups.map(n=>n.id));
+  for(const item of [...g.groups,...g.nodes]){for(const k of ['x','y','w','h'])assert(Number.isFinite(item[k]),'非法坐标');assert(item.w>0&&item.h>0,'非法节点尺寸');if(item.group)assert(groups.has(item.group),'节点缺少归属分组');if(item.parent)assert(groups.has(item.parent),'分组父节点不存在');}
+  for(const n of g.nodes)assert(states.has(n.state),'非法节点状态');
+  for(const edge of g.edges){assert(nodes.has(edge.from)&&nodes.has(edge.to),'连线端点不存在');assert(kinds.has(edge.kind)&&states.has(edge.state),'非法连线语义或状态');assert(Array.isArray(edge.points)&&edge.points.length>=2&&edge.points.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'非法折线路由');if(edge.label)assert(Number.isFinite(edge.lx)&&Number.isFinite(edge.ly),'连线标签缺少坐标');}
+  return {ids,nodes,groups,edges:new Set(g.edges.map(e=>e.id))};
+}
+function validateScenario(s,index){
+  assert(validID(s.id),'非法场景ID');
+  if(s.show)assert(Array.isArray(s.show)&&s.show.every(id=>index.ids.has(id)),'场景引用未知实体');
+  if(s.height!==undefined)assert(Number.isFinite(s.height)&&s.height>0,'非法场景高度');
+  const checkOverlay=o=>{for(const [id,value]of Object.entries(o.nodeStates||{})){assert(index.nodes.has(id),'未知覆盖节点');if(value.state)assert(states.has(value.state),'非法覆盖状态');}for(const [id,value]of Object.entries(o.edgeStates||{}))assert(index.edges.has(id)&&states.has(value),'非法覆盖边');};
+  checkOverlay(s);if(s.whenReady)checkOverlay(s.whenReady);
+  if(s.conditions){const ids=new Set();for(const c of s.conditions){assert(validID(c.id)&&!ids.has(c.id)&&typeof c.checked==='boolean','非法条件开关');ids.add(c.id);}assert(s.conditions.length>0&&s.whenReady,'条件场景缺少就绪描述');}
+}
+function drawGraph(container,graph,options,scope,inspect){
+  const show=options.show?new Set(options.show):null;
+  const visible=id=>!show||show.has(id);
+  const groupsById=new Map(graph.groups.map(g=>[g.id,g]));
+  const groupVisible=(id,trail=new Set())=>{if(!id)return true;if(trail.has(id))return false;trail.add(id);const group=groupsById.get(id);return !!group&&visible(id)&&groupVisible(group.parent,trail);};
+  const visibleNodes=new Set(graph.nodes.filter(n=>visible(n.id)&&groupVisible(n.group)).map(n=>n.id));
+  const svg=svgEl('svg',{viewBox:`0 0 ${graph.width} ${options.height||graph.height}`,role:'group','aria-label':options.title||'链路图'});
+  svg.append(svgEl('title',{},options.title||'系统链路图'),svgEl('desc',{},options.description||'通过键盘选择节点读取职责说明。'));
+  const defs=svgEl('defs');
+  for(const [state,color] of Object.entries({...palette,control:'#7251a5'})){const marker=svgEl('marker',{id:`${scope}-arrow-${state}`,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});marker.append(svgEl('path',{d:'M0 0L10 5L0 10Z',fill:color}));defs.append(marker);}
+  svg.append(defs);
+  for(const group of graph.groups){if(!groupVisible(group.id))continue;svg.append(svgEl('rect',{x:group.x,y:group.y,width:group.w,height:group.h,rx:17,class:'frame'}));svg.append(svgEl('text',{x:group.x+15,y:group.y+24,class:'frame-title'},group.label));}
+  const labels=[];
+  const stateLabels={normal:'职责示意',active:'可流转 / 条件预期',blocked:'阻断 / 未就绪',waiting:'等待 / 旧任务',inactive:'本场景不使用'};
+  const kindLabels={data:'数据',control:'控制',retry:'重试'};
+  for(const edge of graph.edges){
+    if(!visible(edge.id)||!visibleNodes.has(edge.from)||!visibleNodes.has(edge.to))continue;
+    const state=options.edgeStates?.[edge.id]||edge.state;
+    const marker=edge.kind==='control'&&state==='normal'?'control':state;
+    const d=edge.points.map((p,i)=>(i?'L':'M')+p.join(' ')).join(' ');
+    const path=svgEl('path',{d,class:`wire ${edge.kind} ${state}`,'marker-end':`url(#${scope}-arrow-${marker})`,'data-edge':edge.id,role:'img','aria-label':`${kindLabels[edge.kind]}关系：${edge.from} → ${edge.to}；${stateLabels[state]}`});
+    svg.append(path);
+    if(edge.label)labels.push(svgEl('text',{x:edge.lx,y:edge.ly,class:'wire-label'},edge.label));
+    else if(edge.kind!=='data'){const a=edge.points[0],b=edge.points[1];labels.push(svgEl('text',{x:(a[0]+b[0])/2,y:(a[1]+b[1])/2-10,class:'wire-label','text-anchor':'middle'},kindLabels[edge.kind]));}
+  }
+  for(const node of graph.nodes){
+    if(!visibleNodes.has(node.id))continue;
+    const n={...node,...(options.nodeStates?.[node.id]||{})};
+    const status=stateLabels[n.state];
+    const group=svgEl('g',{class:`node ${n.state}`,role:'button',tabindex:0,'aria-label':`${n.label}：${n.sub}；${status}。选择以查看说明。`,'data-node':n.id});
+    group.append(svgEl('rect',{x:n.x,y:n.y,width:n.w,height:n.h}));
+    group.append(svgEl('text',{x:n.x+n.w/2,y:n.y+25,'text-anchor':'middle'},n.label));
+    group.append(svgEl('text',{x:n.x+n.w/2,y:n.y+46,'text-anchor':'middle',class:'sub'},n.sub));
+    group.append(svgEl('text',{x:n.x+n.w/2,y:n.y+n.h-11,'text-anchor':'middle',class:'sub'},status));
+    group.append(svgEl('title',{},n.detail));
+    const activate=()=>inspect({...n,detail:`${status}。${n.detail}`});
+    group.addEventListener('click',activate);
+    group.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();activate();}});
+    svg.append(group);
+  }
+  for(const label of labels)svg.append(label);
+  container.replaceChildren(svg);
+}
+try{
+  const data=JSON.parse($('atlas-data').textContent);
+  validateGraph(data.overview);const index=validateGraph(data.diagram);assert(Array.isArray(data.scenarios)&&data.scenarios.length>0,'至少需要一个场景');const sceneIds=new Set();for(const s of data.scenarios){validateScenario(s,index);assert(!sceneIds.has(s.id),'场景ID重复');sceneIds.add(s.id);}
+  document.title=data.title+' · 交互式系统图解';
+  for(const [id,key]of [['page-title','title'],['page-subtitle','subtitle'],['audience','audience'],['snapshot','snapshot'],['disclaimer','disclaimer']])$(id).textContent=data[key];
+  for(const text of data.summary)$('summary').append(el('p',text));
+  drawGraph($('overview-canvas'),data.overview,{title:'全局职责链路'},'overview',n=>{$('overview-detail-title').textContent=n.label;$('overview-detail').textContent=n.detail;});
+  let current=data.scenarios[0];const values=new Map();
+  for(const scene of data.scenarios){values.set(scene.id,new Map((scene.conditions||[]).map(c=>[c.id,c.checked])));const tab=el('button',scene.label,'tab');tab.id='tab-'+scene.id;tab.dataset.scene=scene.id;tab.setAttribute('role','tab');tab.setAttribute('aria-controls','scene-panel');tab.addEventListener('click',()=>selectScene(scene));tab.addEventListener('keydown',event=>{let i=data.scenarios.indexOf(scene);if(event.key==='ArrowRight')i=(i+1)%data.scenarios.length;else if(event.key==='ArrowLeft')i=(i-1+data.scenarios.length)%data.scenarios.length;else if(event.key==='Home')i=0;else if(event.key==='End')i=data.scenarios.length-1;else return;event.preventDefault();selectScene(data.scenarios[i]);$('tab-'+data.scenarios[i].id).focus();});$('scene-tabs').append(tab);}
+  function renderDiagram(){
+    const ready=!!current.conditions&&current.conditions.every(c=>values.get(current.id).get(c.id));
+    const extra=ready?current.whenReady:{};
+    const view={...current,...extra,nodeStates:{...current.nodeStates,...extra.nodeStates},edgeStates:{...current.edgeStates,...extra.edgeStates}};
+    $('scene-kind').textContent=current.kind;$('scene-title').textContent=view.title;$('scene-description').textContent=view.description;
+    drawGraph($('detail-canvas'),data.diagram,view,'detail',n=>{$('node-detail-title').textContent=n.label+' · '+n.sub;$('node-detail').textContent=n.detail;});
+    $('node-detail-title').textContent='选择节点查看说明';$('node-detail').textContent='当前场景：'+view.title+'。点击组件查看职责与证据边界。';
+    $('scene-notes').replaceChildren(...view.notes.map(text=>el('div',text,'note')));
+  }
+  function selectScene(scene){current=scene;for(const tab of $('scene-tabs').children){const selected=tab.dataset.scene===scene.id;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}$('scene-panel').setAttribute('aria-labelledby','tab-'+scene.id);const box=$('conditions');box.replaceChildren();box.hidden=!scene.conditions;if(scene.conditions){box.append(el('strong','仅用于本地推演：同时满足条件，才展示预期路径'));for(const condition of scene.conditions){const label=el('label');const input=el('input');input.type='checkbox';input.checked=values.get(scene.id).get(condition.id);input.id='condition-'+scene.id+'-'+condition.id;input.addEventListener('change',()=>{values.get(scene.id).set(condition.id,input.checked);renderDiagram();});label.append(input,document.createTextNode(condition.label));box.append(label);}box.append(el('p','勾选不修改任何真实配置。绿色只表示条件假设，不是测试已通过、系统已修复或发布授权。'));}renderDiagram();}
+  selectScene(data.scenarios.find(s=>s.id==='blocked')||data.scenarios[0]);
+  $('motion-button').addEventListener('click',()=>{const paused=document.body.classList.toggle('paused');$('motion-button').setAttribute('aria-pressed',String(paused));$('motion-button').textContent=paused?'开启流向动画':'暂停流向动画';});
+  $('zoom-button').addEventListener('click',()=>{const zoom=$('detail-canvas').classList.toggle('zoom');$('zoom-button').setAttribute('aria-pressed',String(zoom));$('zoom-button').textContent=zoom?'适配图容器':'放大局部图';});
+  $('print-button').addEventListener('click',()=>window.print());
+  for(const label of ['事件时间',...data.timelineLabels])$('time-head').append(el('span',label));
+  for(const item of data.timeline){const row=el('div',undefined,'time-row');row.append(el('time',item.time));for(const [i,key]of ['primary','secondary'].entries()){const cell=el('div',item[key]||'未提供此阶段记录');cell.dataset.lane=data.timelineLabels[i];row.append(cell);}$('time-rows').append(row);}
+  for(const item of data.evidence){const row=el('div',undefined,'evidence-row');row.append(el('span',item.level,'badge'),el('p',item.claim),el('div',item.source,'source'));$('evidence-list').append(row);}
+  for(const item of data.questions){const detail=el('details');detail.append(el('summary',item.title),el('p',item.body));$('questions').append(detail);}
+  document.documentElement.dataset.atlasReady='true';
+}catch(error){const box=el('div','图解配置校验失败：'+error.message,'wrap error');box.setAttribute('role','alert');document.body.prepend(box);console.error(error);}
+})();
+</script>
+<script id="sequence-data" type="application/json">
+{
+  "revision": "3cbc88c1",
+  "flows": [
+    {
+      "id": "s3",
+      "label": "S3 直连",
+      "title": "direct + S3：Master 授权，S3 → Cubelet 传文件",
+      "description": "紫色虚线是取票/授权，绿色实线是文件字节。签发 presigned URL 不等于 Master 向 S3 下载文件；对象服务不接收内部 refresh、download 或组件 token。",
+      "actors": [
+        {
+          "id": "c",
+          "label": "Cubelet",
+          "sub": "节点下载器"
+        },
+        {
+          "id": "m",
+          "label": "Master",
+          "sub": "授权与签票"
+        },
+        {
+          "id": "d",
+          "label": "DB / 节点缓存",
+          "sub": "locator / replica"
+        },
+        {
+          "id": "s",
+          "label": "S3 兼容存储",
+          "sub": "对象鉴权 / bytes"
+        },
+        {
+          "id": "l",
+          "label": "本地 ext4",
+          "sub": "临时文件 → 最终文件"
+        }
+      ],
+      "steps": [
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "先持久化节点 replica",
+          "meta": "artifact_id + node_id；phase=DISTRIBUTING",
+          "detail": "Master 在 CreateImage 前 UpsertReplica，确保节点取票时授权已经存在。Cubelet 不直连数据库。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "control",
+          "label": "CreateImage：取票入口 + refresh 能力",
+          "meta": "artifact_id、origin、SHA256、size；refresh 固定 24h",
+          "detail": "每节点克隆 ImageSpec，通过 RPC 下发 node/artifact/generation 绑定的 refresh token。不会下发组件秘密或 S3 长期凭据。"
+        },
+        {
+          "from": "c",
+          "to": "m",
+          "type": "control",
+          "label": "GET download-ticket",
+          "meta": "node ID + refresh token；这里只请求 JSON 票据",
+          "detail": "GET /internal/template/artifacts/:artifact_id/download-ticket；X-Cube-Node-ID、X-Cube-Artifact-Refresh-Token。refresh 只用于 Master 取票，不转给源存储。"
+        },
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "读取当前 artifact 与稳定 locator",
+          "meta": "backend / storage_ref / object_key / generation",
+          "detail": "读取当前记录，不使用 DB 中旧 presigned URL。缺 locator 的历史 S3 需要显式迁移，不能猜测历史位置。"
+        },
+        {
+          "from": "m",
+          "to": "m",
+          "type": "check",
+          "label": "验证 refresh capability",
+          "meta": "签名、expiry、purpose、artifact、node",
+          "detail": "Master 从 CUBE_TEMPLATE_CALLBACK_TOKEN 派生 HMAC key；校验 purpose=refresh、到期时间、artifact/node。确保 READY 和 locator 后还检查 generation。node Header 本身不是独立主机认证。"
+        },
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "核对节点与当前 replica 授权",
+          "meta": "节点仍存在；允许的 replica phase；READY / generation",
+          "detail": "节点 localcache 必须存在；DB replica phase 允许 DISTRIBUTING、DISTRIBUTED、SNAPSHOTTING。签票不是仅靠持有旧 token。"
+        },
+        {
+          "from": "m",
+          "to": "m",
+          "type": "check",
+          "label": "基于 locator 生成 presigned GET",
+          "meta": "下载 TTL 默认 1h，可配置 2h",
+          "detail": "依据稳定 bucket/endpoint/prefix 和完整 object_key 生成新的短期 GET URL。这里是签名控制动作，不是对象文件回传。真实 S3/COS/MinIO 签名与 IAM 仍需环境验证。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "control",
+          "label": "200：下载描述 JSON",
+          "meta": "source=s3、url、expires_at、server_time、SHA256、size",
+          "detail": "method=GET，内部 token/headers 为空。Cubelet校验票据ID、ServerTime/expiry关系、origin和描述白名单后下载。"
+        },
+        {
+          "from": "c",
+          "to": "s",
+          "type": "control",
+          "label": "GET 签名 URL，可带 Range",
+          "meta": "对象 URL query 鉴权；不带内部认证 Header",
+          "detail": "请求 S3 兼容对象服务。Range 由 Cubelet 下载器设置，不允许 Master 票据任意注入 Range 或 Authorization。"
+        },
+        {
+          "from": "s",
+          "to": "s",
+          "type": "check",
+          "label": "对象服务验证自身签名 / TTL",
+          "meta": "不查询 Master replica、不验证 TC token",
+          "detail": "这是对象存储的鉴权职责。S3 URL是bearer capability，失去Master授权后不保证已签URL即时失效；不能宣称与Master节点票据同等撤销能力。"
+        },
+        {
+          "from": "s",
+          "to": "c",
+          "type": "data",
+          "label": "200 / 206：ext4 文件字节",
+          "meta": "S3 → Cubelet；文件 bytes 不经过 Master / TC",
+          "detail": "这是该场景真正的数据面路径。签名验证发生在对象请求端；Master只返回描述，不中转这次完整文件。"
+        },
+        {
+          "from": "c",
+          "to": "l",
+          "type": "data",
+          "label": "写 .download → 完整性校验 → rename",
+          "meta": "size / SHA256 正确才发布最终文件",
+          "detail": "新下载检查总大小与SHA256，再rename为最终ext4。已有最终缓存命中仅检查存在且大于1024字节，不能宣称缓存每次使用都重新验hash。"
+        }
+      ]
+    },
+    {
+      "id": "tc",
+      "label": "TC 经 Master",
+      "title": "direct + FS/TC：Master 验节点票据，再代理 owner TC",
+      "description": "Cubelet 的 download token 在 Master 校验；组件 token 在 TC 中间件校验。两种凭据不混发：节点票据不会转发 TC，组件秘密不会发给 Cubelet。文件字节是 TC → Master → Cubelet。",
+      "actors": [
+        {
+          "id": "c",
+          "label": "Cubelet",
+          "sub": "节点下载器"
+        },
+        {
+          "id": "m",
+          "label": "Master",
+          "sub": "验节点票据 / 代理"
+        },
+        {
+          "id": "d",
+          "label": "元数据 DB",
+          "sub": "replica / artifact"
+        },
+        {
+          "id": "t",
+          "label": "owner TC",
+          "sub": "组件认证 / 文件服务"
+        },
+        {
+          "id": "f",
+          "label": "TC 文件存储",
+          "sub": "稳定 FS root / key"
+        }
+      ],
+      "steps": [
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "先写 replica 授权",
+          "meta": "然后才允许节点 CreateImage 取票",
+          "detail": "UpsertReplica先于RPC，防止授权写入与节点取票之间的确定性403竞态。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "control",
+          "label": "CreateImage + refresh capability",
+          "meta": "取票 URL、origin、artifact ID、SHA256、size",
+          "detail": "direct模式下才下发refresh token；固定24h，绑定node/artifact/generation。"
+        },
+        {
+          "from": "c",
+          "to": "m",
+          "type": "control",
+          "label": "GET download-ticket",
+          "meta": "X-Cube-Node-ID + X-Cube-Artifact-Refresh-Token",
+          "detail": "refresh capability仅向Master使用。Master读取记录、验证capability、检查当前replica/READY/generation。"
+        },
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "读取 locator、检查 replica 与 READY",
+          "meta": "refresh 签名 / expiry / generation 一并核对",
+          "detail": "Master是节点授权决策者。签名key由组件秘密派生，仅Master验证节点票据。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "control",
+          "label": "200：Master 下载票据",
+          "meta": "source=master；短期 download token + node Header",
+          "detail": "url为Master /internal/template/artifacts/:id/ext4；X-Cube-Artifact-Token与X-Cube-Node-ID。Cubelet固定到取票所用可达Master的路径和origin。"
+        },
+        {
+          "from": "c",
+          "to": "m",
+          "type": "control",
+          "label": "GET Master /ext4，可带 Range",
+          "meta": "X-Cube-Artifact-Token + X-Cube-Node-ID",
+          "detail": "不是Cubelet→TC。节点只持下载capability，不持有组件callback secret。"
+        },
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "再次验证 download 与当前授权",
+          "meta": "purpose=download、expiry、node、generation、READY、replica",
+          "detail": "Master每个新文件请求再检查当前授权。能力过期或节点/replica失效时返回拒绝，而不是直接转发上游。"
+        },
+        {
+          "from": "m",
+          "to": "t",
+          "type": "control",
+          "label": "GET owner TC /ext4",
+          "meta": "仅组件 token；允许转发 Range / If-Range",
+          "detail": "GET /tc/api/v1/artifacts/:id/ext4；X-Cube-Template-Callback-Token。新建上游Header，只转发Range、If-Range、If-Modified-Since、If-None-Match，不转发node/download/refresh能力。"
+        },
+        {
+          "from": "t",
+          "to": "t",
+          "type": "check",
+          "label": "TC 中间件验证组件 token",
+          "meta": "不验证 Cubelet 节点票据或 generation claim",
+          "detail": "TC基于共享组件凭据鉴权。此验证与Master对节点capability的验证是两个独立边界；组件token不能发给节点。"
+        },
+        {
+          "from": "t",
+          "to": "d",
+          "type": "control",
+          "label": "读取未删除 READY artifact",
+          "meta": "定位 storage_ref + 完整 object_key",
+          "detail": "TC读取当前artifact，要求未删除且READY；不是再次查询Master replica。使用稳定FS locator定位文件。"
+        },
+        {
+          "from": "t",
+          "to": "f",
+          "type": "control",
+          "label": "打开实际文件持有者的 ext4",
+          "meta": "合法 root / key / 常规文件",
+          "detail": "owner TC必须能访问对应FS文件。相同路径名并不证明不同主机/卷持有同一文件。"
+        },
+        {
+          "from": "f",
+          "to": "t",
+          "type": "data",
+          "label": "读取文件 bytes",
+          "meta": "http.ServeContent；支持 HEAD / Range / If-Range",
+          "detail": "SHA非空时设置ETag。TC下载handler处理文件范围与内容响应；HEAD不发送body。"
+        },
+        {
+          "from": "t",
+          "to": "m",
+          "type": "data",
+          "label": "200 / 206：文件流返回 Master",
+          "meta": "TC → Master；上游跨 origin redirect 不跟随",
+          "detail": "Master复制允许的响应Header，流式io.Copy响应体；不以代理响应成功替代节点最终完整性校验。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "data",
+          "label": "文件 bytes 返回 Cubelet",
+          "meta": "实际字节路径：TC → Master → Cubelet",
+          "detail": "direct模式FS路径仍由Master中转。它没有满足“Cubelet直接连TC”的最初目标，不能按旧设计画成TC→Cubelet。"
+        },
+        {
+          "from": "c",
+          "to": "c",
+          "type": "check",
+          "label": "size / SHA256 → rename 完成",
+          "meta": "临时文件通过校验才成为最终 ext4",
+          "detail": "只描述新下载。现有缓存命中不做同等hash复验；下载完成也不等于沙箱已经运行。"
+        }
+      ]
+    },
+    {
+      "id": "refresh",
+      "label": "过期与续传",
+      "title": "下载端拒绝旧票据：重新取票，再携带 Range 续传",
+      "description": "区分两个请求：文件 GET 的 401/403 可进入下一轮取票；Master 取票的 401/403 是永久拒绝，会停止。续票不是无限延长 refresh capability。",
+      "actors": [
+        {
+          "id": "c",
+          "label": "Cubelet",
+          "sub": "partial / 重试循环"
+        },
+        {
+          "id": "m",
+          "label": "Master",
+          "sub": "重新授权 / 新票"
+        },
+        {
+          "id": "d",
+          "label": "DB / 节点缓存",
+          "sub": "当前授权 / generation"
+        },
+        {
+          "id": "s",
+          "label": "下载目标",
+          "sub": "S3 或 Master /ext4"
+        },
+        {
+          "id": "l",
+          "label": "本地 ext4",
+          "sub": "partial → final"
+        }
+      ],
+      "steps": [
+        {
+          "from": "s",
+          "to": "c",
+          "type": "deny",
+          "label": "旧能力到期：文件 GET 返回 401 / 403",
+          "meta": "或连接中断；不是 Master 取票请求的拒绝",
+          "detail": "下载目标对新请求拒绝过期能力。TTL不保证中断一条已经开始传输的连接，通常在下一次请求/续传时表现。"
+        },
+        {
+          "from": "c",
+          "to": "l",
+          "type": "check",
+          "label": "保留 partial 与当前 offset",
+          "meta": "不发布最终文件",
+          "detail": "可重试下载错误保留partial；异常Range/不一致内容不得混成最终文件。"
+        },
+        {
+          "from": "c",
+          "to": "m",
+          "type": "retry",
+          "label": "下一轮重新 GET download-ticket",
+          "meta": "仍使用 node ID + refresh token",
+          "detail": "最多4次下载尝试，重试前间隔250/500/750ms；每轮resolve取票。不是沿用失效的S3 URL。"
+        },
+        {
+          "from": "m",
+          "to": "d",
+          "type": "control",
+          "label": "重新检查当前授权与版本",
+          "meta": "refresh还有效、replica允许、READY/generation匹配",
+          "detail": "refresh固定24h，generation变化或授权撤销会阻止续票。不能通过无限重签逃过授权边界。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "control",
+          "label": "允许时返回新票据 / 新 URL",
+          "meta": "反分支：取票 401/403 → 立即停止",
+          "detail": "这是允许续票的分支。若Master取票返回401/403，Cubelet归类fatal，停止尝试。不能把授权拒绝当作应继续重试。"
+        },
+        {
+          "from": "c",
+          "to": "c",
+          "type": "check",
+          "label": "检查 origin 与内容元数据一致",
+          "meta": "票据 SHA/size 与分发 annotations 不矛盾",
+          "detail": "URL必须在授权origin；source=master固定到取票Master。非空SHA/size不允许矛盾。无法据该检查宣称所有缺摘要历史记录都有完整版本保护。"
+        },
+        {
+          "from": "c",
+          "to": "s",
+          "type": "retry",
+          "label": "GET 新 URL + Range: bytes=offset-",
+          "meta": "S3：新签名 query；Master：新 download token",
+          "detail": "不把refresh token转发目标。Master分支仍代理TC，S3分支直接访问对象服务。"
+        },
+        {
+          "from": "s",
+          "to": "c",
+          "type": "data",
+          "label": "206 + 正确 Content-Range + 剩余 bytes",
+          "meta": "若返回200则截断重下；异常416处理partial",
+          "detail": "续传响应范围必须与offset相符；仅收到206不够，需检查Content-Range与最终大小。"
+        },
+        {
+          "from": "c",
+          "to": "l",
+          "type": "data",
+          "label": "追加 → 总size/SHA256 → rename",
+          "meta": "完整性失败不得发布最终文件",
+          "detail": "完成总内容校验才rename；次数用尽、授权拒绝或不可恢复错误结束下载并返回错误。"
+        }
+      ]
+    },
+    {
+      "id": "proxy",
+      "label": "默认 proxy",
+      "title": "默认 proxy：旧静态 token，文件经 Master 与 TC",
+      "description": "默认模式没有新 refresh/短期 download-ticket。此兼容链路不能套用 direct 的 TTL 与 replica 撤销承诺；public API 鉴权配置要单独核对。",
+      "actors": [
+        {
+          "id": "c",
+          "label": "Cubelet",
+          "sub": "旧下载描述"
+        },
+        {
+          "id": "m",
+          "label": "Master",
+          "sub": "公共旧下载入口"
+        },
+        {
+          "id": "d",
+          "label": "元数据 DB",
+          "sub": "artifact记录"
+        },
+        {
+          "id": "t",
+          "label": "TC",
+          "sub": "组件代理 / 文件服务"
+        },
+        {
+          "id": "s",
+          "label": "源存储",
+          "sub": "FS / S3"
+        }
+      ],
+      "steps": [
+        {
+          "from": "m",
+          "to": "c",
+          "type": "control",
+          "label": "CreateImage：旧下载 URL + token",
+          "meta": "既有公共路由；不是新票据协议，不下发 refresh capability",
+          "detail": "这是预先存在、与票据协议无关的公共下载路由，新建模板不会再走到这里（已没有 artifact_download_mode 开关）。旧URL可能包含token，下载器也设置X-Cube-Artifact-Token；日志必须脱敏。"
+        },
+        {
+          "from": "c",
+          "to": "m",
+          "type": "control",
+          "label": "GET 旧公共下载路由",
+          "meta": "/cube/template/artifact/download；旧 token",
+          "detail": "此入口并非/internal新票据入口。publicAPI认证是否启用对冷下载可用性的影响需分别验收。"
+        },
+        {
+          "from": "m",
+          "to": "t",
+          "type": "control",
+          "label": "Master 原路径 / query 代理 TC",
+          "meta": "旧公共路由；不是新 /ext4 的组件Header替换",
+          "detail": "/cube/template/artifact/download由Master的proxyToTemplateCenter注册转发，保留原路径/query。该代理不主动注入新组件token；public中间件鉴权配置独立检查。"
+        },
+        {
+          "from": "t",
+          "to": "d",
+          "type": "control",
+          "label": "TC 兼容处理读取 artifact / 旧 token",
+          "meta": "旧下载 token；不等于 direct 当前 replica 授权",
+          "detail": "TC注册同名公共下载handler，使用共享templatecenter逻辑读取记录、验证旧token，再读FS/拉S3。不要将源码中同名Master函数定义误当作当前Master路由调用。"
+        },
+        {
+          "from": "t",
+          "to": "s",
+          "type": "control",
+          "label": "读取 FS 或拉取 S3 对象",
+          "meta": "源数据由 TC 提供给代理流",
+          "detail": "与direct S3路径不同：这次对象bytes会经过TC/Master。"
+        },
+        {
+          "from": "s",
+          "to": "t",
+          "type": "data",
+          "label": "源文件 bytes → TC",
+          "meta": "FS读文件或S3对象响应",
+          "detail": "当前旧兼容代理的字节路径。"
+        },
+        {
+          "from": "t",
+          "to": "m",
+          "type": "data",
+          "label": "TC → Master：文件流",
+          "meta": "流式代理，不是短期票据 JSON",
+          "detail": "代理控制面要承载文件流量；不能用direct模式的性能/数据路径来解释proxy模式。"
+        },
+        {
+          "from": "m",
+          "to": "c",
+          "type": "data",
+          "label": "Master → Cubelet：文件流",
+          "meta": "节点再校验新下载并落盘",
+          "detail": "新下载仍可做SHA/size校验；旧静态授权到期/撤销语义必须与新票据分开报告。"
+        }
+      ]
+    }
+  ]
+}
+</script>
+<script>
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const ns = 'http://www.w3.org/2000/svg';
+  const colors = {control:'#7251a5',data:'#087d70',check:'#627087',retry:'#8c5d13',deny:'#b5344b'};
+  const names = {control:'授权 / 控制',data:'文件字节',check:'本地检查',retry:'续票 / 重试',deny:'拒绝'};
+  const svgNode = (tag, attrs = {}, text) => {
+    const node = document.createElementNS(ns, tag);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  let timer = null;
+  let selected = 0;
+  let flow;
+  function stop() {
+    clearInterval(timer);
+    timer = null;
+    $('seq-play').textContent = '播放调用顺序';
+    $('seq-play').setAttribute('aria-pressed', 'false');
+  }
+  function setStep(index, focus = false) {
+    selected = Math.max(0, Math.min(index, flow.steps.length - 1));
+    const step = flow.steps[selected];
+    for (const row of $('seq-canvas').querySelectorAll('[data-step]')) {
+      const i = Number(row.dataset.step);
+      row.classList.toggle('seq-selected', i === selected);
+      row.classList.toggle('seq-future', i > selected);
+      row.setAttribute('aria-pressed', String(i === selected));
+    }
+    $('seq-prev').disabled = selected === 0;
+    $('seq-next').disabled = selected === flow.steps.length - 1;
+    $('seq-count').textContent = `${selected + 1} / ${flow.steps.length}`;
+    const actors = new Map(flow.actors.map(a => [a.id, a.label]));
+    $('seq-detail-title').textContent = `${selected + 1}. ${names[step.type]} · ${step.label}`;
+    $('seq-detail').textContent = `${actors.get(step.from)} → ${actors.get(step.to)}\n${step.meta}\n${step.detail}`;
+    if (focus) $('seq-canvas').querySelector(`[data-step="${selected}"]`).focus();
+    if (timer && selected === flow.steps.length - 1) stop();
+  }
+  function draw() {
+    const width = 1400;
+    const height = 155 + flow.steps.length * 74;
+    const xs = new Map(flow.actors.map((a, i) => [a.id, 145 + i * 277]));
+    const svg = svgNode('svg', {viewBox:`0 0 ${width} ${height}`,role:'group','aria-label':flow.title});
+    svg.append(svgNode('title', {}, flow.title), svgNode('desc', {}, flow.description));
+    const defs = svgNode('defs');
+    for (const [kind, color] of Object.entries(colors)) {
+      const marker = svgNode('marker', {id:`seq-arrow-${kind}`,viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto'});
+      marker.append(svgNode('path', {d:'M0 0L10 5L0 10Z',fill:color}));
+      defs.append(marker);
+    }
+    svg.append(defs);
+    for (const actor of flow.actors) {
+      const x = xs.get(actor.id);
+      svg.append(svgNode('line', {x1:x,y1:83,x2:x,y2:height-20,class:'seq-lane'}));
+      svg.append(svgNode('rect', {x:x-115,y:18,width:230,height:65,rx:10,class:'seq-actor'}));
+      svg.append(svgNode('text', {x,y:43,'text-anchor':'middle',class:'seq-actor-name'}, actor.label));
+      svg.append(svgNode('text', {x,y:66,'text-anchor':'middle',class:'seq-actor-sub'}, actor.sub));
+    }
+    flow.steps.forEach((step, i) => {
+      const x1 = xs.get(step.from);
+      const x2 = xs.get(step.to);
+      const y = 125 + i * 74;
+      const row = svgNode('g', {class:`seq-row ${step.type === 'data' ? 'seq-data' : ''}`,'data-step':i,tabindex:0,role:'button','aria-label':`${i+1}. ${names[step.type]}：${step.label}`});
+      row.append(svgNode('rect', {x:10,y:y-29,width:width-20,height:70,rx:8,class:'seq-row-bg'}));
+      row.append(svgNode('text', {x:22,y:y+3,class:'seq-number'}, String(i+1).padStart(2,'0')));
+      const same = x1 === x2;
+      const left = x1 > width / 2;
+      const side = left ? -1 : 1;
+      const path = same ? `M${x1} ${y}h${side*38}v20h${-side*38}` : `M${x1} ${y}H${x2}`;
+      const line = svgNode('path', {d:path,class:'seq-line',stroke:colors[step.type],'marker-end':`url(#seq-arrow-${step.type})`});
+      if (['control','retry','deny'].includes(step.type)) line.setAttribute('stroke-dasharray', '6 4');
+      row.append(line);
+      const textX = same ? x1 + side * 55 : (x1+x2)/2;
+      const anchor = same ? (left ? 'end' : 'start') : 'middle';
+      row.append(svgNode('text', {x:textX,y:y-11,'text-anchor':anchor,class:'seq-message'}, step.label));
+      row.append(svgNode('text', {x:textX,y:y+36,'text-anchor':anchor,class:'seq-meta'}, step.meta));
+      row.append(svgNode('title', {}, step.detail));
+      row.addEventListener('click', () => {stop();setStep(i);});
+      row.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {event.preventDefault();stop();setStep(i);}
+        else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {event.preventDefault();stop();setStep(i + (event.key === 'ArrowDown' ? 1 : -1), true);}
+      });
+      svg.append(row);
+    });
+    $('seq-canvas').replaceChildren(svg);
+    setStep(0);
+  }
+  try {
+    const data = JSON.parse($('sequence-data').textContent);
+    if (!Array.isArray(data.flows) || data.flows.length === 0) throw new Error('缺少时序数据');
+    const seen = new Set();
+    for (const item of data.flows) {
+      if (!/^[a-z][a-z0-9-]*$/.test(item.id) || seen.has(item.id)) throw new Error('非法或重复场景');
+      seen.add(item.id);
+      const ids = new Set(item.actors.map(a => a.id));
+      if (ids.size !== item.actors.length || item.actors.length !== 5 || item.steps.length === 0) throw new Error('泳道或消息模型错误');
+      for (const step of item.steps) if (!ids.has(step.from) || !ids.has(step.to) || !colors[step.type] || typeof step.detail !== 'string') throw new Error('未知消息端点或类型');
+    }
+    function select(item, focus = false) {
+      stop();
+      flow = item;
+      $('seq-title').textContent = flow.title;
+      $('seq-description').textContent = flow.description;
+      for (const tab of $('seq-tabs').children) {
+        const active = tab.dataset.flow === item.id;
+        tab.setAttribute('aria-selected', String(active));
+        tab.tabIndex = active ? 0 : -1;
+      }
+      $('seq-panel').setAttribute('aria-labelledby', 'seq-tab-'+item.id);
+      draw();
+      if (focus) $('seq-tab-'+item.id).focus();
+    }
+    for (const [i, item] of data.flows.entries()) {
+      const tab = document.createElement('button');
+      tab.className = 'tab';
+      tab.id = 'seq-tab-'+item.id;
+      tab.dataset.flow = item.id;
+      tab.textContent = item.label;
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', 'seq-panel');
+      tab.addEventListener('click', () => select(item));
+      tab.addEventListener('keydown', event => {
+        let next = i;
+        if (event.key === 'ArrowRight') next = (i+1)%data.flows.length;
+        else if (event.key === 'ArrowLeft') next = (i-1+data.flows.length)%data.flows.length;
+        else if (event.key === 'Home') next = 0;
+        else if (event.key === 'End') next = data.flows.length-1;
+        else return;
+        event.preventDefault();
+        select(data.flows[next], true);
+      });
+      $('seq-tabs').append(tab);
+    }
+    $('seq-reset').addEventListener('click', () => {stop();setStep(0);});
+    $('seq-prev').addEventListener('click', () => {stop();setStep(selected-1);});
+    $('seq-next').addEventListener('click', () => {stop();setStep(selected+1);});
+    $('seq-play').addEventListener('click', () => {
+      if (timer) {stop();return;}
+      if (selected === flow.steps.length-1) setStep(0);
+      $('seq-play').textContent = '暂停播放';
+      $('seq-play').setAttribute('aria-pressed', 'true');
+      timer = setInterval(() => setStep(selected+1), 1400);
+    });
+    $('seq-data-only').addEventListener('change', event => $('seq-canvas').classList.toggle('seq-data-only', event.target.checked));
+    document.addEventListener('visibilitychange', () => {if (document.hidden) stop();});
+    window.addEventListener('beforeprint', stop);
+    select(data.flows[0]);
+    document.documentElement.dataset.sequenceReady = 'true';
+  } catch (error) {
+    stop();
+    $('seq-detail-title').textContent = '时序图模型校验失败';
+    $('seq-detail').textContent = error.message;
+    console.error(error);
+  }
+})();
+</script>
+</body>
+</html>

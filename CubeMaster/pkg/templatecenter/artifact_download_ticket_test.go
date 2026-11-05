@@ -48,7 +48,7 @@ func TestArtifactDownloadRejectsDeletedReplicaAndForgedToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	refresh, err := buildArtifactDownloadRefreshToken(ctx, artifact, nodeID, time.Now())
+	refresh, err := BuildArtifactDownloadRefreshToken(ctx, artifact, nodeID, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,19 +86,20 @@ func TestArtifactDownloadRejectsDeletedReplicaAndForgedToken(t *testing.T) {
 }
 
 func TestArtifactDownloadAnnotationsModeSnapshot(t *testing.T) {
-	artifact := &models.RootfsArtifact{ArtifactID: "artifact-1", MasterNodeIP: "http://master.example:8089", DownloadToken: "existing-token", StorageBackend: "fs"}
-	for _, direct := range []bool{false, true} {
-		annotations, err := artifactDownloadAnnotationsForMode(context.Background(), artifact, "", direct)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if direct {
-			if annotations[constants.CubeAnnotationRootfsArtifactTicketURL] == "" || annotations[constants.CubeAnnotationRootfsArtifactURL] != "" || annotations[constants.CubeAnnotationRootfsArtifactToken] != "" {
-				t.Fatal("direct mode mixed with legacy protocol")
-			}
-		} else if annotations[constants.CubeAnnotationRootfsArtifactURL] == "" || annotations[constants.CubeAnnotationRootfsArtifactToken] != artifact.DownloadToken || annotations[constants.CubeAnnotationRootfsArtifactTicketURL] != "" {
-			t.Fatal("proxy mode mixed with ticket protocol")
-		}
+	artifact := &models.RootfsArtifact{ArtifactID: "artifact-1", MasterNodeIP: "http://master.example:8089", DownloadToken: "existing-token", StorageBackend: "fs", OwnerTCDownloadBase: "http://tc.internal:8080"}
+	annotations, err := artifactDownloadAnnotations(context.Background(), artifact, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if annotations[constants.CubeAnnotationRootfsArtifactTicketURL] == "" || annotations[constants.CubeAnnotationRootfsArtifactURL] != "" || annotations[constants.CubeAnnotationRootfsArtifactToken] != "" {
+		t.Fatal("ticket protocol mixed with legacy annotations")
+	}
+	// Cubelet fetches the ticket from Master but downloads fs/TC bytes
+	// straight from the owner TC: the pinned origin must be TC's, not
+	// Master's ticket-issuing origin, or every download would fail
+	// Cubelet's origin check.
+	if annotations[constants.CubeAnnotationRootfsArtifactDownloadOrigin] != "http://tc.internal:8080" {
+		t.Fatalf("fs origin = %q, want the owner TC origin", annotations[constants.CubeAnnotationRootfsArtifactDownloadOrigin])
 	}
 }
 
@@ -166,8 +167,8 @@ func TestBuildArtifactDownloadTicketForTemplateCenter(t *testing.T) {
 	if ticket.Method != "GET" ||
 		ticket.Headers[artifactticket.DownloadTokenHeader] != ticket.Token ||
 		ticket.Headers[artifactticket.DownloadNodeIDHeader] != "node-1" ||
-		ticket.Source != artifactticket.SourceMaster ||
-		ticket.URL != "http://master.example:8089/internal/template/artifacts/artifact-1/ext4" ||
+		ticket.Source != artifactticket.SourceTemplateCenter ||
+		ticket.URL != "http://tc.internal:8080/base/internal/artifacts/artifact-1/ext4" ||
 		ticket.ExpiresAt.Sub(now) != 2*time.Hour ||
 		ticket.SizeBytes != artifact.Ext4SizeBytes ||
 		ticket.SHA256 != artifact.Ext4SHA256 {
@@ -191,7 +192,7 @@ func TestBuildArtifactDownloadRefreshToken(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Unix(1_800_000_000, 0)
-	token, err := buildArtifactDownloadRefreshToken(context.Background(), &models.RootfsArtifact{
+	token, err := BuildArtifactDownloadRefreshToken(context.Background(), &models.RootfsArtifact{
 		ArtifactID:    "artifact-1",
 		Generation:    7,
 		DownloadToken: strings.Repeat("refresh-key-", 3),

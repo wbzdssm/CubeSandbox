@@ -241,7 +241,7 @@ func distributeRootfsArtifactToNodes(ctx context.Context, req *types.CreateTempl
 			var err error
 			refreshToken := ""
 			if spec.Annotations[constants.CubeAnnotationRootfsArtifactTicketURL] != "" {
-				refreshToken, err = buildArtifactDownloadRefreshToken(ctx, artifact, target.ID(), time.Now())
+				refreshToken, err = BuildArtifactDownloadRefreshToken(ctx, artifact, target.ID(), time.Now())
 			}
 			if err != nil {
 				lock.Lock()
