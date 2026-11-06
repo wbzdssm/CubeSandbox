@@ -171,9 +171,12 @@ func newTemplateListSQLiteDB(t *testing.T) *gorm.DB {
 		}
 	}
 	oldDB := store.db
+	oldRegistryAuthoritative := cleanupNodeRegistryAuthoritative
 	store.db = db
+	cleanupNodeRegistryAuthoritative = func() bool { return false }
 	t.Cleanup(func() {
 		store.db = oldDB
+		cleanupNodeRegistryAuthoritative = oldRegistryAuthoritative
 	})
 	return db
 }
