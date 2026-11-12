@@ -9,7 +9,7 @@ on:
 jobs:
   check-oidc:
     runs-on: ubuntu-latest
-    environment: CUBE_NPM_TOKEN
+    environment: CUBE_NPM_ENV
     permissions:
       contents: read
       id-token: write
