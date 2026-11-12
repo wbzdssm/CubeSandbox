@@ -1,5 +1,6 @@
 name: Test GitHub OIDC
 
+# Temporary smoke test: requests an OIDC token only; does not contact npm.
 on:
   push:
     branches:
