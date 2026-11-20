@@ -20,6 +20,7 @@ from ._exceptions import ApiError, InvalidArgumentException, NotFoundException
 from ._volume_config import ApiParams, HttpVersion, ProxyTypes, VolumeApiParams, resolve_http_version
 from ._volume_content import DualMethod, S3VolumeContent, VolumeContent, VolumeEntryStat
 from ._volume_errors import check_volume_response
+from ._volume_files import VolumeFiles
 
 MAX_VOLUME_NAME_LEN = 128
 MAX_VOLUME_PRIVATE_DATA_LEN = 1024
@@ -243,6 +244,10 @@ class Volume:
         self._storage_credentials_expires_at = 0
         self._storage_content: S3VolumeContent | None = None
         self._storage_credentials_lock = threading.Lock()
+
+    @property
+    def files(self) -> VolumeFiles:
+        return VolumeFiles(self)
 
     @property
     def volume_id(self) -> str:

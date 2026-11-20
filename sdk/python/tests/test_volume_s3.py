@@ -4,9 +4,11 @@ import io
 from datetime import datetime, timezone
 from typing import Any
 
+import httpx
 import pytest
 
-from cubesandbox import VolumeFileType, VolumePathNotFoundException
+from cubesandbox import FileType, Volume, VolumeFileType, VolumePathNotFoundException
+from cubesandbox._volume import _VolumeSession
 from cubesandbox._volume_content import S3VolumeContent
 
 
@@ -119,6 +121,27 @@ def test_s3_volume_content_accepts_file_objects_and_force_false(credentials):
     assert not stream.closed
     with pytest.raises(FileExistsError):
         content.write_file("/stream.bin", b"replacement", force=False)
+
+
+def test_connected_volume_files_read_committed_s3_object(credentials, monkeypatch):
+    client = FakeS3Client()
+    client.objects["volumes/vol-s3/reports/data.bin"] = (b"\x00\xff", {})
+    monkeypatch.setattr(_VolumeSession, "get", lambda *args, **kwargs: httpx.Response(
+        200, json={"volumeID": "vol-s3", "name": "test"}))
+    monkeypatch.setattr(_VolumeSession, "post", lambda *args, **kwargs: httpx.Response(
+        200, json=credentials))
+    monkeypatch.setattr("cubesandbox._volume.time.time", lambda: credentials["expires_at"] - 600)
+    monkeypatch.setattr(S3VolumeContent, "_new_client", staticmethod(lambda *args: client))
+
+    files = Volume.connect("vol-s3").files
+    assert files.list()[0].type is FileType.DIR
+    [entry] = files.list("reports")
+    assert entry.path == "reports/data.bin"
+    assert files.exists(entry.path) and not files.exists("reports/missing")
+    assert files.read(entry.path, format="bytes") == b"\x00\xff"
+    chunks = files.read(entry.path, format="stream")
+    assert iter(chunks) is chunks
+    assert b"".join(chunks) == b"\x00\xff"
 
 
 def test_s3_volume_content_rejects_credentials_outside_volume_scope(credentials):

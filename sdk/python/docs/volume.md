@@ -220,10 +220,21 @@ unverified.
 | `vol.update_metadata(path, ...)` | — | unsupported in direct S3 mode |
 
 `Volume.list()` / `Volume.get_info(volume_id)` keep their management meaning.
-Instance calls require an absolute path **within the volume**; NUL, backslashes
+The instance methods in the table require an absolute path **within the volume**; NUL, backslashes
 and dot traversal segments are rejected. The object key is the server-selected
 credential prefix plus the path without its leading slash. Client validation
 supplements, but never replaces, the Hook's prefix-scoped cloud policy.
+
+The read-only `vol.files` interface takes paths relative to the volume root.
+`list()` lists the root and returns `FileEntry` objects with reusable relative paths.
+`read` defaults to text and also accepts `format="bytes"` or `format="stream"`.
+Reads see data committed to the backend.
+
+```python
+vol = Volume.connect("my-data")
+if vol.files.exists("reports/output.pdf"):
+    pdf = vol.files.read("reports/output.pdf", format="bytes")
+```
 
 `mode`, `uid` and `gid` may be recorded as object metadata, but they do not
 provide POSIX permissions. Direct S3 access does not implement atomic rename,

@@ -7,6 +7,11 @@ Python SDK 的普通 Volume 文件操作通过管理 API 获取短时、单卷�
 
 ## 配置与鉴权
 
+`vol.files` 的三个只读方法都接受卷内相对路径。`vol.files.list()` 列出根目录，
+返回的 `FileEntry.path` 可以直接传给 `vol.files.read` 或 `vol.files.exists`。
+例如，`Volume.connect("my-data").files.read("reports/output.pdf", format="bytes")`
+读取后端已提交的 PDF 内容。省略 `format` 时返回文本，传入 `"stream"` 时返回字节块迭代器。
+
 | 配置 | 用途 |
 |---|---|
 | `CUBE_API_URL` / `E2B_API_URL` 或 `Config.api_url` | 管理 API：CRUD 与申请对象存储凭证 |

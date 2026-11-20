@@ -94,7 +94,7 @@ def test_stream_matches_buffered_read(volume, settings):
     path = settings["CUBE_VOLUME_TEST_PATH"]
     expected = hashlib.sha256(volume.read_file(path, format="bytes")).digest()
     digest = hashlib.sha256()
-    with closing(volume.read_file(path, format="stream")) as chunks:
+    with closing(volume.files.read(path.lstrip("/"), format="stream")) as chunks:
         for chunk in chunks:
             assert type(chunk) is bytes
             digest.update(chunk)

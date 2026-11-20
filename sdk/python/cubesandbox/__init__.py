@@ -12,6 +12,7 @@ from ._volume import Volume, VolumeInfo, VolumeAndToken, VolumeMount
 from ._volume_config import ApiParams, VolumeApiParams, HttpVersion, ProxyTypes
 from ._exceptions import AuthenticationException, RateLimitException, ServiceBusyException, InvalidArgumentException
 from ._volume_content import VolumeEntryStat, VolumeFileType
+from ._volume_files import FileEntry, FileType
 from ._exceptions import VolumePathNotFoundError, VolumeContentUnavailableError, VolumeException, VolumeNotFoundException, VolumePathNotFoundException, NotFoundException
 from ._policy import Rule, Match, Action, Inject
 
@@ -43,6 +44,8 @@ __all__ = [
     "TemplateInfo",
     "TemplateBuild",
     "Volume",
+    "FileEntry",
+    "FileType",
     "VolumeInfo",
     "VolumeAndToken",
     "VolumeException",

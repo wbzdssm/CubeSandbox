@@ -6,6 +6,7 @@ from __future__ import annotations
 import io
 import json
 import threading
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlsplit
@@ -15,10 +16,13 @@ import pytest
 
 from cubesandbox import (
     ApiError,
+    FileEntry,
+    FileType,
     Volume,
     VolumeContentUnavailableError,
     VolumeEntryStat,
     VolumeFileType,
+    VolumeNotFoundError,
     VolumePathNotFoundError,
 )
 from cubesandbox._config import Config
@@ -101,6 +105,46 @@ def test_read_direct_without_sandbox(gateway, format, expected):
     assert calls[-1].url.params["path"] == "/a space/#中文.txt"
     assert calls[-1].url.path.endswith("/file")
     assert clients[-1].is_closed
+
+
+def test_volume_files_list_returns_reusable_relative_paths(gateway):
+    volume, calls, _, responder = gateway
+    responder["handler"] = lambda req: httpx.Response(200, json=[
+        entry("/reports", type="directory", mode=0o755),
+        entry("/summary.txt", uid=42, gid=23),
+        entry("/latest", type="symlink", target="summary.txt", mode=0o777),
+    ])
+    directory, summary, link = volume.files.list()
+    assert calls[-1].url.params["path"] == "/"
+    assert directory.type is FileType.DIR and directory.permissions == "drwxr-xr-x"
+    assert summary == FileEntry(
+        name="summary.txt", type=FileType.FILE, path="summary.txt", size=3, mode=0o644,
+        permissions="-rw-r--r--", owner="42", group="23",
+        modified_time=datetime(2026, 10, 30, 1, 2, 3, tzinfo=timezone.utc).timestamp(),
+        symlink_target=None,
+    )
+    assert link.symlink_target == "summary.txt" and link.permissions == "lrwxrwxrwx"
+    responder["handler"] = lambda req: httpx.Response(200, content=b"abc")
+    assert volume.files.read(summary.path) == "abc"
+    assert calls[-1].url.params["path"] == "/summary.txt"
+
+
+@pytest.mark.parametrize("path", ["/file", "../file", "dir/../file", "dir/./file", "a\\b", "a\x00b"])
+def test_volume_files_rejects_invalid_paths_before_transport(path):
+    volume = Volume("vol-test", "test")
+    with patch.object(volume, "_content") as content:
+        for operation in (volume.files.read, volume.files.list, volume.files.exists):
+            with pytest.raises(ValueError):
+                operation(path)
+        content.assert_not_called()
+
+
+def test_volume_files_exists_propagates_volume_lookup_errors():
+    volume = Volume("vol-test", "test")
+    with patch("cubesandbox._volume._shared_session") as session:
+        session.return_value.post.return_value = httpx.Response(404)
+        with pytest.raises(VolumeNotFoundError):
+            volume.files.exists("missing")
 
 
 @pytest.mark.parametrize("data,expected", [
